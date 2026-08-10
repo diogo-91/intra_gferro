@@ -262,7 +262,7 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {KPIS.map((k) => (
-          <div key={k.titulo} className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-2">
+          <div key={k.titulo} className="p-4 rounded-2xl bg-neutral-100 border border-neutral-200/50 space-y-2">
             <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center">
               <k.Icon className="w-4 h-4 text-yellow-600" aria-hidden="true" />
             </div>
