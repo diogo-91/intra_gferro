@@ -329,6 +329,238 @@ export interface Enquete {
   criadoEm: string; // ISO
 }
 
+// ---- SAC / Pós-Vendas ----
+// Atendimento externo ao cliente (reclamação, dúvida, troca, devolução...).
+// O SAC é sempre o responsável pelo atendimento; "solicitações internas"
+// pedem análise de outro setor SEM transferir a responsabilidade.
+
+export type SacStatus =
+  | 'Novo'
+  | 'Em atendimento'
+  | 'Em análise interna'
+  | 'Aguardando Qualidade'
+  | 'Aguardando Produção'
+  | 'Aguardando Logística'
+  | 'Aguardando Comercial'
+  | 'Aguardando Financeiro'
+  | 'Aguardando cliente'
+  | 'Solução proposta'
+  | 'Resolvido'
+  | 'Cancelado'
+  | 'Improcedente';
+
+export type SacPrioridade = 'Baixa' | 'Normal' | 'Alta' | 'Urgente';
+
+export type SacProcedencia = 'Não analisado' | 'Procedente' | 'Parcialmente procedente' | 'Improcedente';
+
+export type SacTipoAtendimento =
+  | 'Reclamação de qualidade'
+  | 'Divergência de quantidade'
+  | 'Material avariado'
+  | 'Produto incorreto'
+  | 'Atraso na entrega'
+  | 'Problema com transporte'
+  | 'Problema com nota fiscal'
+  | 'Problema comercial'
+  | 'Solicitação de certificado'
+  | 'Dúvida técnica'
+  | 'Troca'
+  | 'Devolução'
+  | 'Solicitação de crédito'
+  | 'Elogio'
+  | 'Sugestão'
+  | 'Outros';
+
+export type SacCanal = 'Telefone' | 'WhatsApp' | 'E-mail' | 'Site' | 'Presencial' | 'Vendedor' | 'Outro';
+
+export type SacDepartamentoInterno = 'Qualidade' | 'Produção' | 'PCP' | 'Logística' | 'Comercial' | 'Financeiro' | 'Tecnologia' | 'Outro';
+
+export type SacStatusSolicitacao = 'Pendente' | 'Em análise' | 'Respondido' | 'Cancelado';
+
+export type SacTipoSolucao =
+  | 'Orientação ao cliente'
+  | 'Reposição de material'
+  | 'Troca'
+  | 'Devolução'
+  | 'Reentrega'
+  | 'Crédito'
+  | 'Desconto'
+  | 'Bonificação'
+  | 'Ressarcimento'
+  | 'Emissão de novo documento'
+  | 'Novo certificado'
+  | 'Ajuste financeiro'
+  | 'Reclamação improcedente'
+  | 'Outro';
+
+export type SacStatusAprovacao = 'Aguardando aprovação' | 'Aprovado' | 'Reprovado';
+
+export interface SacAnexo {
+  id: string;
+  nome: string;
+  url: string;
+  tipo: string; // mime type
+  tamanho: number; // bytes
+  descricao?: string;
+  enviadoPor: string;
+  criadoEm: string; // ISO
+}
+
+export interface SacInteracao {
+  id: string;
+  data: string; // ISO
+  usuario: string;
+  canal: SacCanal;
+  tipo: 'Ligação' | 'WhatsApp' | 'E-mail' | 'Reunião' | 'Retorno ao cliente' | 'Informação recebida' | 'Observação';
+  descricao: string;
+  anexos: SacAnexo[];
+}
+
+export interface SacRespostaSolicitacao {
+  parecer: string;
+  descricaoTecnica?: string;
+  anexos: SacAnexo[];
+  responsavel: string;
+  data: string; // ISO
+}
+
+export interface SacSolicitacaoInterna {
+  id: string;
+  departamento: SacDepartamentoInterno;
+  usuarioResponsavel?: string;
+  solicitacao: string;
+  prazo?: string; // ISO
+  prioridade: SacPrioridade;
+  status: SacStatusSolicitacao;
+  anexos: SacAnexo[];
+  resposta?: SacRespostaSolicitacao;
+  criadoPor: string;
+  criadoEm: string; // ISO
+}
+
+export interface SacNaoConformidade {
+  numero: string; // NC-000001
+  departamentoResponsavel: SacDepartamentoInterno;
+  descricao: string;
+  causa?: string;
+  acaoCorretiva?: string;
+  status: 'Aberta' | 'Em andamento' | 'Concluída';
+  responsavel?: string;
+  dataConclusao?: string; // ISO
+  criadoEm: string; // ISO
+}
+
+export interface SacSolucao {
+  tipo: SacTipoSolucao;
+  descricao: string;
+  quantidadeEnvolvida?: string;
+  valorFinanceiro?: number;
+  necessitaAprovacao: boolean;
+  statusAprovacao?: SacStatusAprovacao;
+  aprovador?: string;
+  dataAprovacao?: string; // ISO
+  observacoes?: string;
+  definidoPor: string;
+  definidoEm: string; // ISO
+}
+
+export interface SacHistoricoEvento {
+  id: string;
+  usuario: string;
+  acao: string;
+  valorAnterior?: string;
+  valorNovo?: string;
+  data: string; // ISO
+}
+
+export interface SacProdutoReclamado {
+  id: string;
+  produto: string;
+  descricao?: string;
+  codigo?: string;
+  bitola?: string;
+  espessura?: string;
+  largura?: string;
+  comprimento?: string;
+  quantidadeVendida?: string;
+  quantidadeReclamada?: string;
+  unidadeMedida?: string;
+  peso?: string;
+  lote?: string;
+  corrida?: string;
+  certificado?: boolean;
+  numeroCertificado?: string;
+}
+
+export interface SacAtendimento {
+  id: string;
+  protocolo: string; // SAC-000001
+
+  // Dados do cliente
+  cliente: string;
+  nomeFantasia?: string;
+  cnpjCpf?: string;
+  contato?: string;
+  telefone?: string;
+  whatsapp?: string;
+  email?: string;
+  cidade?: string;
+  estado?: string;
+
+  // Dados comerciais
+  vendedor?: string;
+  numeroPedido?: string;
+  numeroNF?: string;
+  dataVenda?: string; // aaaa-mm-dd
+  dataEmissaoNF?: string; // aaaa-mm-dd
+  dataEntrega?: string; // aaaa-mm-dd
+  transportadora?: string;
+  numeroOC?: string;
+
+  // Produtos envolvidos
+  produtos: SacProdutoReclamado[];
+
+  // Dados do atendimento
+  tipo: SacTipoAtendimento;
+  assunto: string;
+  descricao: string;
+  prioridade: SacPrioridade;
+  canal: SacCanal;
+  responsavelSac?: string;
+  prazo?: string; // ISO
+
+  status: SacStatus;
+
+  // Procedência
+  procedencia: SacProcedencia;
+  procedenciaMotivo?: string;
+  procedenciaResponsavel?: string;
+  procedenciaData?: string; // ISO
+
+  naoConformidade?: SacNaoConformidade;
+  solucao?: SacSolucao;
+
+  // Encerramento
+  clienteComunicado?: boolean;
+  canalComunicacaoEncerramento?: SacCanal;
+  clienteConfirmouSolucao?: 'Sim' | 'Não' | 'Não aplicável';
+  observacaoFinal?: string;
+  dataResolucao?: string; // ISO
+
+  // Motivo de cancelamento/reabertura
+  motivoCancelamento?: string;
+  motivoReabertura?: string;
+
+  interacoes: SacInteracao[];
+  solicitacoesInternas: SacSolicitacaoInterna[];
+  anexos: SacAnexo[];
+  historico: SacHistoricoEvento[];
+
+  criadoPor: string;
+  criadoEm: string; // ISO
+  atualizadoEm: string; // ISO
+}
+
 export interface NotificationItem {
   id: string;
   title: string;

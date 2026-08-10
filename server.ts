@@ -1,6 +1,9 @@
 import express from 'express';
 import path from 'path';
+import { mkdir } from 'fs/promises';
+import { randomUUID } from 'crypto';
 import cookieParser from 'cookie-parser';
+import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
@@ -14,6 +17,7 @@ import { COMPOSICAO_MATERIA_PRIMA } from './src/data/composicaoMateriaPrima';
 import { salvarReprogramacao, removerReprogramacao, TipoConta } from './reprogramacoes';
 import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './funcionarios';
 import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
+import * as sac from './sac';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao } from './auth';
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
@@ -97,6 +101,10 @@ async function startServer() {
   app.post('/api/auth/logout', logoutHandler);
   app.get('/api/auth/me', meHandler);
   app.use('/api', exigirAutenticacao);
+
+  // Anexos do SAC — servidos como arquivo estático, mas atrás do mesmo login
+  // da intranet (não é rota /api, então o middleware acima não cobre).
+  app.use('/uploads/sac', exigirAutenticacao, express.static(sac.PASTA_UPLOADS_SAC));
 
   app.post('/api/chat', async (req, res) => {
     try {
@@ -520,6 +528,226 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao registrar voto', details: error.message });
     }
   });
+
+  // ---- SAC / Pós-Vendas ----
+  // Atendimento externo ao cliente — ver comentário no topo de sac.ts.
+  function rotaSac(handler: (req: express.Request, res: express.Response) => Promise<void | express.Response>) {
+    return async (req: express.Request, res: express.Response) => {
+      try {
+        await handler(req, res);
+      } catch (error: any) {
+        console.error('Erro no SAC:', error);
+        res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao processar solicitação', details: error.message });
+      }
+    };
+  }
+
+  function usuarioDe(req: express.Request): string {
+    const usuario = req.body?.usuario;
+    if (typeof usuario !== 'string' || !usuario.trim()) {
+      throw Object.assign(new Error('Usuário não informado.'), { status: 400 });
+    }
+    return usuario.trim();
+  }
+
+  const uploadSac = multer({
+    storage: multer.diskStorage({
+      destination: async (_req, _file, cb) => {
+        await mkdir(sac.PASTA_UPLOADS_SAC, { recursive: true });
+        cb(null, sac.PASTA_UPLOADS_SAC);
+      },
+      filename: (_req, file, cb) => {
+        cb(null, `${randomUUID()}-${file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`);
+      },
+    }),
+    limits: { fileSize: 25 * 1024 * 1024 },
+  });
+
+  app.get(
+    '/api/sac/atendimentos',
+    rotaSac(async (_req, res) => {
+      res.json(await sac.listarAtendimentos());
+    })
+  );
+
+  app.get(
+    '/api/sac/atendimentos/:id',
+    rotaSac(async (req, res) => {
+      res.json(await sac.obterAtendimento(req.params.id));
+    })
+  );
+
+  app.get(
+    '/api/sac/atendimentos/:id/alertas',
+    rotaSac(async (req, res) => {
+      res.json(await sac.calcularAlertasReincidencia(req.params.id));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos',
+    rotaSac(async (req, res) => {
+      const { usuario, ...dados } = req.body || {};
+      res.json(await sac.criarAtendimento(dados, usuarioDe(req)));
+    })
+  );
+
+  app.patch(
+    '/api/sac/atendimentos/:id',
+    rotaSac(async (req, res) => {
+      const { usuario, ...patch } = req.body || {};
+      res.json(await sac.editarDadosGerais(req.params.id, patch, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/status',
+    rotaSac(async (req, res) => {
+      if (!req.body?.status) return res.status(400).json({ error: 'Informe o novo status.' });
+      res.json(await sac.alterarStatus(req.params.id, req.body.status, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/prioridade',
+    rotaSac(async (req, res) => {
+      if (!req.body?.prioridade) return res.status(400).json({ error: 'Informe a nova prioridade.' });
+      res.json(await sac.alterarPrioridade(req.params.id, req.body.prioridade, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/responsavel',
+    rotaSac(async (req, res) => {
+      if (!req.body?.responsavel) return res.status(400).json({ error: 'Informe o novo responsável.' });
+      res.json(await sac.alterarResponsavel(req.params.id, req.body.responsavel, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/interacoes',
+    rotaSac(async (req, res) => {
+      const { usuario, ...dados } = req.body || {};
+      if (!dados.canal || !dados.tipo || !dados.descricao?.trim()) {
+        return res.status(400).json({ error: 'Informe canal, tipo e descrição da interação.' });
+      }
+      res.json(await sac.adicionarInteracao(req.params.id, dados, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/solicitacoes',
+    rotaSac(async (req, res) => {
+      const { usuario, ...dados } = req.body || {};
+      if (!dados.departamento || !dados.solicitacao?.trim() || !dados.prioridade) {
+        return res.status(400).json({ error: 'Informe departamento, solicitação e prioridade.' });
+      }
+      res.json(await sac.solicitarAnaliseInterna(req.params.id, dados, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/solicitacoes/:solicitacaoId/resposta',
+    rotaSac(async (req, res) => {
+      const { usuario, ...resposta } = req.body || {};
+      if (!resposta.parecer?.trim() || !resposta.responsavel?.trim()) {
+        return res.status(400).json({ error: 'Informe o parecer e o responsável pela resposta.' });
+      }
+      res.json(await sac.responderSolicitacao(req.params.id, req.params.solicitacaoId, resposta, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/procedencia',
+    rotaSac(async (req, res) => {
+      const { usuario, ...dados } = req.body || {};
+      if (!dados.procedencia || !dados.responsavel?.trim()) {
+        return res.status(400).json({ error: 'Informe a procedência e o responsável pela análise.' });
+      }
+      res.json(await sac.definirProcedencia(req.params.id, dados, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/nao-conformidade',
+    rotaSac(async (req, res) => {
+      const { usuario, ...dados } = req.body || {};
+      if (!dados.departamentoResponsavel || !dados.descricao?.trim()) {
+        return res.status(400).json({ error: 'Informe o departamento responsável e a descrição da não conformidade.' });
+      }
+      res.json(await sac.abrirNaoConformidade(req.params.id, dados, usuarioDe(req)));
+    })
+  );
+
+  app.patch(
+    '/api/sac/atendimentos/:id/nao-conformidade',
+    rotaSac(async (req, res) => {
+      const { usuario, ...patch } = req.body || {};
+      res.json(await sac.atualizarNaoConformidade(req.params.id, patch, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/solucao',
+    rotaSac(async (req, res) => {
+      const { usuario, ...dados } = req.body || {};
+      if (!dados.tipo || !dados.descricao?.trim()) {
+        return res.status(400).json({ error: 'Informe o tipo e a descrição da solução.' });
+      }
+      res.json(await sac.definirSolucao(req.params.id, dados, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/solucao/aprovacao',
+    rotaSac(async (req, res) => {
+      if (typeof req.body?.aprovado !== 'boolean' || !req.body?.aprovador?.trim()) {
+        return res.status(400).json({ error: 'Informe a decisão (aprovado) e o aprovador.' });
+      }
+      res.json(await sac.decidirAprovacaoSolucao(req.params.id, req.body.aprovado, req.body.aprovador, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/encerrar',
+    rotaSac(async (req, res) => {
+      const { usuario, ...dados } = req.body || {};
+      if (!dados.resultado || !dados.clienteConfirmouSolucao || typeof dados.clienteComunicado !== 'boolean') {
+        return res.status(400).json({ error: 'Informe o resultado, se o cliente foi comunicado e se confirmou a solução.' });
+      }
+      res.json(await sac.encerrarAtendimento(req.params.id, dados, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/reabrir',
+    rotaSac(async (req, res) => {
+      if (!req.body?.motivo?.trim()) return res.status(400).json({ error: 'Informe o motivo da reabertura.' });
+      res.json(await sac.reabrirAtendimento(req.params.id, req.body.motivo, usuarioDe(req)));
+    })
+  );
+
+  app.post(
+    '/api/sac/atendimentos/:id/cancelar',
+    rotaSac(async (req, res) => {
+      if (!req.body?.motivo?.trim()) return res.status(400).json({ error: 'Informe o motivo do cancelamento.' });
+      res.json(await sac.cancelarAtendimento(req.params.id, req.body.motivo, usuarioDe(req)));
+    })
+  );
+
+  app.post('/api/sac/atendimentos/:id/anexos', uploadSac.single('arquivo'), rotaSac(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    const usuario = usuarioDe(req);
+    const anexo = {
+      nome: req.file.originalname,
+      url: `/uploads/sac/${req.file.filename}`,
+      tipo: req.file.mimetype,
+      tamanho: req.file.size,
+      descricao: typeof req.body?.descricao === 'string' && req.body.descricao.trim() ? req.body.descricao.trim() : undefined,
+      enviadoPor: usuario,
+    };
+    res.json(await sac.adicionarAnexo(req.params.id, anexo, usuario));
+  }));
 
   // Vite middleware in dev mode
   if (process.env.NODE_ENV !== 'production') {
