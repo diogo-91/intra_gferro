@@ -138,80 +138,74 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
                 <h2 className="text-xl font-black text-neutral-900 tracking-tight">
                   Módulo de {selectedDepartment.name}
                 </h2>
-                <p className="text-xs text-neutral-600">
-                  {selectedDepartment.description || 'Estrutura do setor ainda não cadastrada.'}
-                </p>
+                {selectedDepartment.description && (
+                  <p className="text-xs text-neutral-600">
+                    {selectedDepartment.description}
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-3 shrink-0 bg-neutral-50 p-3 rounded-2xl border border-neutral-100">
-              {selectedDepartment.manager ? (
-                <>
-                  <img
-                    src={selectedDepartment.manager.avatar}
-                    alt={selectedDepartment.manager.name}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400"
-                  />
-                  <div className="text-xs">
-                    <span className="text-[10px] text-neutral-500 uppercase font-bold block">Gestor do Módulo</span>
-                    <span className="font-bold text-neutral-900 block">{selectedDepartment.manager.name}</span>
-                    <span className="text-[10px] font-mono text-yellow-600">Ramal {selectedDepartment.ramal}</span>
-                  </div>
-                </>
-              ) : (
+            {selectedDepartment.manager && (
+              <div className="flex items-center gap-3 shrink-0 bg-neutral-50 p-3 rounded-2xl border border-neutral-100">
+                <img
+                  src={selectedDepartment.manager.avatar}
+                  alt={selectedDepartment.manager.name}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400"
+                />
                 <div className="text-xs">
                   <span className="text-[10px] text-neutral-500 uppercase font-bold block">Gestor do Módulo</span>
-                  <span className="font-bold text-neutral-400 block">Ainda não definido</span>
+                  <span className="font-bold text-neutral-900 block">{selectedDepartment.manager.name}</span>
+                  <span className="text-[10px] font-mono text-yellow-600">Ramal {selectedDepartment.ramal}</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Projetos-chave e responsabilidades do setor selecionado — dado
-              real (mockData.ts), sem KPIs "ao vivo" fictícios. */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="p-6 rounded-[2rem] bg-white border border-neutral-200 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Layers className="w-5 h-5 text-yellow-600" aria-hidden="true" />
-                <h3 className="text-sm font-extrabold text-neutral-900 uppercase tracking-wider">
-                  Projetos em Destaque
-                </h3>
-              </div>
-              {selectedDepartment.keyProjects.length === 0 ? (
-                <p className="text-xs text-neutral-500">Nenhum projeto cadastrado ainda.</p>
-              ) : (
-                <ul className="space-y-2.5 text-xs text-neutral-600">
-                  {selectedDepartment.keyProjects.map((projeto) => (
-                    <li key={projeto} className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 mt-1.5 shrink-0" aria-hidden="true" />
-                      <span>{projeto}</span>
-                    </li>
-                  ))}
-                </ul>
+              real (mockData.ts), sem KPIs "ao vivo" fictícios. Setor sem dado
+              cadastrado ainda não mostra os cards (nada de placeholder vazio). */}
+          {(selectedDepartment.keyProjects.length > 0 || selectedDepartment.responsibilities.length > 0) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {selectedDepartment.keyProjects.length > 0 && (
+                <div className="p-6 rounded-[2rem] bg-white border border-neutral-200 space-y-4 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-yellow-600" aria-hidden="true" />
+                    <h3 className="text-sm font-extrabold text-neutral-900 uppercase tracking-wider">
+                      Projetos em Destaque
+                    </h3>
+                  </div>
+                  <ul className="space-y-2.5 text-xs text-neutral-600">
+                    {selectedDepartment.keyProjects.map((projeto) => (
+                      <li key={projeto} className="flex items-start gap-2.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 mt-1.5 shrink-0" aria-hidden="true" />
+                        <span>{projeto}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
-            </div>
 
-            <div className="p-6 rounded-[2rem] bg-white border border-neutral-200 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-yellow-600" aria-hidden="true" />
-                <h3 className="text-sm font-extrabold text-neutral-900 uppercase tracking-wider">
-                  Responsabilidades do Setor
-                </h3>
-              </div>
-              {selectedDepartment.responsibilities.length === 0 ? (
-                <p className="text-xs text-neutral-500">Nenhuma responsabilidade cadastrada ainda.</p>
-              ) : (
-                <ul className="space-y-2.5 text-xs text-neutral-600">
-                  {selectedDepartment.responsibilities.map((resp) => (
-                    <li key={resp} className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 mt-1.5 shrink-0" aria-hidden="true" />
-                      <span>{resp}</span>
-                    </li>
-                  ))}
-                </ul>
+              {selectedDepartment.responsibilities.length > 0 && (
+                <div className="p-6 rounded-[2rem] bg-white border border-neutral-200 space-y-4 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-yellow-600" aria-hidden="true" />
+                    <h3 className="text-sm font-extrabold text-neutral-900 uppercase tracking-wider">
+                      Responsabilidades do Setor
+                    </h3>
+                  </div>
+                  <ul className="space-y-2.5 text-xs text-neutral-600">
+                    {selectedDepartment.responsibilities.map((resp) => (
+                      <li key={resp} className="flex items-start gap-2.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 mt-1.5 shrink-0" aria-hidden="true" />
+                        <span>{resp}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
-          </div>
+          )}
 
         </div>
       )}
@@ -252,50 +246,47 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-xs text-neutral-600 leading-relaxed font-medium">
-                    {dept.description || 'Estrutura do setor ainda não cadastrada.'}
-                  </p>
+                  {dept.description && (
+                    <p className="text-xs text-neutral-600 leading-relaxed font-medium">
+                      {dept.description}
+                    </p>
+                  )}
 
-                  <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 flex items-center justify-between gap-4">
-                    {dept.manager ? (
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={dept.manager.avatar}
-                          alt={dept.manager.name}
-                          className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400 shrink-0"
-                        />
-                        <div className="min-w-0">
+                  {(dept.manager || dept.ramal) && (
+                    <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 flex items-center justify-between gap-4">
+                      {dept.manager && (
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={dept.manager.avatar}
+                            alt={dept.manager.name}
+                            className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <span className="text-[10px] text-neutral-500 uppercase font-bold block">
+                              Gestão do Setor
+                            </span>
+                            <span className="text-xs font-bold text-neutral-900 block truncate">
+                              {dept.manager.name}
+                            </span>
+                            <span className="text-[10px] text-neutral-500 block truncate">
+                              {dept.manager.role}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {dept.ramal && (
+                        <div className="text-right shrink-0">
                           <span className="text-[10px] text-neutral-500 uppercase font-bold block">
-                            Gestão do Setor
+                            Ramal Direto
                           </span>
-                          <span className="text-xs font-bold text-neutral-900 block truncate">
-                            {dept.manager.name}
-                          </span>
-                          <span className="text-[10px] text-neutral-500 block truncate">
-                            {dept.manager.role}
+                          <span className="text-xs font-mono font-extrabold text-yellow-600 block">
+                            {dept.ramal}
                           </span>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="min-w-0">
-                        <span className="text-[10px] text-neutral-500 uppercase font-bold block">
-                          Gestão do Setor
-                        </span>
-                        <span className="text-xs font-bold text-neutral-400 block">Ainda não definido</span>
-                      </div>
-                    )}
-
-                    {dept.ramal && (
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] text-neutral-500 uppercase font-bold block">
-                          Ramal Direto
-                        </span>
-                        <span className="text-xs font-mono font-extrabold text-yellow-600 block">
-                          {dept.ramal}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-neutral-200 flex flex-wrap items-center justify-between gap-2 text-xs">
