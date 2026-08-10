@@ -264,8 +264,6 @@ export default function App() {
               departments={departments}
               colaboradores={colaboradores}
               selectedDeptId={selectedDeptId}
-              onSelectDept={setSelectedDeptId}
-              setActiveTab={setActiveTab}
               onOpenNewChamado={() => setIsNewChamadoOpen(true)}
             />
           )}
