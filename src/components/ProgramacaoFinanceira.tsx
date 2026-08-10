@@ -1072,7 +1072,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
           </div>
 
           {/* Pendências + Calendário */}
-          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-6">
             {/* Sidebar — fila de pendências arrastável */}
             <div className="rounded-[2rem] bg-white border border-neutral-200 p-4 sm:p-5 space-y-3 xl:max-h-[760px] xl:overflow-hidden xl:flex xl:flex-col">
               <div className="flex items-center justify-between gap-2">
