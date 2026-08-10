@@ -13,6 +13,7 @@ import { gerarPdfRelatorioDetalhado } from './pdfRelatorioDetalhado';
 import { COMPOSICAO_MATERIA_PRIMA } from './src/data/composicaoMateriaPrima';
 import { salvarReprogramacao, removerReprogramacao, TipoConta } from './reprogramacoes';
 import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './funcionarios';
+import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao } from './auth';
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
@@ -472,6 +473,51 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
     } catch (error: any) {
       console.error('Erro ao remover funcionário:', error);
       res.status(500).json({ error: 'Erro ao remover funcionário', details: error.message });
+    }
+  });
+
+  // Enquete ativa do Dashboard ("Enquete da Semana") — cadastrada pelo RH.
+  app.get('/api/enquetes/atual', async (_req, res) => {
+    try {
+      const enquete = await obterEnqueteAtual();
+      res.json(enquete);
+    } catch (error: any) {
+      console.error('Erro ao buscar enquete atual:', error);
+      res.status(500).json({ error: 'Erro ao buscar enquete', details: error.message });
+    }
+  });
+
+  app.post('/api/enquetes', async (req, res) => {
+    try {
+      const { pergunta, opcoes } = req.body || {};
+      if (typeof pergunta !== 'string' || !pergunta.trim()) {
+        return res.status(400).json({ error: 'Informe a pergunta da enquete.' });
+      }
+      const opcoesLimpas = Array.isArray(opcoes)
+        ? opcoes.filter((o: unknown): o is string => typeof o === 'string' && o.trim().length > 0).map((o: string) => o.trim())
+        : [];
+      if (opcoesLimpas.length < 2) {
+        return res.status(400).json({ error: 'Informe ao menos 2 opções.' });
+      }
+      const nova = await criarEnquete({ pergunta: pergunta.trim(), opcoes: opcoesLimpas });
+      res.json(nova);
+    } catch (error: any) {
+      console.error('Erro ao criar enquete:', error);
+      res.status(500).json({ error: 'Erro ao criar enquete', details: error.message });
+    }
+  });
+
+  app.post('/api/enquetes/:id/votar', async (req, res) => {
+    try {
+      const { opcaoIndex } = req.body || {};
+      if (typeof opcaoIndex !== 'number') {
+        return res.status(400).json({ error: 'Informe a opção escolhida.' });
+      }
+      const atualizada = await registrarVoto(req.params.id, opcaoIndex);
+      res.json(atualizada);
+    } catch (error: any) {
+      console.error('Erro ao registrar voto na enquete:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao registrar voto', details: error.message });
     }
   });
 

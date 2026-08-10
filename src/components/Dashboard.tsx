@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { 
-  User, 
-  Comunicado, 
-  Documento, 
-  Colaborador, 
-  TabType 
+import React, { useEffect, useState } from 'react';
+import {
+  User,
+  Comunicado,
+  Documento,
+  Colaborador,
+  Enquete,
+  TabType
 } from '../types';
 import { 
   Sparkles, 
@@ -54,20 +55,56 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onLikeComunicado,
   onSelectComunicadoDetail,
 }) => {
-  // Interactive Poll State
-  const [votedOption, setVotedOption] = useState<number | null>(null);
-  const [pollVotes, setPollVotes] = useState<Record<number, number>>({});
+  // Enquete da Semana — cadastrada pelo RH (módulo RH > Adicionar Enquete),
+  // busca a enquete ativa real do servidor. Voto fica marcado no
+  // localStorage (chave por id da enquete) pra não deixar votar de novo
+  // nesse navegador, mesmo depois de recarregar a página.
+  const [enqueteAtual, setEnqueteAtual] = useState<Enquete | null>(null);
+  const [carregandoEnquete, setCarregandoEnquete] = useState(true);
+  const [opcaoVotada, setOpcaoVotada] = useState<number | null>(null);
+  const [votando, setVotando] = useState(false);
 
-  const handleVote = (optionIndex: number) => {
-    if (votedOption !== null) return;
-    setVotedOption(optionIndex);
-    setPollVotes((prev) => ({
-      ...prev,
-      [optionIndex]: (prev[optionIndex] || 0) + 1,
-    }));
+  useEffect(() => {
+    fetch('/api/enquetes/atual')
+      .then((res) => res.json())
+      .then((data: Enquete | null) => {
+        setEnqueteAtual(data);
+        if (data) {
+          const votoSalvo = localStorage.getItem(`enquete-voto-${data.id}`);
+          if (votoSalvo !== null) setOpcaoVotada(Number(votoSalvo));
+        }
+      })
+      .catch(() => setEnqueteAtual(null))
+      .finally(() => setCarregandoEnquete(false));
+  }, []);
+
+  const totalVotosEnquete = enqueteAtual ? enqueteAtual.votos.reduce((soma, v) => soma + v, 0) : 0;
+
+  const handleVote = async (opcaoIndex: number) => {
+    if (!enqueteAtual || opcaoVotada !== null || votando) return;
+    setVotando(true);
+    try {
+      const res = await fetch(`/api/enquetes/${enqueteAtual.id}/votar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opcaoIndex }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error);
+      setEnqueteAtual(data);
+      setOpcaoVotada(opcaoIndex);
+      localStorage.setItem(`enquete-voto-${data.id}`, String(opcaoIndex));
+    } catch {
+      // Enquete pode ter sido substituída por uma nova enquanto votava —
+      // recarrega o estado atual em vez de deixar a tela travada.
+      fetch('/api/enquetes/atual')
+        .then((res) => res.json())
+        .then(setEnqueteAtual)
+        .catch(() => setEnqueteAtual(null));
+    } finally {
+      setVotando(false);
+    }
   };
-
-  const totalPollVotes: number = Number(pollVotes[1] || 0) + Number(pollVotes[2] || 0) + Number(pollVotes[3] || 0);
 
   // Filter August birthdays
   const augustBirthdays = colaboradores.filter((c) => c.birthMonthDay.endsWith('/08'));
@@ -244,55 +281,59 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span>Enquete da Semana</span>
             </div>
 
-            <h3 className="text-sm font-bold text-neutral-900 leading-snug">
-              Qual tema você prefere para o treinamento da SIPAT GFERRO 2026?
-            </h3>
+            {carregandoEnquete ? (
+              <p className="text-xs text-neutral-500 py-4 text-center">Carregando...</p>
+            ) : !enqueteAtual ? (
+              <p className="text-xs text-neutral-500 py-4 text-center">Nenhuma enquete ativa no momento.</p>
+            ) : (
+              <>
+                <h3 className="text-sm font-bold text-neutral-900 leading-snug">
+                  {enqueteAtual.pergunta}
+                </h3>
 
-            <div className="space-y-2.5 text-xs">
-              {[
-                { idx: 1, label: 'Ergonomia no Trabalho & Saúde Mental' },
-                { idx: 2, label: 'Segurança Prática NR-12 com Mão na Massa' },
-                { idx: 3, label: 'Primeiros Socorros & Brigada de Incêndio' },
-              ].map((opt) => {
-                const votes: number = pollVotes[opt.idx] || 0;
-                const pct = totalPollVotes > 0 ? Math.round((votes / totalPollVotes) * 100) : 0;
-                const isSelected = votedOption === opt.idx;
+                <div className="space-y-2.5 text-xs">
+                  {enqueteAtual.opcoes.map((label, idx) => {
+                    const votes = enqueteAtual.votos[idx] || 0;
+                    const pct = totalVotosEnquete > 0 ? Math.round((votes / totalVotosEnquete) * 100) : 0;
+                    const isSelected = opcaoVotada === idx;
 
-                return (
-                  <button
-                    key={opt.idx}
-                    onClick={() => handleVote(opt.idx)}
-                    disabled={votedOption !== null}
-                    className={`w-full p-3 rounded-xl border text-left relative overflow-hidden transition-all ${
-                      isSelected
-                        ? 'border-yellow-400 bg-yellow-400/10 text-neutral-900 font-bold'
-                        : 'border-neutral-200 bg-neutral-50 hover:border-yellow-400/50 text-neutral-600'
-                    }`}
-                  >
-                    {/* Progress Bar Background */}
-                    {votedOption !== null && (
-                      <div
-                        className="absolute left-0 top-0 bottom-0 bg-yellow-400/20 transition-all duration-700 pointer-events-none"
-                        style={{ width: `${pct}%` }}
-                      />
-                    )}
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleVote(idx)}
+                        disabled={opcaoVotada !== null || votando}
+                        className={`w-full p-3 rounded-xl border text-left relative overflow-hidden transition-all ${
+                          isSelected
+                            ? 'border-yellow-400 bg-yellow-400/10 text-neutral-900 font-bold'
+                            : 'border-neutral-200 bg-neutral-50 hover:border-yellow-400/50 text-neutral-600'
+                        }`}
+                      >
+                        {/* Progress Bar Background */}
+                        {opcaoVotada !== null && (
+                          <div
+                            className="absolute left-0 top-0 bottom-0 bg-yellow-400/20 transition-all duration-700 pointer-events-none"
+                            style={{ width: `${pct}%` }}
+                          />
+                        )}
 
-                    <div className="relative z-10 flex items-center justify-between">
-                      <span className="font-semibold">{opt.label}</span>
-                      {votedOption !== null && (
-                        <span className="font-mono text-[11px] font-bold text-yellow-600 shrink-0 ml-2">
-                          {pct}%
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                        <div className="relative z-10 flex items-center justify-between">
+                          <span className="font-semibold">{label}</span>
+                          {opcaoVotada !== null && (
+                            <span className="font-mono text-[11px] font-bold text-yellow-600 shrink-0 ml-2">
+                              {pct}%
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-            <div className="text-[10px] text-neutral-500 text-right font-mono font-medium">
-              Total de votos: {totalPollVotes} colaboradores
-            </div>
+                <div className="text-[10px] text-neutral-500 text-right font-mono font-medium">
+                  Total de votos: {totalVotosEnquete} colaboradores
+                </div>
+              </>
+            )}
           </div>
 
           {/* Widget 2: Birthdays of the Month */}

@@ -18,9 +18,11 @@ import {
   AlertTriangle,
   Mail,
   Phone,
+  Vote,
 } from 'lucide-react';
 import { Funcionario } from '../types';
 import { formatDataIsoParaBr } from '../utils/format';
+import { NovaEnqueteModal } from './NovaEnqueteModal';
 
 interface CadastroFuncionariosRHProps {
   setores: string[];
@@ -105,6 +107,9 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
   const [status, setStatus] = useState<Funcionario['status']>('Ativo');
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
+
+  const [enqueteModalAberto, setEnqueteModalAberto] = useState(false);
+  const [enquetePublicada, setEnquetePublicada] = useState(false);
 
   function carregarLista() {
     setCarregando(true);
@@ -248,15 +253,32 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
             <h1 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">Recursos Humanos</h1>
             <p className="text-sm text-neutral-500 mt-1">Gerencie colaboradores, admissões e informações da equipe.</p>
           </div>
-          <button
-            type="button"
-            onClick={abrirForm}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-yellow-400 text-black font-extrabold text-xs hover:bg-yellow-300 shadow-sm active:scale-95 transition-all shrink-0"
-          >
-            <UserPlus className="w-4 h-4" aria-hidden="true" />
-            Novo funcionário
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => setEnqueteModalAberto(true)}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full border border-neutral-200 bg-white text-neutral-600 font-extrabold text-xs hover:border-yellow-400 hover:text-yellow-600 transition-all"
+            >
+              <Vote className="w-4 h-4" aria-hidden="true" />
+              Adicionar Enquete
+            </button>
+            <button
+              type="button"
+              onClick={abrirForm}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-yellow-400 text-black font-extrabold text-xs hover:bg-yellow-300 shadow-sm active:scale-95 transition-all"
+            >
+              <UserPlus className="w-4 h-4" aria-hidden="true" />
+              Novo funcionário
+            </button>
+          </div>
         </div>
+
+        {enquetePublicada && (
+          <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-2xl p-3">
+            <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span>Enquete publicada! Ela já aparece no Dashboard para todos.</span>
+          </div>
+        )}
       </div>
 
       {/* KPIs */}
@@ -669,6 +691,15 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
           </div>
         </div>
       )}
+
+      <NovaEnqueteModal
+        isOpen={enqueteModalAberto}
+        onClose={() => setEnqueteModalAberto(false)}
+        onCriada={() => {
+          setEnquetePublicada(true);
+          setTimeout(() => setEnquetePublicada(false), 6000);
+        }}
+      />
     </div>
   );
 };

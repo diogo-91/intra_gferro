@@ -321,6 +321,14 @@ export interface Funcionario {
   criadoEm: string; // ISO
 }
 
+export interface Enquete {
+  id: string;
+  pergunta: string;
+  opcoes: string[];
+  votos: number[]; // mesmo tamanho de opcoes — contagem por opção
+  criadoEm: string; // ISO
+}
+
 export interface NotificationItem {
   id: string;
   title: string;
