@@ -20,7 +20,7 @@ import {
   Phone,
   Vote,
 } from 'lucide-react';
-import { Funcionario } from '../types';
+import { Funcionario, Enquete } from '../types';
 import { formatDataIsoParaBr } from '../utils/format';
 import { NovaEnqueteModal } from './NovaEnqueteModal';
 
@@ -110,6 +110,8 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
 
   const [enqueteModalAberto, setEnqueteModalAberto] = useState(false);
   const [enquetePublicada, setEnquetePublicada] = useState(false);
+  const [enqueteAtual, setEnqueteAtual] = useState<Enquete | null>(null);
+  const [carregandoEnquete, setCarregandoEnquete] = useState(true);
 
   function carregarLista() {
     setCarregando(true);
@@ -121,8 +123,18 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
       .finally(() => setCarregando(false));
   }
 
+  function carregarEnquete() {
+    setCarregandoEnquete(true);
+    fetch('/api/enquetes/atual')
+      .then((res) => res.json())
+      .then((data) => setEnqueteAtual(data))
+      .catch(() => setEnqueteAtual(null))
+      .finally(() => setCarregandoEnquete(false));
+  }
+
   useEffect(() => {
     carregarLista();
+    carregarEnquete();
   }, []);
 
   const hoje = useMemo(() => {
@@ -277,6 +289,49 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
           <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-2xl p-3">
             <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span>Enquete publicada! Ela já aparece no Dashboard para todos.</span>
+          </div>
+        )}
+      </div>
+
+      {/* Resultado da Enquete Atual */}
+      <div className="rounded-[2rem] bg-white border border-neutral-200 p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-extrabold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+            <Vote className="w-5 h-5 text-yellow-600" aria-hidden="true" />
+            Resultado da Enquete Atual
+          </h3>
+          {enqueteAtual && (
+            <span className="px-2.5 py-0.5 rounded-full bg-neutral-50 border border-neutral-200 text-[11px] font-mono font-bold text-neutral-500">
+              {enqueteAtual.votos.reduce((s, v) => s + v, 0)} votos
+            </span>
+          )}
+        </div>
+
+        {carregandoEnquete ? (
+          <p className="text-xs text-neutral-500 py-4 text-center">Carregando...</p>
+        ) : !enqueteAtual ? (
+          <p className="text-xs text-neutral-500 py-4 text-center">Nenhuma enquete ativa no momento.</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm font-bold text-neutral-900">{enqueteAtual.pergunta}</p>
+            {(() => {
+              const total = enqueteAtual.votos.reduce((s, v) => s + v, 0);
+              return enqueteAtual.opcoes.map((label, idx) => {
+                const votos = enqueteAtual.votos[idx] || 0;
+                const pct = total > 0 ? Math.round((votos / total) * 100) : 0;
+                return (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-neutral-700">{label}</span>
+                      <span className="font-mono font-bold text-neutral-500">{votos} ({pct}%)</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-neutral-100 overflow-hidden">
+                      <div className="h-full rounded-full bg-yellow-400 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
       </div>
@@ -695,7 +750,8 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
       <NovaEnqueteModal
         isOpen={enqueteModalAberto}
         onClose={() => setEnqueteModalAberto(false)}
-        onCriada={() => {
+        onCriada={(nova) => {
+          setEnqueteAtual(nova);
           setEnquetePublicada(true);
           setTimeout(() => setEnquetePublicada(false), 6000);
         }}
