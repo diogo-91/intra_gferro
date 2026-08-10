@@ -308,6 +308,18 @@ export interface Department {
   responsibilities: string[];
 }
 
+export interface Funcionario {
+  id: string;
+  nome: string;
+  cargo: string;
+  setor: string;
+  email?: string;
+  telefone?: string;
+  dataAdmissao?: string; // dd/mm/aaaa
+  status: 'Ativo' | 'Inativo';
+  criadoEm: string; // ISO
+}
+
 export interface NotificationItem {
   id: string;
   title: string;

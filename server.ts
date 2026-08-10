@@ -12,6 +12,7 @@ import { gerarPdfRelatorioFinanceiro } from './pdfRelatorioFinanceiro';
 import { gerarPdfRelatorioDetalhado } from './pdfRelatorioDetalhado';
 import { COMPOSICAO_MATERIA_PRIMA } from './src/data/composicaoMateriaPrima';
 import { salvarReprogramacao, removerReprogramacao, TipoConta } from './reprogramacoes';
+import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './funcionarios';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao } from './auth';
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
@@ -420,6 +421,56 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
     } catch (error: any) {
       console.error('Erro ao remover replanejamento financeiro:', error);
       res.status(500).json({ error: 'Erro ao remover replanejamento', details: error.message });
+    }
+  });
+
+  // Cadastro de funcionários do módulo RH — dado próprio da intranet (ver
+  // comentário em funcionarios.ts sobre por que não vem do Nomus).
+  app.get('/api/rh/funcionarios', async (_req, res) => {
+    try {
+      const lista = await listarFuncionarios();
+      res.json(lista);
+    } catch (error: any) {
+      console.error('Erro ao listar funcionários:', error);
+      res.status(500).json({ error: 'Erro ao listar funcionários', details: error.message });
+    }
+  });
+
+  app.post('/api/rh/funcionarios', async (req, res) => {
+    try {
+      const { nome, cargo, setor, email, telefone, dataAdmissao, status } = req.body || {};
+      if (typeof nome !== 'string' || !nome.trim()) {
+        return res.status(400).json({ error: 'Informe o nome do funcionário.' });
+      }
+      if (typeof cargo !== 'string' || !cargo.trim()) {
+        return res.status(400).json({ error: 'Informe o cargo do funcionário.' });
+      }
+      if (typeof setor !== 'string' || !setor.trim()) {
+        return res.status(400).json({ error: 'Informe o setor do funcionário.' });
+      }
+      const novo = await cadastrarFuncionario({
+        nome: nome.trim(),
+        cargo: cargo.trim(),
+        setor: setor.trim(),
+        email: typeof email === 'string' && email.trim() ? email.trim() : undefined,
+        telefone: typeof telefone === 'string' && telefone.trim() ? telefone.trim() : undefined,
+        dataAdmissao: typeof dataAdmissao === 'string' && dataAdmissao.trim() ? dataAdmissao.trim() : undefined,
+        status: status === 'Inativo' ? 'Inativo' : 'Ativo',
+      });
+      res.json(novo);
+    } catch (error: any) {
+      console.error('Erro ao cadastrar funcionário:', error);
+      res.status(500).json({ error: 'Erro ao cadastrar funcionário', details: error.message });
+    }
+  });
+
+  app.delete('/api/rh/funcionarios/:id', async (req, res) => {
+    try {
+      await removerFuncionario(req.params.id);
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error('Erro ao remover funcionário:', error);
+      res.status(500).json({ error: 'Erro ao remover funcionário', details: error.message });
     }
   });
 
