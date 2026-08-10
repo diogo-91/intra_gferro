@@ -713,17 +713,16 @@ export const ProgramacaoFinanceira: React.FC = () => {
   const pagoHoje = diaReferenciaNoMesExibido ? pagoPorDia.get(diaReferencia) ?? [] : [];
   const totalPagoHoje = pagoHoje.reduce((s, c) => s + c.valor, 0);
 
-  // Item em aberto (a receber/a pagar) só aparece no calendário depois de
-  // arrastado da fila de Pendências pra um dia — enquanto não é agendado
-  // manualmente (vencimentoOriginal ainda vazio), fica só na fila, mesmo já
-  // tendo um vencimento real lá no Nomus. "Conciliado" (já aconteceu de
-  // verdade) continua aparecendo direto, sempre — não dá pra arrastar fato passado.
-  const emAberto = (it: ContaAberta) => !!it.vencimentoOriginal;
-
+  // Item em aberto (a receber/a pagar) já aparece no calendário no dia do
+  // vencimento real do Nomus, sem precisar ser arrastado da fila de
+  // Pendências primeiro. Se foi replanejado manualmente, `vencimento` já
+  // reflete a nova data (e `vencimentoOriginal` guarda a data original pro
+  // "Desfazer replanejamento"). "Conciliado" (já aconteceu de verdade)
+  // continua aparecendo direto, sempre — não dá pra arrastar fato passado.
   const itensDoDiaSelecionado = diaSelecionado
     ? {
-        receber: (receberPorDia.get(diaSelecionado) ?? []).filter(emAberto),
-        pagar: (pagarPorDia.get(diaSelecionado) ?? []).filter(emAberto),
+        receber: receberPorDia.get(diaSelecionado) ?? [],
+        pagar: pagarPorDia.get(diaSelecionado) ?? [],
         recebido: recebidoPorDia.get(diaSelecionado) ?? [],
         pago: pagoPorDia.get(diaSelecionado) ?? [],
       }
@@ -733,8 +732,8 @@ export const ProgramacaoFinanceira: React.FC = () => {
   // conciliados — no máximo 3 visíveis, o resto vira "+N mais" (abre o modal
   // do dia, que já lista tudo).
   function chipsDoDia(chave: string): { visiveis: ChipDia[]; restantes: number } {
-    const receberDia = (receberPorDia.get(chave) ?? []).filter(emAberto).filter((it) => bateBusca(`${it.pessoa} ${it.categoria}`, buscaCalendario));
-    const pagarDia = (pagarPorDia.get(chave) ?? []).filter(emAberto).filter((it) => bateBusca(`${it.pessoa} ${it.categoria}`, buscaCalendario));
+    const receberDia = (receberPorDia.get(chave) ?? []).filter((it) => bateBusca(`${it.pessoa} ${it.categoria}`, buscaCalendario));
+    const pagarDia = (pagarPorDia.get(chave) ?? []).filter((it) => bateBusca(`${it.pessoa} ${it.categoria}`, buscaCalendario));
     const recebidoDia = (recebidoPorDia.get(chave) ?? []).filter((c) => bateBusca(`${c.pessoa} ${c.categoria}`, buscaCalendario));
     const pagoDia = (pagoPorDia.get(chave) ?? []).filter((c) => bateBusca(`${c.pessoa} ${c.categoria}`, buscaCalendario));
 
