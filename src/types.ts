@@ -292,7 +292,7 @@ export interface Department {
   id: string;
   code: string;
   name: string;
-  manager: {
+  manager?: {
     name: string;
     role: string;
     avatar: string;

@@ -63,6 +63,7 @@ export default function App() {
   const [chatChannels] = useState<ChatChannel[]>(initialChannels);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
   const [departments] = useState<Department[]>(initialDepartments);
+  const [selectedDeptId, setSelectedDeptId] = useState<string>(initialDepartments[0]?.id ?? '');
   const [notifications, setNotifications] = useState<NotificationItem[]>(notificationsList);
 
   // Modals & Panels
@@ -190,6 +191,9 @@ export default function App() {
           mobileMenuOpen={mobileMenuOpen}
           setMobileMenuOpen={setMobileMenuOpen}
           onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
+          departments={departments}
+          selectedDeptId={selectedDeptId}
+          onSelectDepartamento={setSelectedDeptId}
         />
 
         {/* Content View Container */}
@@ -259,6 +263,8 @@ export default function App() {
               user={currentUser}
               departments={departments}
               colaboradores={colaboradores}
+              selectedDeptId={selectedDeptId}
+              onSelectDept={setSelectedDeptId}
               setActiveTab={setActiveTab}
               onOpenNewChamado={() => setIsNewChamadoOpen(true)}
             />
