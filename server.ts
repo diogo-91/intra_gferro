@@ -438,7 +438,7 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
 
   app.post('/api/rh/funcionarios', async (req, res) => {
     try {
-      const { nome, cargo, setor, email, telefone, dataAdmissao, status } = req.body || {};
+      const { nome, cargo, setor, email, telefone, dataAdmissao, dataNascimento, status } = req.body || {};
       if (typeof nome !== 'string' || !nome.trim()) {
         return res.status(400).json({ error: 'Informe o nome do funcionário.' });
       }
@@ -455,7 +455,8 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
         email: typeof email === 'string' && email.trim() ? email.trim() : undefined,
         telefone: typeof telefone === 'string' && telefone.trim() ? telefone.trim() : undefined,
         dataAdmissao: typeof dataAdmissao === 'string' && dataAdmissao.trim() ? dataAdmissao.trim() : undefined,
-        status: status === 'Inativo' ? 'Inativo' : 'Ativo',
+        dataNascimento: typeof dataNascimento === 'string' && dataNascimento.trim() ? dataNascimento.trim() : undefined,
+        status: status === 'Inativo' ? 'Inativo' : status === 'Férias' ? 'Férias' : 'Ativo',
       });
       res.json(novo);
     } catch (error: any) {

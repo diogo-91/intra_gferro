@@ -20,6 +20,13 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
 }) => {
   const selectedDepartment = departments.find((d) => d.id === selectedDeptId) || departments[0];
 
+  // O módulo RH tem sua própria página completa (cabeçalho, KPIs e cadastro
+  // de funcionários) — não faz sentido empilhar o banner genérico de setor
+  // em cima disso.
+  if (selectedDepartment.id === 'dep-rh') {
+    return <CadastroFuncionariosRH setores={departments.map((d) => d.name)} />;
+  }
+
   return (
     <div className="space-y-6 pb-12">
 
@@ -110,10 +117,6 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
             </div>
           )}
         </div>
-      )}
-
-      {selectedDepartment.id === 'dep-rh' && (
-        <CadastroFuncionariosRH setores={departments.map((d) => d.name)} />
       )}
 
     </div>

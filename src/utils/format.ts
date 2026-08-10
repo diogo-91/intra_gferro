@@ -16,6 +16,12 @@ export const parseDataBr = (data: string): Date => {
   return new Date(ano, mes - 1, dia);
 };
 
+// "aaaa-mm-dd" (formato do <input type="date">) -> "dd/mm/aaaa".
+export const formatDataIsoParaBr = (dataIso: string): string => {
+  const [ano, mes, dia] = dataIso.split('-');
+  return `${dia}/${mes}/${ano}`;
+};
+
 export const chaveDia = (data: Date): string => {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${data.getFullYear()}-${p(data.getMonth() + 1)}-${p(data.getDate())}`;

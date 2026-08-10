@@ -315,8 +315,9 @@ export interface Funcionario {
   setor: string;
   email?: string;
   telefone?: string;
-  dataAdmissao?: string; // dd/mm/aaaa
-  status: 'Ativo' | 'Inativo';
+  dataAdmissao?: string; // aaaa-mm-dd
+  dataNascimento?: string; // aaaa-mm-dd
+  status: 'Ativo' | 'Inativo' | 'Férias';
   criadoEm: string; // ISO
 }
 
