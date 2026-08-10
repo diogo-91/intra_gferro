@@ -1,0 +1,12 @@
+node_modules/
+build/
+dist/
+coverage/
+/data/
+.DS_Store
+*.log
+.env*
+!.env.example
+# Configuração local de ferramenta de desenvolvimento — não faz parte do
+# repositório publicado.
+.claude/
