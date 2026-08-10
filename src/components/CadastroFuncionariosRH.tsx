@@ -260,16 +260,16 @@ export const CadastroFuncionariosRH: React.FC<CadastroFuncionariosRHProps> = ({ 
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {KPIS.map((k) => (
-          <div key={k.titulo} className="p-6 rounded-[2rem] bg-white border border-neutral-200 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-yellow-50 flex items-center justify-center">
-              <k.Icon className="w-5 h-5 text-yellow-600" aria-hidden="true" />
+          <div key={k.titulo} className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center">
+              <k.Icon className="w-4 h-4 text-yellow-600" aria-hidden="true" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block">{k.titulo}</span>
-              <span className="text-2xl font-black text-neutral-900 block mt-1">{k.valor}</span>
-              <span className="text-[11px] text-neutral-500 font-semibold">{k.legenda}</span>
+              <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest block">{k.titulo}</span>
+              <span className="text-lg font-black text-neutral-900 block mt-0.5">{k.valor}</span>
+              <span className="text-[10px] text-neutral-500 font-semibold">{k.legenda}</span>
             </div>
           </div>
         ))}
