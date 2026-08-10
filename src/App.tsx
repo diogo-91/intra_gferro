@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   currentUser, 
   initialComunicados, 
@@ -34,8 +34,23 @@ import { Producao } from './components/Producao';
 import { AIAssistantModal } from './components/AIAssistantModal';
 import { NovoComunicadoModal } from './components/NovoComunicadoModal';
 import { NovoChamadoModal } from './components/NovoChamadoModal';
+import { Login } from './components/Login';
 
 export default function App() {
+  // Autenticação — verifica o cookie de sessão (ver auth.ts) antes de
+  // renderizar qualquer coisa da intranet.
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => setAuthStatus(res.ok ? 'authenticated' : 'unauthenticated'))
+      .catch(() => setAuthStatus('unauthenticated'));
+  }, []);
+
+  const handleLogout = () => {
+    fetch('/api/auth/logout', { method: 'POST' }).finally(() => setAuthStatus('unauthenticated'));
+  };
+
   const [activeTab, setActiveTab] = useState<TabType>('informativos');
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -134,6 +149,18 @@ export default function App() {
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
   };
 
+  if (authStatus === 'checking') {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (authStatus === 'unauthenticated') {
+    return <Login onLoginSuccess={() => setAuthStatus('authenticated')} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white font-sans selection:bg-yellow-400 selection:text-black">
       
@@ -151,6 +178,7 @@ export default function App() {
         setSearchQuery={setSearchQuery}
         mobileMenuOpen={mobileMenuOpen}
         setMobileMenuOpen={setMobileMenuOpen}
+        onLogout={handleLogout}
       />
 
       {/* Main Layout Grid */}

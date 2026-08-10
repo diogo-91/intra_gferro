@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import cookieParser from 'cookie-parser';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
@@ -11,6 +12,7 @@ import { gerarPdfRelatorioFinanceiro } from './pdfRelatorioFinanceiro';
 import { gerarPdfRelatorioDetalhado } from './pdfRelatorioDetalhado';
 import { COMPOSICAO_MATERIA_PRIMA } from './src/data/composicaoMateriaPrima';
 import { salvarReprogramacao, removerReprogramacao, TipoConta } from './reprogramacoes';
+import { loginHandler, logoutHandler, meHandler, exigirAutenticacao } from './auth';
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
   if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
@@ -71,6 +73,7 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json({ limit: '10mb' }));
+  app.use(cookieParser());
 
   const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY || '',
@@ -85,6 +88,13 @@ async function startServer() {
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', app: 'GFERRO Intranet', time: new Date().toISOString() });
   });
+
+  // Autenticação — únicas rotas de /api que ficam públicas. Tudo abaixo do
+  // middleware exigirAutenticacao passa a exigir o cookie de sessão.
+  app.post('/api/auth/login', loginHandler);
+  app.post('/api/auth/logout', logoutHandler);
+  app.get('/api/auth/me', meHandler);
+  app.use('/api', exigirAutenticacao);
 
   app.post('/api/chat', async (req, res) => {
     try {

@@ -11,7 +11,8 @@ import {
   User as UserIcon,
   CheckCircle2,
   AlertTriangle,
-  LifeBuoy
+  LifeBuoy,
+  LogOut
 } from 'lucide-react';
 import { User, NotificationItem, TabType } from '../types';
 
@@ -28,6 +29,7 @@ interface HeaderProps {
   setSearchQuery: (query: string) => void;
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -42,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   setSearchQuery,
   mobileMenuOpen,
   setMobileMenuOpen,
+  onLogout,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -268,6 +271,17 @@ export const Header: React.FC<HeaderProps> = ({
                     className="w-full mt-3 py-2 text-center text-xs font-bold text-yellow-400 hover:bg-yellow-400/10 rounded-xl transition-colors border border-yellow-400/20"
                   >
                     Ver meu perfil completo
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onLogout();
+                    }}
+                    className="w-full mt-2 py-2 flex items-center justify-center gap-1.5 text-center text-xs font-bold text-neutral-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-colors border border-white/10"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Sair
                   </button>
                 </div>
               )}
