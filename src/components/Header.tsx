@@ -54,33 +54,33 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-[#0A0A0A]/90 backdrop-blur-md border-b border-white/10 text-white shadow-xl">
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20 gap-4">
-          
+        <div className="flex items-center justify-between h-20 gap-2 sm:gap-4">
+
           {/* Left: Mobile Toggle & Brand Logo */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               id="header-mobile-menu-toggle"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2.5 rounded-xl text-neutral-400 hover:text-yellow-400 hover:bg-white/5 transition-colors"
+              className="lg:hidden p-2.5 rounded-xl text-neutral-400 hover:text-yellow-400 hover:bg-white/5 transition-colors shrink-0"
               aria-label="Abrir Menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
 
             {/* GFERRO Brand Logo */}
-            <div 
+            <div
               onClick={() => setActiveTab('informativos')}
-              className="flex items-center gap-3 cursor-pointer group select-none"
+              className="flex items-center gap-2 sm:gap-3 cursor-pointer group select-none min-w-0"
             >
-              <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center font-black text-black text-xl shadow-lg shadow-yellow-400/20 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center font-black text-black text-xl shadow-lg shadow-yellow-400/20 group-hover:scale-105 transition-transform shrink-0">
                 GF
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-2xl tracking-tighter text-white group-hover:text-yellow-400 transition-colors">
                     GFERRO
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 border border-yellow-400/20">
+                  <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 border border-yellow-400/20 hidden sm:inline-block">
                     Intranet
                   </span>
                 </div>
@@ -115,13 +115,13 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Right Action Controls */}
-          <div className="flex items-center gap-3">
-            
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+
             {/* Ideias e Sugestões Button */}
             <button
               id="header-ai-assistant-btn"
               onClick={onOpenAIAssistant}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-400 text-black font-bold text-xs sm:text-sm hover:bg-yellow-300 shadow-lg shadow-yellow-400/20 active:scale-95 transition-all"
+              className="flex items-center gap-2 px-2.5 sm:px-4 py-2 rounded-full bg-yellow-400 text-black font-bold text-xs sm:text-sm hover:bg-yellow-300 shadow-lg shadow-yellow-400/20 active:scale-95 transition-all"
             >
               <Lightbulb className="w-4 h-4 text-black fill-black" />
               <span className="hidden sm:inline">Ideias e Sugestões</span>

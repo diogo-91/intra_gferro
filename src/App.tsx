@@ -198,9 +198,7 @@ export default function App() {
 
         {/* Content View Container */}
         <main
-          className={`flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 mx-auto min-h-[calc(100vh-4rem)] bg-white text-neutral-900 selection:bg-yellow-400 selection:text-black ${
-            activeTab === 'financeiro' ? 'max-w-full' : 'max-w-7xl'
-          }`}
+          className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-4rem)] bg-white text-neutral-900 selection:bg-yellow-400 selection:text-black"
         >
           {activeTab === 'informativos' && (
             <Dashboard
