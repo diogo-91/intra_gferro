@@ -45,3 +45,15 @@ export const formatNomeVendedor = (nome: string): string => {
     )
     .join(' ');
 };
+
+// "wesley.ferreira@constelha.com.br" -> "Wesley Ferreira". A intranet usa
+// um único login compartilhado (ver auth.ts) — o nome exibido no cabeçalho
+// vem do e-mail usado pra entrar, não de um cadastro de usuário à parte.
+export const nomeDoEmail = (email: string): string => {
+  const usuario = email.split('@')[0] || email;
+  return usuario
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((palavra) => palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase())
+    .join(' ');
+};

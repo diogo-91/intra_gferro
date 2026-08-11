@@ -10,14 +10,15 @@ import {
   initialDepartments,
   notificationsList
 } from './data/mockData';
-import { 
-  TabType, 
-  Comunicado, 
-  Chamado, 
+import {
+  TabType,
+  Comunicado,
+  Chamado,
   ChatChannel,
   ChatMessage,
   Department,
-  NotificationItem 
+  NotificationItem,
+  User
 } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -35,17 +36,29 @@ import { AIAssistantModal } from './components/AIAssistantModal';
 import { NovoComunicadoModal } from './components/NovoComunicadoModal';
 import { NovoChamadoModal } from './components/NovoChamadoModal';
 import { Login } from './components/Login';
+import { nomeDoEmail } from './utils/format';
 
 export default function App() {
   // Autenticação — verifica o cookie de sessão (ver auth.ts) antes de
   // renderizar qualquer coisa da intranet.
   const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
+  // Nome exibido no cabeçalho vem do e-mail usado no login (login único
+  // compartilhado, ver auth.ts) — não de um cadastro de usuário à parte.
+  const [emailLogado, setEmailLogado] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((res) => setAuthStatus(res.ok ? 'authenticated' : 'unauthenticated'))
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        setAuthStatus(ok ? 'authenticated' : 'unauthenticated');
+        setEmailLogado(ok ? data.email : null);
+      })
       .catch(() => setAuthStatus('unauthenticated'));
   }, []);
+
+  const usuarioAtual: User = emailLogado
+    ? { ...currentUser, name: nomeDoEmail(emailLogado), email: emailLogado }
+    : currentUser;
 
   const handleLogout = () => {
     fetch('/api/auth/logout', { method: 'POST' }).finally(() => setAuthStatus('unauthenticated'));
@@ -95,8 +108,8 @@ export default function App() {
         if (c.id === comunicadoId) {
           const newComment = {
             id: `cmt-${Date.now()}`,
-            authorName: currentUser.name,
-            authorAvatar: currentUser.avatar,
+            authorName: usuarioAtual.name,
+            authorAvatar: usuarioAtual.avatar,
             content: text,
             createdAt: `${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
           };
@@ -167,7 +180,7 @@ export default function App() {
       
       {/* Top Header */}
       <Header
-        user={currentUser}
+        user={usuarioAtual}
         onOpenNewComunicado={() => setIsNewComunicadoOpen(true)}
         onOpenNewChamado={() => setIsNewChamadoOpen(true)}
         onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
@@ -202,7 +215,7 @@ export default function App() {
         >
           {activeTab === 'informativos' && (
             <Dashboard
-              user={currentUser}
+              user={usuarioAtual}
               comunicados={comunicados}
               documentos={documentos}
               colaboradores={colaboradores}
@@ -221,7 +234,7 @@ export default function App() {
           {activeTab === 'comunicados' && (
             <ComunicadosFeed
               comunicados={comunicados}
-              user={currentUser}
+              user={usuarioAtual}
               onOpenNewComunicado={() => setIsNewComunicadoOpen(true)}
               onLikeComunicado={handleLikeComunicado}
               onAddComment={handleAddComment}
@@ -237,7 +250,7 @@ export default function App() {
           {activeTab === 'servicos' && (
             <ServicosRH
               chamados={chamados}
-              user={currentUser}
+              user={usuarioAtual}
               onOpenNewChamado={() => setIsNewChamadoOpen(true)}
             />
           )}
@@ -248,7 +261,7 @@ export default function App() {
 
           {activeTab === 'chat' && (
             <ChatInterno
-              user={currentUser}
+              user={usuarioAtual}
               channels={chatChannels}
               messages={chatMessages}
               colaboradores={colaboradores}
@@ -258,7 +271,7 @@ export default function App() {
 
           {activeTab === 'departamentos' && (
             <DepartamentosApp
-              user={currentUser}
+              user={usuarioAtual}
               departments={departments}
               colaboradores={colaboradores}
               selectedDeptId={selectedDeptId}
@@ -276,14 +289,14 @@ export default function App() {
 
       {/* AI Assistant Chat Modal */}
       <AIAssistantModal
-        user={currentUser}
+        user={usuarioAtual}
         isOpen={isAIAssistantOpen}
         onClose={() => setIsAIAssistantOpen(false)}
       />
 
       {/* New Comunicado Modal */}
       <NovoComunicadoModal
-        user={currentUser}
+        user={usuarioAtual}
         isOpen={isNewComunicadoOpen}
         onClose={() => setIsNewComunicadoOpen(false)}
         onAddComunicado={handleAddComunicado}
@@ -291,7 +304,7 @@ export default function App() {
 
       {/* New Chamado Service Desk Modal */}
       <NovoChamadoModal
-        user={currentUser}
+        user={usuarioAtual}
         isOpen={isNewChamadoOpen}
         onClose={() => setIsNewChamadoOpen(false)}
         onAddChamado={handleAddChamado}
