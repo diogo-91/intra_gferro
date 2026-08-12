@@ -8,8 +8,16 @@ import {
   X,
   AlertTriangle,
   Package,
+  FileDown,
 } from 'lucide-react';
 import { ItemPlanejamentoProducao, KanbanProducao, CardProducao } from '../types';
+import { ModoPeriodoProducao, intervaloDoPeriodo } from '../utils/producaoCampos';
+
+const PERIODOS_RELATORIO: { id: ModoPeriodoProducao; label: string }[] = [
+  { id: 'dia', label: 'Dia' },
+  { id: 'semana', label: 'Semana' },
+  { id: 'mes', label: 'Mês' },
+];
 
 const NOMES_MES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -65,6 +73,14 @@ export const PlanejamentoProducaoPCP: React.FC = () => {
   const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null);
   const [buscaCalendario, setBuscaCalendario] = useState('');
   const [buscaFila, setBuscaFila] = useState('');
+  const [periodoRelatorio, setPeriodoRelatorio] = useState<ModoPeriodoProducao>('dia');
+
+  function baixarRelatorioPdf() {
+    const { inicio, fim, rotulo } = intervaloDoPeriodo(periodoRelatorio, new Date());
+    const a = document.createElement('a');
+    a.href = `/api/producao/planejamento/pdf?inicio=${inicio}&fim=${fim}&rotulo=${encodeURIComponent(rotulo)}`;
+    a.click();
+  }
 
   function carregar() {
     setCarregando(true);
@@ -136,6 +152,32 @@ export const PlanejamentoProducaoPCP: React.FC = () => {
         <p className="text-[11px] text-neutral-400 mt-2">
           Somente leitura por enquanto — pra reagendar uma ordem, use a aba Planejamento do Apontamento de Produção.
         </p>
+
+        <div className="flex flex-wrap items-center gap-2 mt-4">
+          <div role="group" aria-label="Período do relatório" className="flex items-center gap-1.5 bg-neutral-50 p-1 rounded-full border border-neutral-200">
+            {PERIODOS_RELATORIO.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                aria-pressed={periodoRelatorio === p.id}
+                onClick={() => setPeriodoRelatorio(p.id)}
+                className={`px-3.5 py-1.5 rounded-full text-xs transition-all ${
+                  periodoRelatorio === p.id ? 'bg-yellow-400 text-black font-bold' : 'text-neutral-500 font-medium hover:text-neutral-900'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={baixarRelatorioPdf}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 transition-all"
+          >
+            <FileDown className="w-3.5 h-3.5" aria-hidden="true" />
+            Baixar PDF
+          </button>
+        </div>
       </div>
 
       {erro && (

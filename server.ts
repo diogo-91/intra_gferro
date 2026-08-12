@@ -13,6 +13,7 @@ import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
 import { gerarPdfRelatorioFinanceiro } from './pdfRelatorioFinanceiro';
 import { gerarPdfRelatorioDetalhado } from './pdfRelatorioDetalhado';
+import { gerarPdfPlanejamentoProducao } from './pdfPlanejamentoProducao';
 import { COMPOSICAO_MATERIA_PRIMA } from './src/data/composicaoMateriaPrima';
 import { salvarReprogramacao, removerReprogramacao, TipoConta } from './reprogramacoes';
 import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './funcionarios';
@@ -330,6 +331,26 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao buscar planejamento de produção no Apontamento:', error);
       res.status(500).json({ error: 'Erro ao buscar dados do Apontamento de Produção', details: error.message });
+    }
+  });
+
+  app.get('/api/producao/planejamento/pdf', async (req, res) => {
+    try {
+      const inicio = validarDataIsoQuery(req.query.inicio, 'inicio');
+      const fim = validarDataIsoQuery(req.query.fim, 'fim');
+      const rotulo = (req.query.rotulo as string) || `${inicio} a ${fim}`;
+      const todos = await getPlanejamentoProducao();
+      const itens = todos.filter((item) => item.data >= inicio && item.data <= fim);
+
+      const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="planejamento-producao-${inicio}-a-${fim}.pdf"`);
+      doc.pipe(res);
+      gerarPdfPlanejamentoProducao(doc, { periodoRotulo: rotulo, itens, atualizadoEm: new Date().toLocaleString('pt-BR') });
+      doc.end();
+    } catch (error: any) {
+      console.error('Erro ao gerar PDF do planejamento de produção:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao gerar PDF', details: error.message });
     }
   });
 
