@@ -24,6 +24,50 @@ const formatPrecoMedio = (valorTotal: number, quantidade: number, unidade: strin
   return unidade ? `${precoFormatado}/${unidade}` : precoFormatado;
 };
 
+interface ListaProdutosProps {
+  produtos: ResumoVendas['produtos'];
+  maiorValorProduto: number;
+}
+
+const ListaProdutos: React.FC<ListaProdutosProps> = ({ produtos, maiorValorProduto }) => (
+  <ul className="space-y-3">
+    {produtos.map((produto) => {
+      const precoMedio = formatPrecoMedio(produto.valorTotal, produto.quantidade, produto.unidade);
+      return (
+        <li key={produto.nome} className="space-y-1">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="text-neutral-800 font-medium truncate" title={produto.nome}>
+              {produto.nome}
+            </span>
+            <span className="flex items-center gap-1.5 shrink-0 tabular-nums">
+              <span className="text-neutral-500">{formatUnidade(produto.quantidade, produto.unidade)}</span>
+              {precoMedio && (
+                <span className="text-neutral-400 font-normal" title="Preço médio (valor total ÷ quantidade)">
+                  · {precoMedio}
+                </span>
+              )}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.max(4, (produto.valorTotal / maiorValorProduto) * 100)}%`,
+                  backgroundImage: 'linear-gradient(90deg, #ca8a04, #facc15)',
+                }}
+              />
+            </div>
+            <span className="text-emerald-600 font-bold text-xs shrink-0 tabular-nums w-24 text-right">
+              {formatCurrency(produto.valorTotal)}
+            </span>
+          </div>
+        </li>
+      );
+    })}
+  </ul>
+);
+
 export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, erro }) => {
   if (loading) {
     return (
@@ -47,6 +91,9 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
   if (!resumo) return null;
 
   const maiorValorProduto = resumo.produtos.reduce((max, p) => Math.max(max, p.valorTotal), 0) || 1;
+  const metade = Math.ceil(resumo.produtos.length / 2);
+  const primeiraColuna = resumo.produtos.slice(0, metade);
+  const segundaColuna = resumo.produtos.slice(metade);
 
   return (
     <div className="space-y-5">
@@ -100,42 +147,10 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
         {resumo.produtos.length === 0 ? (
           <p className="text-neutral-500 text-xs">Nenhuma venda de produto encontrada nesse período.</p>
         ) : (
-          <ul className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-            {resumo.produtos.map((produto) => {
-              const precoMedio = formatPrecoMedio(produto.valorTotal, produto.quantidade, produto.unidade);
-              return (
-              <li key={produto.nome} className="space-y-1">
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="text-neutral-800 font-medium truncate" title={produto.nome}>
-                    {produto.nome}
-                  </span>
-                  <span className="flex items-center gap-1.5 shrink-0 tabular-nums">
-                    <span className="text-neutral-500">{formatUnidade(produto.quantidade, produto.unidade)}</span>
-                    {precoMedio && (
-                      <span className="text-neutral-400 font-normal" title="Preço médio (valor total ÷ quantidade)">
-                        · {precoMedio}
-                      </span>
-                    )}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.max(4, (produto.valorTotal / maiorValorProduto) * 100)}%`,
-                        backgroundImage: 'linear-gradient(90deg, #ca8a04, #facc15)',
-                      }}
-                    />
-                  </div>
-                  <span className="text-emerald-600 font-bold text-xs shrink-0 tabular-nums w-24 text-right">
-                    {formatCurrency(produto.valorTotal)}
-                  </span>
-                </div>
-              </li>
-              );
-            })}
-          </ul>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4 max-h-[480px] overflow-y-auto pr-1">
+            <ListaProdutos produtos={primeiraColuna} maiorValorProduto={maiorValorProduto} />
+            <ListaProdutos produtos={segundaColuna} maiorValorProduto={maiorValorProduto} />
+          </div>
         )}
       </div>
     </div>
