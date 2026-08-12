@@ -8,7 +8,7 @@ import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { getRankingVendedores, getResumoVendas, getResumoFinanceiro, Periodo } from './nomus';
-import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl } from './producao';
+import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
 import { gerarPdfRelatorioFinanceiro } from './pdfRelatorioFinanceiro';
@@ -319,6 +319,16 @@ Contexto da GFERRO:
       res.json(dado);
     } catch (error: any) {
       console.error('Erro ao buscar kanban de produção no Apontamento:', error);
+      res.status(500).json({ error: 'Erro ao buscar dados do Apontamento de Produção', details: error.message });
+    }
+  });
+
+  app.get('/api/producao/planejamento', async (_req, res) => {
+    try {
+      const dado = await getPlanejamentoProducao();
+      res.json(dado);
+    } catch (error: any) {
+      console.error('Erro ao buscar planejamento de produção no Apontamento:', error);
       res.status(500).json({ error: 'Erro ao buscar dados do Apontamento de Produção', details: error.message });
     }
   });

@@ -9,7 +9,7 @@
 //   "valorProduzido" é sempre uma ESTIMATIVA (rateio do valor do pedido pela
 //   quantidade), nunca um número exato do Nomus.
 
-import type { KanbanProducao, RelatorioProducao } from './src/types';
+import type { KanbanProducao, RelatorioProducao, ItemPlanejamentoProducao } from './src/types';
 
 const REQUEST_TIMEOUT_MS = 20_000;
 // Kanban é "agora" — cache bem curto, só pra suavizar cliques repetidos/re-render.
@@ -94,6 +94,34 @@ export async function getRelatorioProducao(inicio: string, fim: string): Promise
   }
 
   return cacheado?.dado ?? (await emAndamento);
+}
+
+// ---- Planejamento (calendário de agendamento das ordens — aba "Planejamento"
+// do Apontamento, protegida por senha lá; aqui é só leitura) ----
+
+const CACHE_TTL_PLANEJAMENTO_MS = 60 * 1000; // agenda muda com frequência, TTL curto
+
+let cachePlanejamento: { atualizadoEm: number; dado: ItemPlanejamentoProducao[] } | null = null;
+let cachePlanejamentoEmAndamento: Promise<ItemPlanejamentoProducao[]> | null = null;
+
+export async function getPlanejamentoProducao(): Promise<ItemPlanejamentoProducao[]> {
+  const agora = Date.now();
+  if (cachePlanejamento && agora - cachePlanejamento.atualizadoEm < CACHE_TTL_PLANEJAMENTO_MS) {
+    return cachePlanejamento.dado;
+  }
+
+  if (!cachePlanejamentoEmAndamento) {
+    cachePlanejamentoEmAndamento = fetchJson(`${getBaseUrl()}/api/planejamento`)
+      .then((dado) => {
+        cachePlanejamento = { atualizadoEm: Date.now(), dado };
+        return dado as ItemPlanejamentoProducao[];
+      })
+      .finally(() => {
+        cachePlanejamentoEmAndamento = null;
+      });
+  }
+
+  return cachePlanejamento?.dado ?? (await cachePlanejamentoEmAndamento);
 }
 
 // PDF pronto (mesmo gerador do painel original) — repassamos a URL pro

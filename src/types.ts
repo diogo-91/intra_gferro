@@ -52,6 +52,7 @@ export interface CardProducao {
   statusOrdem?: string;
   valorTotal?: string;
   descricao?: string;
+  dataPedido?: string;
   operacao?: number;
   idOperacaoOrdem?: number;
   coluna: string;
@@ -74,6 +75,34 @@ export interface KanbanProducao {
   filaAguardando: CardProducao[];
   concluidos: CardProducao[];
   atualizadoEm: string;
+}
+
+export interface MaterialPlanejamento {
+  codigo: string;
+  descricao: string;
+  unidadeMedida: string;
+  quantidade: number;
+}
+
+// Item já agendado no calendário de Planejamento da Produção (app irmão
+// Apontamento de Produção, aba "Planejamento" — protegida por senha lá).
+export interface ItemPlanejamentoProducao {
+  id: string;
+  idOrdem: number;
+  idOperacaoOrdem: number;
+  nomeOrdem: string;
+  pedido?: string;
+  idPedido?: number;
+  idProduto?: number;
+  produto?: string;
+  codigoProduto?: string;
+  quantidade?: string;
+  unidadeMedida?: string;
+  valorTotal?: string;
+  data: string; // aaaa-mm-dd — dia agendado pra iniciar a produção
+  criadoEm: string; // ISO
+  atrasado?: boolean;
+  materiais: MaterialPlanejamento[];
 }
 
 export interface QuantidadeProduzida {

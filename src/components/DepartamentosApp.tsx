@@ -3,6 +3,7 @@ import { Layers, CheckCircle2 } from 'lucide-react';
 import { Department, Colaborador, User } from '../types';
 import { CadastroFuncionariosRH } from './CadastroFuncionariosRH';
 import { SacApp } from './SacApp';
+import { PlanejamentoProducaoPCP } from './PlanejamentoProducaoPCP';
 
 interface DepartamentosAppProps {
   user: User;
@@ -30,6 +31,10 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
 
   if (selectedDepartment.id === 'dep-sac') {
     return <SacApp user={user} />;
+  }
+
+  if (selectedDepartment.id === 'dep-pcp') {
+    return <PlanejamentoProducaoPCP />;
   }
 
   return (
