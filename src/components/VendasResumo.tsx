@@ -14,6 +14,16 @@ const formatUnidade = (quantidade: number, unidade: string) => {
   return unidade ? `${numero} ${unidade}` : numero;
 };
 
+// Preço médio = valor total dividido pela quantidade vendida — precisa de
+// casas decimais (diferente do formatCurrency de totais, que arredonda pro
+// real inteiro), senão R$ 0,xx vira "R$ 0".
+const formatPrecoMedio = (valorTotal: number, quantidade: number, unidade: string): string | null => {
+  if (quantidade <= 0) return null;
+  const preco = valorTotal / quantidade;
+  const precoFormatado = preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return unidade ? `${precoFormatado}/${unidade}` : precoFormatado;
+};
+
 export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, erro }) => {
   if (loading) {
     return (
@@ -91,14 +101,21 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
           <p className="text-neutral-500 text-xs">Nenhuma venda de produto encontrada nesse período.</p>
         ) : (
           <ul className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-            {resumo.produtos.map((produto) => (
+            {resumo.produtos.map((produto) => {
+              const precoMedio = formatPrecoMedio(produto.valorTotal, produto.quantidade, produto.unidade);
+              return (
               <li key={produto.nome} className="space-y-1">
                 <div className="flex items-center justify-between gap-3 text-xs">
                   <span className="text-neutral-800 font-medium truncate" title={produto.nome}>
                     {produto.nome}
                   </span>
-                  <span className="text-neutral-500 shrink-0 tabular-nums">
-                    {formatUnidade(produto.quantidade, produto.unidade)}
+                  <span className="flex items-center gap-1.5 shrink-0 tabular-nums">
+                    <span className="text-neutral-500">{formatUnidade(produto.quantidade, produto.unidade)}</span>
+                    {precoMedio && (
+                      <span className="text-neutral-400 font-normal" title="Preço médio (valor total ÷ quantidade)">
+                        · {precoMedio}
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -116,7 +133,8 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
                   </span>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
