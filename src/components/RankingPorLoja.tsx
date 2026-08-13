@@ -42,26 +42,28 @@ export const RankingPorLoja: React.FC<RankingPorLojaProps> = ({ vendedores }) =>
 
   return (
     <div className="space-y-8">
-      {LOJAS.map((loja) => {
-        const doGrupo = vendedores.filter((v) => lojaDoVendedor(v.nome) === loja.id);
-        const comPosicaoLocal = doGrupo.map((v, index) => ({ ...v, posicao: index + 1 }));
-        const top3 = comPosicaoLocal.filter((v) => v.posicao <= 3);
-        const restante = comPosicaoLocal.filter((v) => v.posicao > 3);
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {LOJAS.map((loja) => {
+          const doGrupo = vendedores.filter((v) => lojaDoVendedor(v.nome) === loja.id);
+          const comPosicaoLocal = doGrupo.map((v, index) => ({ ...v, posicao: index + 1 }));
+          const top3 = comPosicaoLocal.filter((v) => v.posicao <= 3);
+          const restante = comPosicaoLocal.filter((v) => v.posicao > 3);
 
-        return (
-          <div key={loja.id} className="space-y-4">
-            <FotoLoja lojaId={loja.id} nome={loja.nome} url={fotos[loja.id]} onEnviar={enviarFoto} />
-            {doGrupo.length === 0 ? (
-              <p className="text-neutral-500 text-xs px-1">Nenhum vendedor com pedidos nesta loja no período.</p>
-            ) : (
-              <>
-                <RankingPodium top3={top3} />
-                <RankingTable vendedores={restante} />
-              </>
-            )}
-          </div>
-        );
-      })}
+          return (
+            <div key={loja.id} className="space-y-4">
+              <FotoLoja lojaId={loja.id} nome={loja.nome} url={fotos[loja.id]} onEnviar={enviarFoto} />
+              {doGrupo.length === 0 ? (
+                <p className="text-neutral-500 text-xs px-1">Nenhum vendedor com pedidos nesta loja no período.</p>
+              ) : (
+                <>
+                  <RankingPodium top3={top3} />
+                  <RankingTable vendedores={restante} />
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {semLoja.length > 0 && (
         <div className="space-y-4 pt-4 border-t border-neutral-100">
