@@ -165,7 +165,7 @@ export interface ContaPagar {
   /** Grupo superior da classificação (ex.: "Despesa Administrativa") — ver src/data/classificacoesFinanceiras.ts. */
   grupo?: string;
   valor: number;
-  /** Data efetiva pro calendário — é a replanejada quando existe, senão a do Nomus. */
+  /** Data efetiva pro calendário — é a replanejada quando existe, senão a de agendamento do Nomus (não a de vencimento contratual). */
   vencimento: string;
   status: 'Agendada' | 'A Vencer' | 'Vencida';
   /** Presente só quando o usuário moveu esta conta pra outro dia (replanejamento local, não altera o Nomus). */

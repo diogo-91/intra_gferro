@@ -730,6 +730,11 @@ interface ContaFinanceiraRaw {
   classificacao?: string;
   nomeClassificacao?: string;
   dataVencimento: string;
+  // Data em que a empresa programou pagar de fato — normalmente igual à
+  // dataVencimento, mas pode ser adiada (ex.: fornecedor combinou pagar
+  // depois do vencimento contratual). Contas a pagar usam essa data pro
+  // calendário, não a dataVencimento (pedido da GFERRO).
+  dataAgendamento?: string;
   dataCompetencia?: string;
   dataBaixa?: string;
   saldoReceber?: string | number;
@@ -909,20 +914,26 @@ async function montarResumoFinanceiro(mesReferencia: Date): Promise<ResumoFinanc
     status: classificarStatusReceber(parseDataBrApi(c.dataVencimento), hoje0h),
   }));
 
-  const contasPagar: ContaPagar[] = abertoPagar.map((c) => ({
-    id: String(c.id),
-    fornecedor: c.nomePessoa || `Fornecedor #${c.idPessoa ?? c.id}`,
-    categoria:
-      (c.classificacao && nomeClassificacaoFinanceira(c.classificacao)) ||
-      c.nomeClassificacao ||
-      c.classificacao ||
-      'Sem classificação',
-    grupo: c.classificacao ? grupoDaClassificacao(c.classificacao) : undefined,
-    // saldoReceber vem negativo em contas a pagar (é o mesmo campo da API pros dois tipos).
-    valor: Math.abs(parseNum(c.saldoReceber)),
-    vencimento: c.dataVencimento.split(' ')[0],
-    status: classificarStatusPagar(parseDataBrApi(c.dataVencimento), hoje0h),
-  }));
+  const contasPagar: ContaPagar[] = abertoPagar.map((c) => {
+    // Contas a pagar usam a data de AGENDAMENTO (quando a empresa programou
+    // pagar de fato), não a de vencimento contratual — pedido explícito da
+    // GFERRO. Cai pra dataVencimento só se a Nomus não trouxer agendamento.
+    const dataBase = c.dataAgendamento || c.dataVencimento;
+    return {
+      id: String(c.id),
+      fornecedor: c.nomePessoa || `Fornecedor #${c.idPessoa ?? c.id}`,
+      categoria:
+        (c.classificacao && nomeClassificacaoFinanceira(c.classificacao)) ||
+        c.nomeClassificacao ||
+        c.classificacao ||
+        'Sem classificação',
+      grupo: c.classificacao ? grupoDaClassificacao(c.classificacao) : undefined,
+      // saldoReceber vem negativo em contas a pagar (é o mesmo campo da API pros dois tipos).
+      valor: Math.abs(parseNum(c.saldoReceber)),
+      vencimento: dataBase.split(' ')[0],
+      status: classificarStatusPagar(parseDataBrApi(dataBase), hoje0h),
+    };
+  });
 
   // Reaproveita recebimentos/pagamentos (já buscados pra montar o fluxoCaixa
   // abaixo) filtrando só o mês selecionado — nenhuma chamada extra ao Nomus.
