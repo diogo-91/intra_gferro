@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Wallet,
   TrendingUp,
@@ -68,6 +68,15 @@ function gerarGradeMes(ano: number, mes: number): Date[] {
   const primeiroDia = new Date(ano, mes, 1);
   const inicio = new Date(ano, mes, 1 - primeiroDia.getDay());
   return Array.from({ length: 42 }, (_, i) => new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i));
+}
+
+// Primeiro dia depois de `data` que não é sábado nem domingo.
+function proximoDiaUtil(data: Date): Date {
+  const proximo = new Date(data.getFullYear(), data.getMonth(), data.getDate() + 1);
+  while (proximo.getDay() === 0 || proximo.getDay() === 6) {
+    proximo.setDate(proximo.getDate() + 1);
+  }
+  return proximo;
 }
 
 function bateBusca(texto: string, busca: string): boolean {
@@ -599,27 +608,41 @@ export const ProgramacaoFinanceira: React.FC = () => {
     setDiaSelecionado(valorIso);
   }
 
+  // Conta em aberto que vence hoje e ainda não foi paga "pula" pro próximo
+  // dia útil no calendário (continua vermelha) — contas já atrasadas de dias
+  // anteriores permanecem na data original de vencimento.
+  const chaveExibicaoConta = useCallback(
+    (it: ContaAberta) => {
+      const vencimento = parseDataBr(it.vencimento);
+      if (vencimento.getTime() === hoje0h.getTime()) {
+        return chaveDia(proximoDiaUtil(hoje0h));
+      }
+      return chaveDia(vencimento);
+    },
+    [hoje0h]
+  );
+
   const receberPorDia = useMemo(() => {
     const mapa = new Map<string, ContaAberta[]>();
     for (const it of itensAbertos) {
       if (it.tipo !== 'receber') continue;
-      const chave = chaveDia(parseDataBr(it.vencimento));
+      const chave = chaveExibicaoConta(it);
       if (!mapa.has(chave)) mapa.set(chave, []);
       mapa.get(chave)!.push(it);
     }
     return mapa;
-  }, [itensAbertos]);
+  }, [itensAbertos, chaveExibicaoConta]);
 
   const pagarPorDia = useMemo(() => {
     const mapa = new Map<string, ContaAberta[]>();
     for (const it of itensAbertos) {
       if (it.tipo !== 'pagar') continue;
-      const chave = chaveDia(parseDataBr(it.vencimento));
+      const chave = chaveExibicaoConta(it);
       if (!mapa.has(chave)) mapa.set(chave, []);
       mapa.get(chave)!.push(it);
     }
     return mapa;
-  }, [itensAbertos]);
+  }, [itensAbertos, chaveExibicaoConta]);
 
   // Caixa REALIZADO por dia — usa dataBaixa (quando o Nomus deu baixa de fato),
   // não o vencimento. É o que efetivamente entrou/saiu, diferente das linhas
@@ -737,11 +760,14 @@ export const ProgramacaoFinanceira: React.FC = () => {
     const recebidoDia = (recebidoPorDia.get(chave) ?? []).filter((c) => bateBusca(`${c.pessoa} ${c.categoria}`, buscaCalendario));
     const pagoDia = (pagoPorDia.get(chave) ?? []).filter((c) => bateBusca(`${c.pessoa} ${c.categoria}`, buscaCalendario));
 
+    // Toda conta em aberto (a receber ou a pagar) ainda não foi paga —
+    // vermelho pra todas, independente do tipo. Só o que já foi conciliado
+    // (baixado de fato) fica azul, logo abaixo.
     const abertos: ChipDia[] = [...receberDia, ...pagarDia].map((it) => ({
       key: `${it.tipo}-${it.id}`,
       label: it.pessoa,
       valor: it.valor,
-      cor: it.status === 'Vencida' ? 'red' : it.tipo === 'receber' ? 'emerald' : 'amber',
+      cor: 'red',
       Icon: it.status === 'Vencida' ? AlertTriangle : it.tipo === 'receber' ? TrendingUp : Building2,
       item: it,
     }));
@@ -753,7 +779,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
       Icon: CheckCircle2,
     }));
 
-    const ordenados = [...abertos.filter((c) => c.cor === 'red'), ...abertos.filter((c) => c.cor !== 'red'), ...conciliados];
+    const ordenados = [...abertos, ...conciliados];
     return { visiveis: ordenados.slice(0, 3), restantes: Math.max(0, ordenados.length - 3) };
   }
 
@@ -1243,10 +1269,8 @@ export const ProgramacaoFinanceira: React.FC = () => {
 
               {/* Legenda */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-2 border-t border-neutral-100 text-[10px] text-neutral-500">
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />A receber</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />A pagar (em dia)</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />Vencido</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />Conciliado</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />Não paga</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />Já paga (conciliado)</span>
                 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full border border-neutral-300 shrink-0" />Arraste para agendar</span>
               </div>
             </div>
@@ -1280,10 +1304,9 @@ export const ProgramacaoFinanceira: React.FC = () => {
             {(['receber', 'pagar'] as TipoConta[]).map((tipo) => {
               const itens = itensDoDiaSelecionado[tipo];
               if (itens.length === 0) return null;
-              const cor = tipo === 'receber' ? 'emerald' : 'red';
               return (
                 <div key={tipo} className="space-y-2">
-                  <h3 className={`flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider ${cor === 'emerald' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <h3 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-red-600">
                     {tipo === 'receber' ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                     {tipo === 'receber' ? 'A Receber' : 'A Pagar'}
                   </h3>
@@ -1295,7 +1318,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
                         {c.vencimentoOriginal && <span className="text-[9px] text-yellow-600/80">Replanejada — original: {c.vencimentoOriginal}</span>}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={`font-mono font-bold text-xs ${cor === 'emerald' ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(c.valor)}</span>
+                        <span className="font-mono font-bold text-xs text-red-600">{formatCurrency(c.valor)}</span>
                         {c.vencimentoOriginal ? (
                           <button type="button" title="Desfazer replanejamento" onClick={() => desfazerReprogramacao(c.id, tipo, c.vencimentoOriginal!)} className="w-6 h-6 shrink-0 flex items-center justify-center rounded-full bg-neutral-100 text-neutral-500 hover:text-yellow-600 transition-all">
                             <Undo2 className="w-3.5 h-3.5" />
@@ -1315,10 +1338,9 @@ export const ProgramacaoFinanceira: React.FC = () => {
             {(['recebido', 'pago'] as const).map((tipo) => {
               const itens = itensDoDiaSelecionado[tipo];
               if (itens.length === 0) return null;
-              const cor = tipo === 'recebido' ? 'emerald' : 'red';
               return (
                 <div key={tipo} className="space-y-2 pt-1 border-t border-neutral-100">
-                  <h3 className={`flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider ${cor === 'emerald' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <h3 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-sky-600">
                     <Wallet className="w-3.5 h-3.5" />
                     Caixa Realizado — {tipo === 'recebido' ? 'Entrou' : 'Saiu'}
                   </h3>
@@ -1328,7 +1350,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
                         <span className="font-bold text-neutral-900 text-xs truncate block">{c.pessoa}</span>
                         <span className="text-[10px] text-neutral-500 truncate block">{c.categoria}</span>
                       </div>
-                      <span className={`font-mono font-bold text-xs shrink-0 ${cor === 'emerald' ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(c.valor)}</span>
+                      <span className="font-mono font-bold text-xs shrink-0 text-sky-600">{formatCurrency(c.valor)}</span>
                     </div>
                   ))}
                 </div>
