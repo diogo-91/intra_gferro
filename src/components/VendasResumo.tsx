@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag } from 'lucide-react';
+import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt } from 'lucide-react';
 import { ResumoVendas } from '../types';
 import { formatCurrency, formatMetrosQuadrados, formatInteiro } from '../utils/format';
 
@@ -130,10 +130,11 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
 
   const maiorValorProduto = resumo.produtos.reduce((max, p) => Math.max(max, p.valorTotal), 0) || 1;
   const maiorPrecoMedio = resumo.produtos.reduce((max, p) => Math.max(max, precoMedioDe(p.valorTotal, p.quantidade) ?? 0), 0) || 1;
+  const ticketMedio = resumo.totalPedidos > 0 ? resumo.totalVendas / resumo.totalPedidos : 0;
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="rounded-2xl bg-white border border-neutral-200 p-4 flex flex-col gap-1.5">
           <span className="flex items-center gap-1.5 text-xs text-neutral-500">
             <Wallet className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
@@ -166,6 +167,16 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
             Vendedores Ativos
           </span>
           <span className="text-xl font-black text-neutral-900 tabular-nums">{formatInteiro(resumo.vendedoresAtivos)}</span>
+        </div>
+
+        <div className="rounded-2xl bg-white border border-neutral-200 p-4 flex flex-col gap-1.5">
+          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
+            <Receipt className="w-3.5 h-3.5 text-rose-600" aria-hidden="true" />
+            Ticket Médio
+          </span>
+          <span className="text-xl font-black text-neutral-900 tabular-nums" title="Total de vendas ÷ número de pedidos do período">
+            {formatCurrency(ticketMedio)}
+          </span>
         </div>
       </div>
 
