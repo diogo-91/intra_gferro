@@ -19,6 +19,8 @@ import { salvarReprogramacao, removerReprogramacao, TipoConta } from './reprogra
 import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './funcionarios';
 import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
 import * as sac from './sac';
+import * as lojasFotos from './lojasFotos';
+import { LOJAS } from './src/data/vendedorLoja';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao } from './auth';
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
@@ -106,6 +108,8 @@ async function startServer() {
   // Anexos do SAC — servidos como arquivo estático, mas atrás do mesmo login
   // da intranet (não é rota /api, então o middleware acima não cobre).
   app.use('/uploads/sac', exigirAutenticacao, express.static(sac.PASTA_UPLOADS_SAC));
+  // Fotos de fachada das lojas — mesmo esquema.
+  app.use('/uploads/lojas', exigirAutenticacao, express.static(lojasFotos.PASTA_UPLOADS_LOJAS));
 
   app.post('/api/chat', async (req, res) => {
     try {
@@ -211,6 +215,49 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao gerar PDF do ranking de vendedores:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao gerar PDF', details: error.message });
+    }
+  });
+
+  const IDS_LOJAS_VALIDOS = new Set(LOJAS.map((l) => l.id));
+
+  const uploadLojaFoto = multer({
+    storage: multer.diskStorage({
+      destination: async (_req, _file, cb) => {
+        await mkdir(lojasFotos.PASTA_UPLOADS_LOJAS, { recursive: true });
+        cb(null, lojasFotos.PASTA_UPLOADS_LOJAS);
+      },
+      filename: (_req, file, cb) => {
+        cb(null, `${randomUUID()}-${file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`);
+      },
+    }),
+    fileFilter: (_req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new Error('Envie um arquivo de imagem.'));
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 8 * 1024 * 1024 },
+  });
+
+  app.get('/api/vendas/lojas/fotos', async (_req, res) => {
+    res.json(await lojasFotos.listarFotosLojas());
+  });
+
+  app.post('/api/vendas/lojas/:lojaId/foto', uploadLojaFoto.single('foto'), async (req, res) => {
+    try {
+      const { lojaId } = req.params;
+      if (!IDS_LOJAS_VALIDOS.has(lojaId)) {
+        return res.status(400).json({ error: 'Loja desconhecida.' });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
+      }
+      const url = `/uploads/lojas/${req.file.filename}`;
+      await lojasFotos.definirFotoLoja(lojaId, url);
+      res.json({ url });
+    } catch (error: any) {
+      console.error('Erro ao salvar foto da loja:', error);
+      res.status(500).json({ error: 'Erro ao salvar a foto', details: error.message });
     }
   });
 

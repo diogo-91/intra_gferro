@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown } from 'lucide-react';
 import { VendedorRanking, ResumoVendas } from '../types';
 import { RankingFilters, Periodo, periodos, SeletorMesEspecifico } from './RankingFilters';
-import { RankingPodium } from './RankingPodium';
-import { RankingTable } from './RankingTable';
+import { RankingPorLoja } from './RankingPorLoja';
 import { RankingEmptyState } from './RankingEmptyState';
 import { VendasResumo } from './VendasResumo';
 
@@ -108,9 +107,6 @@ export const VendasDashboard: React.FC = () => {
     });
   }, [rankingComPosicao, busca, somenteComPedidos]);
 
-  const top3 = useMemo(() => rankingFiltrado.filter((v) => v.posicao <= 3), [rankingFiltrado]);
-  const restante = useMemo(() => rankingFiltrado.filter((v) => v.posicao > 3), [rankingFiltrado]);
-
   // Arquivo de verdade gerado no servidor (não é window.print()) — mesmo
   // período já carregado na tela.
   const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
@@ -205,9 +201,8 @@ export const VendasDashboard: React.FC = () => {
           {!loading && !erro && rankingFiltrado.length === 0 && <RankingEmptyState />}
 
           {!loading && !erro && rankingFiltrado.length > 0 && (
-            <div className="p-5 space-y-5">
-              <RankingPodium top3={top3} />
-              <RankingTable vendedores={restante} />
+            <div className="p-5">
+              <RankingPorLoja vendedores={rankingFiltrado} />
             </div>
           )}
         </div>
