@@ -17,6 +17,14 @@ const badgeStyleByPosicao: Record<number, string> = {
   3: 'bg-amber-700 text-white',
 };
 
+// As 3 primeiras posições vêm com a linha destacada (sem pódio em cards
+// separados) — mesmo tom de cor do badge, só bem mais sutil.
+const linhaDestaqueByPosicao: Record<number, string> = {
+  1: 'bg-yellow-50/70 hover:bg-yellow-50',
+  2: 'bg-neutral-50 hover:bg-neutral-100',
+  3: 'bg-amber-50/70 hover:bg-amber-50',
+};
+
 export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
   if (vendedores.length === 0) return null;
 
@@ -55,7 +63,12 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
           {vendedores.map((v) => {
             const nomeExibido = formatNomeVendedor(v.nome);
             return (
-              <tr key={v.nome} className="hover:bg-neutral-100 transition-colors motion-reduce:transition-none">
+              <tr
+                key={v.nome}
+                className={`transition-colors motion-reduce:transition-none ${
+                  linhaDestaqueByPosicao[v.posicao] ?? 'hover:bg-neutral-100'
+                }`}
+              >
                 <td className="px-5 py-3">
                   <span
                     className={`mx-auto w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${

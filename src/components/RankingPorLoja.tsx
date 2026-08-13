@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Store } from 'lucide-react';
 import { VendedorRanking } from '../types';
 import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
-import { RankingPodium } from './RankingPodium';
 import { RankingTable } from './RankingTable';
 
 interface RankingComPosicao extends VendedorRanking {
@@ -15,10 +14,11 @@ interface RankingPorLojaProps {
 
 // Agrupa o ranking (já filtrado por busca/checkbox) por loja — mapeamento
 // fixo em src/data/vendedorLoja.ts, já que o Nomus não tem esse conceito.
-// Cada loja tem seu próprio pódio (1º/2º/3º DENTRO da loja, não da empresa
-// toda) — escolha confirmada com o usuário. A ordem de entrada já vem do
-// maior pro menor valor vendido (herdada da lista global), então filtrar
-// por loja preserva essa ordem sem precisar reordenar.
+// Cada loja mostra uma tabela só com sua própria numeração 1º/2º/3º DENTRO
+// da loja (não da empresa toda) — as 3 primeiras linhas vêm destacadas
+// (ver RankingTable). A ordem de entrada já vem do maior pro menor valor
+// vendido (herdada da lista global), então filtrar por loja preserva essa
+// ordem sem precisar reordenar.
 export const RankingPorLoja: React.FC<RankingPorLojaProps> = ({ vendedores }) => {
   const [fotos, setFotos] = useState<Record<string, string>>({});
 
@@ -46,8 +46,6 @@ export const RankingPorLoja: React.FC<RankingPorLojaProps> = ({ vendedores }) =>
         {LOJAS.map((loja) => {
           const doGrupo = vendedores.filter((v) => lojaDoVendedor(v.nome) === loja.id);
           const comPosicaoLocal = doGrupo.map((v, index) => ({ ...v, posicao: index + 1 }));
-          const top3 = comPosicaoLocal.filter((v) => v.posicao <= 3);
-          const restante = comPosicaoLocal.filter((v) => v.posicao > 3);
 
           return (
             <div key={loja.id} className="space-y-4">
@@ -55,10 +53,7 @@ export const RankingPorLoja: React.FC<RankingPorLojaProps> = ({ vendedores }) =>
               {doGrupo.length === 0 ? (
                 <p className="text-neutral-500 text-xs px-1">Nenhum vendedor com pedidos nesta loja no período.</p>
               ) : (
-                <>
-                  <RankingPodium top3={top3} />
-                  <RankingTable vendedores={restante} />
-                </>
+                <RankingTable vendedores={comPosicaoLocal} />
               )}
             </div>
           );
