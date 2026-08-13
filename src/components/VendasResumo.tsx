@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3 } from 'lucide-react';
+import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag } from 'lucide-react';
 import { ResumoVendas } from '../types';
 import { formatCurrency, formatMetrosQuadrados, formatInteiro } from '../utils/format';
 
@@ -17,49 +17,87 @@ const formatUnidade = (quantidade: number, unidade: string) => {
 // Preço médio = valor total dividido pela quantidade vendida — precisa de
 // casas decimais (diferente do formatCurrency de totais, que arredonda pro
 // real inteiro), senão R$ 0,xx vira "R$ 0".
-const formatPrecoMedio = (valorTotal: number, quantidade: number, unidade: string): string | null => {
-  if (quantidade <= 0) return null;
-  const preco = valorTotal / quantidade;
+function precoMedioDe(valorTotal: number, quantidade: number): number | null {
+  return quantidade > 0 ? valorTotal / quantidade : null;
+}
+
+const formatPrecoMedio = (preco: number, unidade: string): string => {
   const precoFormatado = preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return unidade ? `${precoFormatado}/${unidade}` : precoFormatado;
 };
 
-interface ListaProdutosProps {
+interface ListaVendasPorProdutoProps {
   produtos: ResumoVendas['produtos'];
   maiorValorProduto: number;
 }
 
-const ListaProdutos: React.FC<ListaProdutosProps> = ({ produtos, maiorValorProduto }) => (
+// Tabela original: nome, quantidade e valor total vendido — sem alteração.
+const ListaVendasPorProduto: React.FC<ListaVendasPorProdutoProps> = ({ produtos, maiorValorProduto }) => (
+  <ul className="space-y-3">
+    {produtos.map((produto) => (
+      <li key={produto.nome} className="space-y-1">
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="text-neutral-800 font-medium truncate" title={produto.nome}>
+            {produto.nome}
+          </span>
+          <span className="text-neutral-500 shrink-0 tabular-nums">
+            {formatUnidade(produto.quantidade, produto.unidade)}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.max(4, (produto.valorTotal / maiorValorProduto) * 100)}%`,
+                backgroundImage: 'linear-gradient(90deg, #ca8a04, #facc15)',
+              }}
+            />
+          </div>
+          <span className="text-emerald-600 font-bold text-xs shrink-0 tabular-nums w-24 text-right">
+            {formatCurrency(produto.valorTotal)}
+          </span>
+        </div>
+      </li>
+    ))}
+  </ul>
+);
+
+interface ListaPrecoMedioProps {
+  produtos: ResumoVendas['produtos'];
+  maiorPrecoMedio: number;
+}
+
+// Tabela nova: mesmos produtos, mas com o preço médio de venda (valor total
+// ÷ quantidade) em vez do valor total.
+const ListaPrecoMedio: React.FC<ListaPrecoMedioProps> = ({ produtos, maiorPrecoMedio }) => (
   <ul className="space-y-3">
     {produtos.map((produto) => {
-      const precoMedio = formatPrecoMedio(produto.valorTotal, produto.quantidade, produto.unidade);
+      const preco = precoMedioDe(produto.valorTotal, produto.quantidade);
       return (
         <li key={produto.nome} className="space-y-1">
           <div className="flex items-center justify-between gap-3 text-xs">
             <span className="text-neutral-800 font-medium truncate" title={produto.nome}>
               {produto.nome}
             </span>
-            <span className="flex items-center gap-1.5 shrink-0 tabular-nums">
-              <span className="text-neutral-500">{formatUnidade(produto.quantidade, produto.unidade)}</span>
-              {precoMedio && (
-                <span className="text-neutral-400 font-normal" title="Preço médio (valor total ÷ quantidade)">
-                  · {precoMedio}
-                </span>
-              )}
+            <span className="text-neutral-500 shrink-0 tabular-nums">
+              {formatUnidade(produto.quantidade, produto.unidade)}
             </span>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${Math.max(4, (produto.valorTotal / maiorValorProduto) * 100)}%`,
-                  backgroundImage: 'linear-gradient(90deg, #ca8a04, #facc15)',
-                }}
-              />
+              {preco !== null && (
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(4, (preco / maiorPrecoMedio) * 100)}%`,
+                    backgroundImage: 'linear-gradient(90deg, #0284c7, #38bdf8)',
+                  }}
+                />
+              )}
             </div>
-            <span className="text-emerald-600 font-bold text-xs shrink-0 tabular-nums w-24 text-right">
-              {formatCurrency(produto.valorTotal)}
+            <span className="text-sky-600 font-bold text-xs shrink-0 tabular-nums w-28 text-right">
+              {preco !== null ? formatPrecoMedio(preco, produto.unidade) : '—'}
             </span>
           </div>
         </li>
@@ -91,9 +129,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
   if (!resumo) return null;
 
   const maiorValorProduto = resumo.produtos.reduce((max, p) => Math.max(max, p.valorTotal), 0) || 1;
-  const metade = Math.ceil(resumo.produtos.length / 2);
-  const primeiraColuna = resumo.produtos.slice(0, metade);
-  const segundaColuna = resumo.produtos.slice(metade);
+  const maiorPrecoMedio = resumo.produtos.reduce((max, p) => Math.max(max, precoMedioDe(p.valorTotal, p.quantidade) ?? 0), 0) || 1;
 
   return (
     <div className="space-y-5">
@@ -133,26 +169,43 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white border border-neutral-200 p-5">
-        <h3 className="flex items-center justify-between gap-2 text-sm font-bold text-neutral-900 mb-4">
-          <span className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-yellow-600" aria-hidden="true" />
-            Vendas por Produto
-          </span>
-          <span className="text-[11px] font-normal text-neutral-500">
-            {formatInteiro(resumo.produtos.length)} {resumo.produtos.length === 1 ? 'produto' : 'produtos'}
-          </span>
-        </h3>
-
-        {resumo.produtos.length === 0 ? (
+      {resumo.produtos.length === 0 ? (
+        <div className="rounded-2xl bg-white border border-neutral-200 p-5">
           <p className="text-neutral-500 text-xs">Nenhuma venda de produto encontrada nesse período.</p>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4 max-h-[480px] overflow-y-auto pr-1">
-            <ListaProdutos produtos={primeiraColuna} maiorValorProduto={maiorValorProduto} />
-            <ListaProdutos produtos={segundaColuna} maiorValorProduto={maiorValorProduto} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="rounded-2xl bg-white border border-neutral-200 p-5">
+            <h3 className="flex items-center justify-between gap-2 text-sm font-bold text-neutral-900 mb-4">
+              <span className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-yellow-600" aria-hidden="true" />
+                Vendas por Produto
+              </span>
+              <span className="text-[11px] font-normal text-neutral-500">
+                {formatInteiro(resumo.produtos.length)} {resumo.produtos.length === 1 ? 'produto' : 'produtos'}
+              </span>
+            </h3>
+            <div className="max-h-[480px] overflow-y-auto pr-1">
+              <ListaVendasPorProduto produtos={resumo.produtos} maiorValorProduto={maiorValorProduto} />
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="rounded-2xl bg-white border border-neutral-200 p-5">
+            <h3 className="flex items-center justify-between gap-2 text-sm font-bold text-neutral-900 mb-4">
+              <span className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-sky-600" aria-hidden="true" />
+                Preço Médio de Venda
+              </span>
+              <span className="text-[11px] font-normal text-neutral-500">
+                {formatInteiro(resumo.produtos.length)} {resumo.produtos.length === 1 ? 'produto' : 'produtos'}
+              </span>
+            </h3>
+            <div className="max-h-[480px] overflow-y-auto pr-1">
+              <ListaPrecoMedio produtos={resumo.produtos} maiorPrecoMedio={maiorPrecoMedio} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
