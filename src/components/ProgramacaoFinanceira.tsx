@@ -608,14 +608,17 @@ export const ProgramacaoFinanceira: React.FC = () => {
     setDiaSelecionado(valorIso);
   }
 
-  // Conta em aberto que vence hoje e ainda não foi paga "pula" pro próximo
-  // dia útil no calendário (continua vermelha) — contas já atrasadas de dias
-  // anteriores permanecem na data original de vencimento.
+  // Conta em aberto continua no próprio dia enquanto ele ainda não "virou"
+  // (só empurra depois das 23h59 do dia do vencimento, nunca antes). Assim
+  // que hoje é exatamente o 1º dia útil seguinte ao vencimento — ou seja, o
+  // dia venceu ontem (ou na sexta, se hoje é segunda) e ainda não foi paga —
+  // ela pula pra hoje, em vermelho. Se ficar mais tempo em aberto, volta a
+  // aparecer na data original de vencimento (atrasada), sem seguir pulando.
   const chaveExibicaoConta = useCallback(
     (it: ContaAberta) => {
       const vencimento = parseDataBr(it.vencimento);
-      if (vencimento.getTime() === hoje0h.getTime()) {
-        return chaveDia(proximoDiaUtil(hoje0h));
+      if (proximoDiaUtil(vencimento).getTime() === hoje0h.getTime()) {
+        return chaveDia(hoje0h);
       }
       return chaveDia(vencimento);
     },
