@@ -22,6 +22,7 @@
 import type { ContaReceber, ContaPagar, ContaConcluida, FluxoCaixaMes, ResumoFinanceiro } from './src/types';
 import { aplicarReprogramacoes } from './reprogramacoes';
 import { nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
+import { lojaDoVendedor } from './src/data/vendedorLoja';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
 
@@ -665,9 +666,14 @@ export async function getRankingVendedores(
   return { ranking, atualizadoEm: new Date(atualizadoEm).toISOString() };
 }
 
-export async function getResumoVendas(periodo: Periodo, mes?: string): Promise<ResumoVendas> {
-  const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes), getUnidadesMedida()]);
-
+// Agregação compartilhada por getResumoVendas (todos os pedidos do período)
+// e getResumoVendasPorLoja (só os pedidos dos vendedores daquela loja) —
+// mesmo cálculo, o que muda é só o subconjunto de pedidos recebido.
+async function montarResumoDePedidos(
+  pedidos: Pedido[],
+  unidades: Map<number, string>,
+  atualizadoEm: number
+): Promise<ResumoVendas> {
   const totalVendas = pedidos.reduce((soma, p) => soma + parseNum(p.valorTotal), 0);
   const totalPedidos = pedidos.length;
   const totalMetrosQuadrados = pedidos.reduce((soma, p) => soma + metrosQuadradosPedido(p), 0);
@@ -709,8 +715,6 @@ export async function getResumoVendas(periodo: Periodo, mes?: string): Promise<R
     })
   );
 
-  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
-
   return {
     totalVendas,
     totalPedidos,
@@ -719,6 +723,31 @@ export async function getResumoVendas(periodo: Periodo, mes?: string): Promise<R
     produtos,
     atualizadoEm: new Date(atualizadoEm).toISOString(),
   };
+}
+
+export async function getResumoVendas(periodo: Periodo, mes?: string): Promise<ResumoVendas> {
+  const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes), getUnidadesMedida()]);
+  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
+  return montarResumoDePedidos(pedidos, unidades, atualizadoEm);
+}
+
+// Mesmo resumo de getResumoVendas, mas só com os pedidos dos vendedores
+// vinculados a uma loja (ver src/data/vendedorLoja.ts) — pedido explícito
+// da GFERRO pra ver as vendas de cada unidade separadamente.
+export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, mes?: string): Promise<ResumoVendas> {
+  const [pedidos, unidades, vendedores] = await Promise.all([
+    getPedidosDoPeriodo(periodo, mes),
+    getUnidadesMedida(),
+    getVendedores(),
+  ]);
+  const mapaVendedor = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
+  const pedidosDaLoja = pedidos.filter((p) => {
+    if (p.idPessoaVendedor == null) return false;
+    const nome = mapaVendedor.get(p.idPessoaVendedor);
+    return nome != null && lojaDoVendedor(nome) === lojaId;
+  });
+  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
+  return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm);
 }
 
 // ================== Financeiro (Contas a Pagar/Receber) ==================

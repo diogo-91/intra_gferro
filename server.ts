@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { getRankingVendedores, getResumoVendas, getResumoFinanceiro, Periodo } from './nomus';
+import { getRankingVendedores, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, Periodo } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -189,6 +189,25 @@ Contexto da GFERRO:
       res.json(resultado);
     } catch (error: any) {
       console.error('Erro ao buscar resumo de vendas no Nomus:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
+    }
+  });
+
+  app.get('/api/vendas/lojas/:lojaId/resumo', async (req, res) => {
+    try {
+      const { lojaId } = req.params;
+      if (!LOJAS.some((l) => l.id === lojaId)) {
+        return res.status(400).json({ error: 'Loja desconhecida.' });
+      }
+      const periodo = (req.query.periodo as string) || 'mes';
+      if (!['dia', 'semana', 'mes'].includes(periodo)) {
+        return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
+      }
+      const mes = validarMesQuery(req.query.mes);
+      const resultado = await getResumoVendasPorLoja(periodo as Periodo, lojaId, mes);
+      res.json(resultado);
+    } catch (error: any) {
+      console.error('Erro ao buscar resumo de vendas por loja no Nomus:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
     }
   });

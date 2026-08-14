@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown } from 'lucide-react';
+import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store } from 'lucide-react';
 import { VendedorRanking, ResumoVendas } from '../types';
 import { RankingFilters, Periodo, periodos, SeletorMesEspecifico } from './RankingFilters';
 import { RankingPorLoja } from './RankingPorLoja';
 import { RankingEmptyState } from './RankingEmptyState';
 import { VendasResumo } from './VendasResumo';
+import { LOJAS } from '../data/vendedorLoja';
 
-type VendasView = 'painel' | 'ranking';
+type VendasView = 'painel' | 'ranking' | 'loja';
 
 export const VendasDashboard: React.FC = () => {
   const [view, setView] = useState<VendasView>('painel');
@@ -15,6 +16,7 @@ export const VendasDashboard: React.FC = () => {
   const [mes, setMes] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [somenteComPedidos, setSomenteComPedidos] = useState(false);
+  const [lojaSelecionada, setLojaSelecionada] = useState<string | null>(null);
 
   const [ranking, setRanking] = useState<VendedorRanking[]>([]);
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
@@ -24,6 +26,10 @@ export const VendasDashboard: React.FC = () => {
   const [resumo, setResumo] = useState<ResumoVendas | null>(null);
   const [resumoLoading, setResumoLoading] = useState(false);
   const [resumoErro, setResumoErro] = useState<string | null>(null);
+
+  const [resumoLoja, setResumoLoja] = useState<ResumoVendas | null>(null);
+  const [resumoLojaLoading, setResumoLojaLoading] = useState(false);
+  const [resumoLojaErro, setResumoLojaErro] = useState<string | null>(null);
 
   useEffect(() => {
     if (view !== 'ranking') return;
@@ -87,6 +93,37 @@ export const VendasDashboard: React.FC = () => {
       cancelado = true;
     };
   }, [view, periodo, mes]);
+
+  useEffect(() => {
+    if (view !== 'loja' || !lojaSelecionada) return;
+
+    let cancelado = false;
+    setResumoLojaLoading(true);
+    setResumoLojaErro(null);
+
+    const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
+    fetch(`/api/vendas/lojas/${lojaSelecionada}/resumo?periodo=${periodo}${mesQuery}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Falha ao buscar dados do Nomus');
+        return data as ResumoVendas;
+      })
+      .then((data) => {
+        if (cancelado) return;
+        setResumoLoja(data);
+      })
+      .catch((err) => {
+        if (cancelado) return;
+        setResumoLojaErro(err.message || 'Falha ao buscar dados do Nomus');
+      })
+      .finally(() => {
+        if (!cancelado) setResumoLojaLoading(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [view, lojaSelecionada, periodo, mes]);
 
   // A posição sempre reflete o ranking completo do período (nunca é
   // recalculada a partir da lista filtrada), pra não fabricar posições.
@@ -210,6 +247,68 @@ export const VendasDashboard: React.FC = () => {
     );
   }
 
+  if (view === 'loja' && lojaSelecionada) {
+    const loja = LOJAS.find((l) => l.id === lojaSelecionada);
+    return (
+      <div className="space-y-6">
+        <button
+          type="button"
+          onClick={() => setView('painel')}
+          className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Voltar ao Painel</span>
+        </button>
+
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Dashboard • Vendas</span>
+            <h1 className="text-2xl font-black text-neutral-900 mt-1 flex items-center gap-2">
+              <Store className="w-6 h-6 text-yellow-600" aria-hidden="true" />
+              {loja?.nome ?? 'Loja'}
+            </h1>
+            <p className="text-neutral-500 text-sm mt-1">Vendas do período — só os pedidos dos vendedores desta unidade.</p>
+          </div>
+          {resumoLoja && !resumoLojaLoading && (
+            <span className="text-neutral-500 text-[11px] shrink-0 sm:text-right">
+              Atualizado em {new Date(resumoLoja.atualizadoEm).toLocaleString('pt-BR')}
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div
+            role="group"
+            aria-label="Período do resumo da loja"
+            className="flex items-center gap-1.5 bg-neutral-50 p-1 rounded-full border border-neutral-200 w-fit"
+          >
+            {periodos.map((p) => {
+              const selecionado = periodo === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={selecionado}
+                  onClick={() => setPeriodo(p.id)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                    selecionado ? 'bg-yellow-400 text-black font-bold' : 'text-neutral-500 font-medium hover:text-neutral-900'
+                  }`}
+                >
+                  {p.label}
+                  {selecionado && <span className="sr-only"> (selecionado)</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          <SeletorMesEspecifico periodo={periodo} mes={mes} setMes={setMes} />
+        </div>
+
+        <VendasResumo resumo={resumoLoja} loading={resumoLojaLoading} erro={resumoLojaErro} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -230,6 +329,23 @@ export const VendasDashboard: React.FC = () => {
           <Trophy className="w-4 h-4" aria-hidden="true" />
           <span>Ranking de Vendedores</span>
         </button>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {LOJAS.map((loja) => (
+          <button
+            key={loja.id}
+            type="button"
+            onClick={() => {
+              setLojaSelecionada(loja.id);
+              setView('loja');
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-neutral-200 text-neutral-700 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+          >
+            <Store className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>{loja.nome}</span>
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
