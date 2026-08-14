@@ -135,46 +135,46 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="rounded-2xl bg-white border border-neutral-200 p-4 flex flex-col gap-1.5">
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <Wallet className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+        <div className="rounded-2xl bg-emerald-500 p-4 flex flex-col gap-1.5 shadow-sm">
+          <span className="flex items-center gap-1.5 text-xs text-emerald-50">
+            <Wallet className="w-3.5 h-3.5 text-white" aria-hidden="true" />
             Total de Vendas
           </span>
-          <span className="text-xl font-black text-neutral-900 tabular-nums">{formatCurrency(resumo.totalVendas)}</span>
+          <span className="text-xl font-black text-white tabular-nums">{formatCurrency(resumo.totalVendas)}</span>
         </div>
 
-        <div className="rounded-2xl bg-white border border-neutral-200 p-4 flex flex-col gap-1.5">
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <Package className="w-3.5 h-3.5 text-violet-600" aria-hidden="true" />
+        <div className="rounded-2xl bg-violet-500 p-4 flex flex-col gap-1.5 shadow-sm">
+          <span className="flex items-center gap-1.5 text-xs text-violet-50">
+            <Package className="w-3.5 h-3.5 text-white" aria-hidden="true" />
             Pedidos
           </span>
-          <span className="text-xl font-black text-neutral-900 tabular-nums">{formatInteiro(resumo.totalPedidos)}</span>
+          <span className="text-xl font-black text-white tabular-nums">{formatInteiro(resumo.totalPedidos)}</span>
         </div>
 
-        <div className="rounded-2xl bg-white border border-neutral-200 p-4 flex flex-col gap-1.5">
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <Ruler className="w-3.5 h-3.5 text-sky-600" aria-hidden="true" />
+        <div className="rounded-2xl bg-sky-500 p-4 flex flex-col gap-1.5 shadow-sm">
+          <span className="flex items-center gap-1.5 text-xs text-sky-50">
+            <Ruler className="w-3.5 h-3.5 text-white" aria-hidden="true" />
             Área Vendida
           </span>
-          <span className="text-xl font-black text-neutral-900 tabular-nums">
+          <span className="text-xl font-black text-white tabular-nums">
             {formatMetrosQuadrados(resumo.totalMetrosQuadrados)}
           </span>
         </div>
 
-        <div className="rounded-2xl bg-white border border-neutral-200 p-4 flex flex-col gap-1.5">
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <Users className="w-3.5 h-3.5 text-yellow-600" aria-hidden="true" />
+        <div className="rounded-2xl bg-yellow-400 p-4 flex flex-col gap-1.5 shadow-sm">
+          <span className="flex items-center gap-1.5 text-xs text-black/60">
+            <Users className="w-3.5 h-3.5 text-black" aria-hidden="true" />
             Vendedores Ativos
           </span>
-          <span className="text-xl font-black text-neutral-900 tabular-nums">{formatInteiro(resumo.vendedoresAtivos)}</span>
+          <span className="text-xl font-black text-black tabular-nums">{formatInteiro(resumo.vendedoresAtivos)}</span>
         </div>
 
-        <div className="rounded-2xl bg-white border border-neutral-200 p-4 flex flex-col gap-1.5">
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <Receipt className="w-3.5 h-3.5 text-rose-600" aria-hidden="true" />
+        <div className="rounded-2xl bg-rose-500 p-4 flex flex-col gap-1.5 shadow-sm">
+          <span className="flex items-center gap-1.5 text-xs text-rose-50">
+            <Receipt className="w-3.5 h-3.5 text-white" aria-hidden="true" />
             Ticket Médio
           </span>
-          <span className="text-xl font-black text-neutral-900 tabular-nums" title="Total de vendas ÷ número de pedidos do período">
+          <span className="text-xl font-black text-white tabular-nums" title="Total de vendas ÷ número de pedidos do período">
             {formatCurrency(ticketMedio)}
           </span>
         </div>
