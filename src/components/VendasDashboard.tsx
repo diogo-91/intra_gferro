@@ -340,7 +340,7 @@ export const VendasDashboard: React.FC = () => {
               setLojaSelecionada(loja.id);
               setView('loja');
             }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-neutral-200 text-neutral-700 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-yellow-400 text-black font-bold hover:bg-yellow-300 shadow-sm active:scale-95 text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             <Store className="w-3.5 h-3.5" aria-hidden="true" />
             <span>{loja.nome}</span>
