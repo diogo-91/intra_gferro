@@ -20,7 +20,7 @@ import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './
 import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
 import * as sac from './sac';
 import * as lojasFotos from './lojasFotos';
-import { LOJAS } from './src/data/vendedorLoja';
+import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao } from './auth';
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
@@ -227,7 +227,9 @@ Contexto da GFERRO:
       doc.pipe(res);
       gerarPdfRankingVendedores(doc, {
         periodoRotulo: rotuloPeriodo(periodo as Periodo, mes),
-        ranking,
+        // Mesma regra da tela: o ranking geral reúne somente vendedores que
+        // pertencem a uma das lojas cadastradas.
+        ranking: ranking.filter((vendedor) => !!lojaDoVendedor(vendedor.nome)),
         atualizadoEm: new Date(atualizadoEm).toLocaleString('pt-BR'),
       });
       doc.end();

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store } from 'lucide-react';
+import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store, Building2 } from 'lucide-react';
 import { VendedorRanking, ResumoVendas } from '../types';
 import { RankingFilters, Periodo, periodos, SeletorMesEspecifico } from './RankingFilters';
-import { RankingPorLoja } from './RankingPorLoja';
 import { RankingEmptyState } from './RankingEmptyState';
+import { RankingPodio } from './RankingPodio';
+import { RankingTable } from './RankingTable';
 import { VendasResumo } from './VendasResumo';
-import { LOJAS } from '../data/vendedorLoja';
+import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
 
 type VendasView = 'painel' | 'ranking' | 'loja';
 
@@ -17,6 +18,7 @@ export const VendasDashboard: React.FC = () => {
   const [busca, setBusca] = useState('');
   const [somenteComPedidos, setSomenteComPedidos] = useState(false);
   const [lojaSelecionada, setLojaSelecionada] = useState<string | null>(null);
+  const [rankingSelecionado, setRankingSelecionado] = useState<string>('geral');
 
   const [ranking, setRanking] = useState<VendedorRanking[]>([]);
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
@@ -125,24 +127,29 @@ export const VendasDashboard: React.FC = () => {
     };
   }, [view, lojaSelecionada, periodo, mes]);
 
-  // A posição sempre reflete o ranking completo do período (nunca é
-  // recalculada a partir da lista filtrada), pra não fabricar posições.
-  const rankingComPosicao = useMemo(
-    () => ranking.map((v, index) => ({ ...v, posicao: index + 1 })),
-    [ranking]
-  );
+  // No geral, a posição é corporativa. Dentro de uma loja, a posição é
+  // recalculada somente entre os vendedores daquela unidade. Busca e checkbox
+  // são aplicados depois, para nunca fabricar posições ao filtrar a tabela.
+  const rankingDaVisao = useMemo(() => {
+    const vendedores = rankingSelecionado === 'geral'
+      // O geral é a união dos rankings das lojas. Vendedores sem unidade
+      // definida não participam nem do pódio nem da classificação corporativa.
+      ? ranking.filter((v) => !!lojaDoVendedor(v.nome))
+      : ranking.filter((v) => lojaDoVendedor(v.nome) === rankingSelecionado);
+    return vendedores.map((v, index) => ({ ...v, posicao: index + 1 }));
+  }, [ranking, rankingSelecionado]);
 
   const rankingFiltrado = useMemo(() => {
     const normalizar = (texto: string) =>
       texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
     const buscaNormalizada = normalizar(busca.trim());
 
-    return rankingComPosicao.filter((v) => {
+    return rankingDaVisao.filter((v) => {
       const bateNome = normalizar(v.nome).includes(buscaNormalizada);
       const bateFiltro = !somenteComPedidos || v.pedidos > 0;
       return bateNome && bateFiltro;
     });
-  }, [rankingComPosicao, busca, somenteComPedidos]);
+  }, [rankingDaVisao, busca, somenteComPedidos]);
 
   // Arquivo de verdade gerado no servidor (não é window.print()) — mesmo
   // período já carregado na tela.
@@ -189,18 +196,59 @@ export const VendasDashboard: React.FC = () => {
                 Atualizado em {new Date(atualizadoEm).toLocaleString('pt-BR')}
               </span>
             )}
-            <button
-              type="button"
-              onClick={baixarPdf}
-              disabled={loading || !!erro || ranking.length === 0}
-              title="Baixa o ranking completo do período (não aplica a busca por nome)"
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-            >
-              <FileDown className="w-4 h-4" aria-hidden="true" />
-              Baixar PDF
-            </button>
+            {rankingSelecionado === 'geral' && (
+              <button
+                type="button"
+                onClick={baixarPdf}
+                disabled={loading || !!erro || ranking.length === 0}
+                title="Baixa o ranking geral completo do período (não aplica a busca por nome)"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                <FileDown className="w-4 h-4" aria-hidden="true" />
+                Baixar PDF
+              </button>
+            )}
           </div>
         </div>
+
+        <nav className="flex items-center gap-2 flex-wrap" aria-label="Selecionar ranking geral ou por loja">
+          <button
+            type="button"
+            aria-pressed={rankingSelecionado === 'geral'}
+            onClick={() => setRankingSelecionado('geral')}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full font-bold text-xs transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 ${
+              rankingSelecionado === 'geral'
+                ? 'bg-neutral-950 text-white shadow-md'
+                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-yellow-400 hover:text-neutral-950'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" aria-hidden="true" />
+            Ranking Geral
+          </button>
+          {LOJAS.map((loja) => {
+            const selecionada = rankingSelecionado === loja.id;
+            return (
+              <button
+                key={loja.id}
+                type="button"
+                aria-pressed={selecionada}
+                onClick={() => setRankingSelecionado(loja.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full font-bold text-xs transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 ${
+                  selecionada
+                    ? 'bg-yellow-400 text-black shadow-md shadow-yellow-400/20'
+                    : 'bg-white border border-neutral-200 text-neutral-600 hover:border-yellow-400 hover:text-neutral-950'
+                }`}
+              >
+                <Store className="w-3.5 h-3.5" aria-hidden="true" />
+                {loja.nome}
+              </button>
+            );
+          })}
+        </nav>
+
+        {!loading && !erro && rankingSelecionado === 'geral' && rankingDaVisao.length > 0 && (
+          <RankingPodio vendedores={rankingDaVisao} />
+        )}
 
         <div className="rounded-3xl bg-white border border-neutral-200 overflow-hidden">
           <RankingFilters
@@ -238,8 +286,18 @@ export const VendasDashboard: React.FC = () => {
           {!loading && !erro && rankingFiltrado.length === 0 && <RankingEmptyState />}
 
           {!loading && !erro && rankingFiltrado.length > 0 && (
-            <div className="p-5">
-              <RankingPorLoja vendedores={rankingFiltrado} />
+            <div className="p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-black text-neutral-900">
+                  {rankingSelecionado === 'geral'
+                    ? 'Classificação geral'
+                    : `Classificação — ${LOJAS.find((loja) => loja.id === rankingSelecionado)?.nome ?? 'Loja'}`}
+                </h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  {rankingSelecionado === 'geral' ? 'Toda a empresa' : 'Ranking da unidade'}
+                </span>
+              </div>
+              <RankingTable vendedores={rankingFiltrado} />
             </div>
           )}
         </div>
