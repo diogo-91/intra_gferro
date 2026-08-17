@@ -304,7 +304,13 @@ export const VendasDashboard: React.FC = () => {
           <SeletorMesEspecifico periodo={periodo} mes={mes} setMes={setMes} />
         </div>
 
-        <VendasResumo resumo={resumoLoja} loading={resumoLojaLoading} erro={resumoLojaErro} />
+        <VendasResumo
+          resumo={resumoLoja}
+          loading={resumoLojaLoading}
+          erro={resumoLojaErro}
+          metaVendas={loja?.metaVendas}
+          exibirProgressoMeta={periodo === 'mes'}
+        />
       </div>
     );
   }

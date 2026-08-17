@@ -11,12 +11,14 @@
 export interface Loja {
   id: string;
   nome: string;
+  /** Meta de vendas do mês, em R$ — passada diretamente pelo usuário (GFERRO). Sem meta definida = undefined. */
+  metaVendas?: number;
 }
 
 export const LOJAS: Loja[] = [
-  { id: 'petter', nome: 'Unidade 1 — Petter' },
-  { id: 'lucas', nome: 'Unidade 2 — Lucas' },
-  { id: 'paulo', nome: 'Unidade 3 — Paulo' },
+  { id: 'petter', nome: 'Unidade 1 — Petter', metaVendas: 650000 },
+  { id: 'lucas', nome: 'Unidade 2 — Lucas', metaVendas: 700000 },
+  { id: 'paulo', nome: 'Unidade 3 — Paulo', metaVendas: 750000 },
   { id: 'correa', nome: 'Unidade 4 — Correa' },
 ];
 

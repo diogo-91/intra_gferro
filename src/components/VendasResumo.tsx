@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt } from 'lucide-react';
+import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt, Target } from 'lucide-react';
 import { ResumoVendas } from '../types';
 import { formatCurrency, formatMetrosQuadrados, formatInteiro } from '../utils/format';
 
@@ -7,6 +7,8 @@ interface VendasResumoProps {
   resumo: ResumoVendas | null;
   loading: boolean;
   erro: string | null;
+  metaVendas?: number;
+  exibirProgressoMeta?: boolean;
 }
 
 const formatUnidade = (quantidade: number, unidade: string) => {
@@ -106,7 +108,7 @@ const ListaPrecoMedio: React.FC<ListaPrecoMedioProps> = ({ produtos, maiorPrecoM
   </ul>
 );
 
-export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, erro }) => {
+export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, erro, metaVendas, exibirProgressoMeta = false }) => {
   if (loading) {
     return (
       <div className="p-10 rounded-3xl bg-white border border-neutral-200 flex flex-col items-center justify-center gap-2 text-neutral-500 text-xs">
@@ -131,6 +133,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
   const maiorValorProduto = resumo.produtos.reduce((max, p) => Math.max(max, p.valorTotal), 0) || 1;
   const maiorPrecoMedio = resumo.produtos.reduce((max, p) => Math.max(max, precoMedioDe(p.valorTotal, p.quantidade) ?? 0), 0) || 1;
   const ticketMedio = resumo.totalPedidos > 0 ? resumo.totalVendas / resumo.totalPedidos : 0;
+  const percentualMeta = metaVendas ? (resumo.totalVendas / metaVendas) * 100 : 0;
 
   return (
     <div className="space-y-5">
@@ -178,6 +181,29 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
             {formatCurrency(ticketMedio)}
           </span>
         </div>
+
+        {metaVendas !== undefined && (
+          <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-4 flex flex-col gap-1.5">
+            <span className="flex items-center gap-1.5 text-xs text-yellow-800/80 font-medium">
+              <Target className="w-3.5 h-3.5 text-yellow-600" aria-hidden="true" />
+              Meta Mensal
+            </span>
+            <span className="text-xl font-black text-yellow-900 tabular-nums">{formatCurrency(metaVendas)}</span>
+            {exibirProgressoMeta && (
+              <>
+                <div className="h-1.5 rounded-full bg-yellow-100 overflow-hidden" aria-hidden="true">
+                  <div
+                    className="h-full rounded-full bg-yellow-500 transition-all"
+                    style={{ width: `${Math.min(100, percentualMeta)}%` }}
+                  />
+                </div>
+                <span className="text-[11px] font-semibold text-yellow-800 tabular-nums">
+                  {percentualMeta.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% atingido
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {resumo.produtos.length === 0 ? (
