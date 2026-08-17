@@ -47,7 +47,7 @@ export const SeletorMesEspecifico: React.FC<SeletorMesEspecificoProps> = ({ peri
         id="vendas-mes-especifico"
         value={mes ?? ''}
         onChange={(e) => setMes(e.target.value || null)}
-        className="appearance-none pl-3.5 pr-8 py-2 rounded-full bg-white border border-neutral-200 text-xs font-bold text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus:border-yellow-400 cursor-pointer transition-all"
+        className="appearance-none rounded-xl border border-neutral-200 bg-white py-2 pl-3.5 pr-8 text-xs font-bold text-neutral-800 shadow-sm transition-all cursor-pointer focus:border-yellow-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
       >
         <option value="">Mês atual</option>
         {gerarOpcoesMes().map((o) => (
@@ -83,12 +83,12 @@ export const RankingFilters: React.FC<RankingFiltersProps> = ({
   setSomenteComPedidos,
 }) => {
   return (
-    <div className="p-4 border-b border-neutral-200 flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-between">
+    <div className="flex flex-col gap-3 border-b border-neutral-100 bg-neutral-50/60 p-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
       <div className="flex items-center gap-3 flex-wrap">
         <div
           role="group"
           aria-label="Período do ranking"
-          className="flex items-center gap-1.5 bg-neutral-50 p-1 rounded-full border border-neutral-200 w-fit"
+          className="flex w-fit items-center gap-1 rounded-xl border border-neutral-200 bg-white p-1 shadow-sm"
         >
           {periodos.map((p) => {
             const selecionado = periodo === p.id;
@@ -98,7 +98,7 @@ export const RankingFilters: React.FC<RankingFiltersProps> = ({
                 type="button"
                 aria-pressed={selecionado}
                 onClick={() => setPeriodo(p.id)}
-                className={`relative px-3.5 py-1.5 rounded-full text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black motion-reduce:transition-none ${
+                className={`relative rounded-lg px-3.5 py-1.5 text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 motion-reduce:transition-none ${
                   selecionado
                     ? 'bg-yellow-400 text-black font-bold'
                     : 'text-neutral-500 font-medium hover:text-neutral-900'
@@ -126,13 +126,13 @@ export const RankingFilters: React.FC<RankingFiltersProps> = ({
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar vendedor..."
-            className="bg-white border border-neutral-200 rounded-full py-2 pl-9 pr-4 text-xs text-neutral-900 placeholder-neutral-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus:border-yellow-400 transition-all motion-reduce:transition-none"
+            className="w-full rounded-xl border border-neutral-200 bg-white py-2 pl-9 pr-4 text-xs text-neutral-900 shadow-sm transition-all placeholder-neutral-400 focus:border-yellow-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 motion-reduce:transition-none sm:w-56"
           />
         </div>
 
         <label
           htmlFor="ranking-somente-com-pedidos"
-          className="flex items-center gap-2 text-[11px] text-neutral-500 font-normal cursor-pointer select-none"
+          className="flex cursor-pointer select-none items-center gap-2 rounded-xl border border-transparent px-2 py-1.5 text-[11px] font-medium text-neutral-500 transition-colors hover:border-neutral-200 hover:bg-white"
         >
           <input
             id="ranking-somente-com-pedidos"

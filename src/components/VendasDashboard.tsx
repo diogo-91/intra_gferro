@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store, Building2 } from 'lucide-react';
+import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store, Building2, Wallet, Users, Package, Ruler, Clock3 } from 'lucide-react';
 import { VendedorRanking, ResumoVendas } from '../types';
 import { RankingFilters, Periodo, periodos, SeletorMesEspecifico } from './RankingFilters';
 import { RankingEmptyState } from './RankingEmptyState';
@@ -7,6 +7,7 @@ import { RankingPodio } from './RankingPodio';
 import { RankingTable } from './RankingTable';
 import { VendasResumo } from './VendasResumo';
 import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
+import { formatCurrency, formatInteiro, formatMetrosQuadrados } from '../utils/format';
 
 type VendasView = 'painel' | 'ranking' | 'loja';
 
@@ -151,6 +152,19 @@ export const VendasDashboard: React.FC = () => {
     });
   }, [rankingDaVisao, busca, somenteComPedidos]);
 
+  const resumoRanking = useMemo(
+    () => rankingDaVisao.reduce(
+      (total, vendedor) => ({
+        vendas: total.vendas + vendedor.valorTotal,
+        pedidos: total.pedidos + vendedor.pedidos,
+        area: total.area + vendedor.metrosQuadrados,
+        vendedoresAtivos: total.vendedoresAtivos + (vendedor.pedidos > 0 ? 1 : 0),
+      }),
+      { vendas: 0, pedidos: 0, area: 0, vendedoresAtivos: 0 }
+    ),
+    [rankingDaVisao]
+  );
+
   // Arquivo de verdade gerado no servidor (não é window.print()) — mesmo
   // período já carregado na tela.
   const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
@@ -169,57 +183,65 @@ export const VendasDashboard: React.FC = () => {
 
   if (view === 'ranking') {
     return (
-      <div className="space-y-6">
-        <button
-          type="button"
-          onClick={() => setView('painel')}
-          className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Voltar ao Painel</span>
-        </button>
+      <div className="space-y-5">
+        <header className="relative overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-950 px-5 py-6 text-white shadow-xl shadow-neutral-900/10 sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute -right-16 -top-28 h-72 w-72 rounded-full bg-yellow-400/20 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-0 left-1/3 h-px w-1/2 bg-gradient-to-r from-transparent via-yellow-400/70 to-transparent" />
 
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Dashboard • Vendas</span>
-            <h1 className="text-2xl font-black text-neutral-900 mt-1 flex items-center gap-2">
-              <Trophy className="w-6 h-6 text-yellow-600" aria-hidden="true" />
-              Ranking de Vendedores
-            </h1>
-            <p className="text-neutral-500 text-sm mt-1">
-              Soma do valor total dos pedidos por vendedor, do maior pro menor — direto do Nomus.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {atualizadoEm && !loading && (
-              <span className="text-neutral-500 text-[11px] sm:text-right">
-                Atualizado em {new Date(atualizadoEm).toLocaleString('pt-BR')}
-              </span>
-            )}
-            {rankingSelecionado === 'geral' && (
-              <button
-                type="button"
-                onClick={baixarPdf}
-                disabled={loading || !!erro || ranking.length === 0}
-                title="Baixa o ranking geral completo do período (não aplica a busca por nome)"
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-              >
-                <FileDown className="w-4 h-4" aria-hidden="true" />
-                Baixar PDF
-              </button>
-            )}
-          </div>
-        </div>
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setView('painel')}
+                  className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-neutral-300 transition-all hover:border-yellow-400/60 hover:text-yellow-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  Voltar ao painel
+                </button>
+                <span className="block text-[10px] font-black uppercase tracking-[0.22em] text-yellow-400">Inteligência comercial</span>
+                <h1 className="mt-1.5 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-yellow-400 text-neutral-950 shadow-lg shadow-yellow-400/20">
+                    <Trophy className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  Ranking de Vendedores
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-400">
+                  Performance comercial consolidada da GFERRO, com classificação geral e visão individual por unidade.
+                </p>
+              </div>
 
-        <nav className="flex items-center gap-2 flex-wrap" aria-label="Selecionar ranking geral ou por loja">
+              <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
+                {atualizadoEm && !loading && (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-neutral-400">
+                    <Clock3 className="h-3.5 w-3.5 text-yellow-400" aria-hidden="true" />
+                    Atualizado em {new Date(atualizadoEm).toLocaleString('pt-BR')}
+                  </span>
+                )}
+                {rankingSelecionado === 'geral' && (
+                  <button
+                    type="button"
+                    onClick={baixarPdf}
+                    disabled={loading || !!erro || ranking.length === 0}
+                    title="Baixa o ranking geral completo do período"
+                    className="inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-xs font-black text-neutral-950 shadow-lg shadow-yellow-400/15 transition-all hover:bg-yellow-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950"
+                  >
+                    <FileDown className="h-4 w-4" aria-hidden="true" />
+                    Exportar PDF
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <nav className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-5" aria-label="Selecionar ranking geral ou por loja">
           <button
             type="button"
             aria-pressed={rankingSelecionado === 'geral'}
             onClick={() => setRankingSelecionado('geral')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full font-bold text-xs transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 ${
+            className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${
               rankingSelecionado === 'geral'
-                ? 'bg-neutral-950 text-white shadow-md'
-                : 'bg-white border border-neutral-200 text-neutral-600 hover:border-yellow-400 hover:text-neutral-950'
+                ? 'border-yellow-400 bg-yellow-400 text-neutral-950 shadow-md shadow-yellow-400/15'
+                : 'border-white/10 bg-white/5 text-neutral-300 hover:border-yellow-400/50 hover:text-white'
             }`}
           >
             <Building2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -233,10 +255,10 @@ export const VendasDashboard: React.FC = () => {
                 type="button"
                 aria-pressed={selecionada}
                 onClick={() => setRankingSelecionado(loja.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full font-bold text-xs transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 ${
+                className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${
                   selecionada
-                    ? 'bg-yellow-400 text-black shadow-md shadow-yellow-400/20'
-                    : 'bg-white border border-neutral-200 text-neutral-600 hover:border-yellow-400 hover:text-neutral-950'
+                    ? 'border-yellow-400 bg-yellow-400 text-neutral-950 shadow-md shadow-yellow-400/15'
+                    : 'border-white/10 bg-white/5 text-neutral-300 hover:border-yellow-400/50 hover:text-white'
                 }`}
               >
                 <Store className="w-3.5 h-3.5" aria-hidden="true" />
@@ -244,13 +266,52 @@ export const VendasDashboard: React.FC = () => {
               </button>
             );
           })}
-        </nav>
+            </nav>
+          </div>
+        </header>
+
+        {!loading && !erro && (
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Resumo do ranking selecionado">
+            {[
+              { label: 'Volume vendido', value: formatCurrency(resumoRanking.vendas), Icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { label: 'Vendedores ativos', value: formatInteiro(resumoRanking.vendedoresAtivos), Icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
+              { label: 'Pedidos no período', value: formatInteiro(resumoRanking.pedidos), Icon: Package, color: 'text-violet-600', bg: 'bg-violet-50' },
+              { label: 'Área comercializada', value: formatMetrosQuadrados(resumoRanking.area), Icon: Ruler, color: 'text-sky-600', bg: 'bg-sky-50' },
+            ].map(({ label, value, Icon, color, bg }) => (
+              <article key={label} className="flex min-w-0 items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg} ${color}`}>
+                  <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <span className="block truncate text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</span>
+                  <strong className="mt-0.5 block truncate text-base font-black tabular-nums text-neutral-900" title={value}>{value}</strong>
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
 
         {!loading && !erro && rankingSelecionado === 'geral' && rankingDaVisao.length > 0 && (
           <RankingPodio vendedores={rankingDaVisao} />
         )}
 
-        <div className="rounded-3xl bg-white border border-neutral-200 overflow-hidden">
+        <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-2 border-b border-neutral-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div>
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-yellow-600">
+                {rankingSelecionado === 'geral' ? 'Visão corporativa' : 'Desempenho da unidade'}
+              </span>
+              <h2 className="mt-0.5 text-lg font-black tracking-tight text-neutral-950">
+                {rankingSelecionado === 'geral'
+                  ? 'Classificação geral'
+                  : LOJAS.find((loja) => loja.id === rankingSelecionado)?.nome ?? 'Classificação da loja'}
+              </h2>
+            </div>
+            <span className="w-fit rounded-full bg-neutral-100 px-3 py-1.5 text-[10px] font-bold text-neutral-500">
+              {loading ? 'Atualizando dados...' : `${rankingFiltrado.length} vendedores exibidos`}
+            </span>
+          </div>
+
           <RankingFilters
             periodo={periodo}
             setPeriodo={setPeriodo}
@@ -261,12 +322,6 @@ export const VendasDashboard: React.FC = () => {
             somenteComPedidos={somenteComPedidos}
             setSomenteComPedidos={setSomenteComPedidos}
           />
-
-          <div className="px-5 pt-3 pb-1">
-            <span className="text-neutral-500 text-[11px]">
-              {loading ? 'Buscando no Nomus...' : `${rankingFiltrado.length} registros encontrados`}
-            </span>
-          </div>
 
           {loading && (
             <div className="px-5 py-10 flex flex-col items-center gap-2 text-neutral-500 text-xs">
@@ -286,21 +341,11 @@ export const VendasDashboard: React.FC = () => {
           {!loading && !erro && rankingFiltrado.length === 0 && <RankingEmptyState />}
 
           {!loading && !erro && rankingFiltrado.length > 0 && (
-            <div className="p-5 space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-black text-neutral-900">
-                  {rankingSelecionado === 'geral'
-                    ? 'Classificação geral'
-                    : `Classificação — ${LOJAS.find((loja) => loja.id === rankingSelecionado)?.nome ?? 'Loja'}`}
-                </h2>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  {rankingSelecionado === 'geral' ? 'Toda a empresa' : 'Ranking da unidade'}
-                </span>
-              </div>
+            <div className="p-4 sm:p-6">
               <RankingTable vendedores={rankingFiltrado} />
             </div>
           )}
-        </div>
+        </section>
       </div>
     );
   }
