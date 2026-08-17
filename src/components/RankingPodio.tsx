@@ -1,6 +1,7 @@
 import React from 'react';
-import { Crown, Medal, Package, Ruler, Trophy, Wallet } from 'lucide-react';
+import { Crown, Medal, Package, Ruler, Store, Trophy } from 'lucide-react';
 import { VendedorRanking } from '../types';
+import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
 import { formatCurrency, formatInteiro, formatMetrosQuadrados, formatNomeVendedor } from '../utils/format';
 
 interface RankingComPosicao extends VendedorRanking {
@@ -12,31 +13,15 @@ interface RankingPodioProps {
 }
 
 const estilos = {
-  1: {
-    ordem: 'order-1 sm:order-2',
-    margem: 'sm:-translate-y-5',
-    card: 'border-yellow-300 bg-gradient-to-b from-yellow-50 via-white to-white shadow-yellow-200/60',
-    icone: 'bg-yellow-400 text-black',
-    valor: 'text-yellow-700',
-    rotulo: '1º lugar',
-  },
-  2: {
-    ordem: 'order-2 sm:order-1',
-    margem: '',
-    card: 'border-neutral-300 bg-gradient-to-b from-neutral-100 via-white to-white shadow-neutral-200/60',
-    icone: 'bg-neutral-300 text-neutral-800',
-    valor: 'text-neutral-700',
-    rotulo: '2º lugar',
-  },
-  3: {
-    ordem: 'order-3',
-    margem: '',
-    card: 'border-amber-300 bg-gradient-to-b from-amber-50 via-white to-white shadow-amber-200/60',
-    icone: 'bg-amber-700 text-white',
-    valor: 'text-amber-700',
-    rotulo: '3º lugar',
-  },
+  1: { ordem: 'order-1 sm:order-2', card: 'sm:-translate-y-5 border-yellow-300 shadow-yellow-200/70', faixa: 'from-yellow-300 via-yellow-400 to-amber-500', medalha: 'bg-yellow-400 text-neutral-950 ring-yellow-100', numero: 'text-yellow-600', titulo: 'Campeão de vendas' },
+  2: { ordem: 'order-2 sm:order-1', card: 'border-slate-200 shadow-slate-200/70', faixa: 'from-slate-200 via-slate-300 to-slate-400', medalha: 'bg-slate-200 text-slate-700 ring-slate-100', numero: 'text-slate-500', titulo: 'Vice-campeão' },
+  3: { ordem: 'order-3', card: 'border-orange-200 shadow-orange-200/60', faixa: 'from-orange-200 via-orange-300 to-orange-500', medalha: 'bg-orange-500 text-white ring-orange-100', numero: 'text-orange-600', titulo: 'Terceiro lugar' },
 } as const;
+
+function nomeDaLoja(nomeVendedor: string): string {
+  const lojaId = lojaDoVendedor(nomeVendedor);
+  return LOJAS.find((loja) => loja.id === lojaId)?.nome ?? 'GFERRO';
+}
 
 export const RankingPodio: React.FC<RankingPodioProps> = ({ vendedores }) => {
   const primeiros = vendedores.slice(0, 3);
@@ -45,47 +30,66 @@ export const RankingPodio: React.FC<RankingPodioProps> = ({ vendedores }) => {
   const ordemVisual = [primeiros[1], primeiros[0], primeiros[2]].filter(Boolean);
 
   return (
-    <section className="rounded-3xl border border-yellow-200 bg-gradient-to-br from-neutral-950 via-neutral-900 to-yellow-950 p-5 sm:p-7 overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-9">
-        <div>
-          <span className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-400">Destaques do período</span>
-          <h2 className="text-xl font-black text-white mt-1 flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-400" aria-hidden="true" />
-            Pódio GFERRO
-          </h2>
+    <section className="relative overflow-hidden rounded-3xl border border-yellow-200/80 bg-gradient-to-br from-white via-yellow-50/50 to-amber-100/60 p-5 sm:p-7 shadow-sm">
+      <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-yellow-300/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-amber-200/25 blur-3xl" />
+
+      <div className="relative flex flex-col gap-3 mb-10 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-neutral-950 text-yellow-400 shadow-lg shadow-neutral-900/15">
+            <Trophy className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-700">Destaques do período</span>
+            <h2 className="text-xl font-black tracking-tight text-neutral-950">Pódio GFERRO</h2>
+          </div>
         </div>
-        <span className="text-[11px] text-neutral-400">Ranking geral de vendas da empresa</span>
+        <div className="w-fit rounded-full border border-yellow-200 bg-white/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500 shadow-sm backdrop-blur">
+          Ranking geral da empresa
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+      <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-end gap-4 sm:grid-cols-3 sm:gap-5">
         {ordemVisual.map((vendedor) => {
           const estilo = estilos[vendedor.posicao as 1 | 2 | 3];
           const primeiro = vendedor.posicao === 1;
+          const nomeExibido = formatNomeVendedor(vendedor.nome);
+
           return (
-            <article
-              key={vendedor.nome}
-              className={`${estilo.ordem} ${estilo.margem} ${estilo.card} rounded-2xl border p-5 text-center shadow-xl relative`}
-            >
-              {primeiro && <Crown className="w-7 h-7 text-yellow-500 mx-auto mb-1" aria-hidden="true" />}
-              <div className={`${estilo.icone} w-11 h-11 rounded-full mx-auto flex items-center justify-center shadow-md`}>
-                {primeiro ? <Trophy className="w-5 h-5" aria-hidden="true" /> : <Medal className="w-5 h-5" aria-hidden="true" />}
-              </div>
-              <span className="block mt-3 text-[10px] font-black uppercase tracking-widest text-neutral-500">{estilo.rotulo}</span>
-              <h3 className="mt-1 text-sm font-black text-neutral-950 truncate" title={formatNomeVendedor(vendedor.nome)}>
-                {formatNomeVendedor(vendedor.nome)}
-              </h3>
-              <strong className={`block mt-3 text-lg font-black tabular-nums ${estilo.valor}`}>
-                {formatCurrency(vendedor.valorTotal)}
-              </strong>
-              <div className="mt-4 pt-3 border-t border-neutral-200 flex items-center justify-center gap-4 text-[10px] font-semibold text-neutral-500">
-                <span className="inline-flex items-center gap-1" title="Pedidos">
-                  <Package className="w-3 h-3" aria-hidden="true" /> {formatInteiro(vendedor.pedidos)}
+            <article key={vendedor.nome} className={`${estilo.ordem} ${estilo.card} group relative overflow-hidden rounded-3xl border bg-white shadow-xl transition-transform duration-300 hover:-translate-y-1`}>
+              <div className={`h-1.5 bg-gradient-to-r ${estilo.faixa}`} />
+              <div className="p-5 text-center sm:p-6">
+                <div className="relative mx-auto w-fit">
+                  {primeiro && <Crown className="absolute -top-7 left-1/2 h-6 w-6 -translate-x-1/2 text-yellow-500" aria-hidden="true" />}
+                  <div className={`${estilo.medalha} flex h-12 w-12 items-center justify-center rounded-2xl ring-8 shadow-md`}>
+                    {primeiro ? <Trophy className="h-5 w-5" aria-hidden="true" /> : <Medal className="h-5 w-5" aria-hidden="true" />}
+                  </div>
+                  <span className="absolute -bottom-1.5 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-white bg-neutral-950 px-1 text-[10px] font-black text-white shadow">{vendedor.posicao}º</span>
+                </div>
+
+                <span className={`mt-4 block text-[9px] font-black uppercase tracking-[0.18em] ${estilo.numero}`}>{estilo.titulo}</span>
+                <h3 className="mt-1.5 truncate text-base font-black text-neutral-950" title={nomeExibido}>{nomeExibido}</h3>
+                <span className="mt-1 inline-flex max-w-full items-center gap-1 text-[10px] font-semibold text-neutral-400">
+                  <Store className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{nomeDaLoja(vendedor.nome)}</span>
                 </span>
-                <span className="inline-flex items-center gap-1" title="Área vendida">
-                  <Ruler className="w-3 h-3" aria-hidden="true" /> {formatMetrosQuadrados(vendedor.metrosQuadrados)}
-                </span>
+
+                <strong className="mt-4 block text-xl font-black tabular-nums tracking-tight text-emerald-700">{formatCurrency(vendedor.valorTotal)}</strong>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Total vendido</span>
+
+                <div className="mt-5 grid grid-cols-2 divide-x divide-neutral-100 rounded-2xl bg-neutral-50 px-2 py-3">
+                  <div className="flex flex-col items-center gap-1 px-2">
+                    <Package className="h-3.5 w-3.5 text-violet-500" aria-hidden="true" />
+                    <strong className="text-xs font-black tabular-nums text-neutral-800">{formatInteiro(vendedor.pedidos)}</strong>
+                    <span className="text-[9px] font-semibold text-neutral-400">Pedidos</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1 px-2">
+                    <Ruler className="h-3.5 w-3.5 text-sky-500" aria-hidden="true" />
+                    <strong className="max-w-full truncate text-xs font-black tabular-nums text-neutral-800" title={formatMetrosQuadrados(vendedor.metrosQuadrados)}>{formatMetrosQuadrados(vendedor.metrosQuadrados)}</strong>
+                    <span className="text-[9px] font-semibold text-neutral-400">Área vendida</span>
+                  </div>
+                </div>
               </div>
-              <Wallet className="absolute top-4 right-4 w-3.5 h-3.5 text-neutral-300" aria-hidden="true" />
             </article>
           );
         })}
