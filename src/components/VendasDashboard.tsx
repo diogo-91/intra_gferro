@@ -184,37 +184,32 @@ export const VendasDashboard: React.FC = () => {
   if (view === 'ranking') {
     return (
       <div className="space-y-5">
-        <header className="relative overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-950 px-5 py-6 text-white shadow-xl shadow-neutral-900/10 sm:px-7 sm:py-7">
-          <div className="pointer-events-none absolute -right-16 -top-28 h-72 w-72 rounded-full bg-yellow-400/20 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-0 left-1/3 h-px w-1/2 bg-gradient-to-r from-transparent via-yellow-400/70 to-transparent" />
-
-          <div className="relative flex flex-col gap-6">
+        <header className="border-b border-neutral-200 pb-5">
+          <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <button
                   type="button"
                   onClick={() => setView('painel')}
-                  className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-neutral-300 transition-all hover:border-yellow-400/60 hover:text-yellow-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+                  className="mb-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500 transition-colors hover:text-neutral-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
                   Voltar ao painel
                 </button>
-                <span className="block text-[10px] font-black uppercase tracking-[0.22em] text-yellow-400">Inteligência comercial</span>
-                <h1 className="mt-1.5 flex items-center gap-3 text-2xl font-black tracking-tight sm:text-3xl">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-yellow-400 text-neutral-950 shadow-lg shadow-yellow-400/20">
-                    <Trophy className="h-5 w-5" aria-hidden="true" />
-                  </span>
+                <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-yellow-600">Dashboard de vendas</span>
+                <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-black tracking-tight text-neutral-950 sm:text-3xl">
+                  <Trophy className="h-6 w-6 text-yellow-500" aria-hidden="true" />
                   Ranking de Vendedores
                 </h1>
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-400">
-                  Performance comercial consolidada da GFERRO, com classificação geral e visão individual por unidade.
+                <p className="mt-1.5 max-w-xl text-sm text-neutral-500">
+                  Classificação geral da empresa e desempenho individual por unidade.
                 </p>
               </div>
 
               <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
                 {atualizadoEm && !loading && (
                   <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-neutral-400">
-                    <Clock3 className="h-3.5 w-3.5 text-yellow-400" aria-hidden="true" />
+                    <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
                     Atualizado em {new Date(atualizadoEm).toLocaleString('pt-BR')}
                   </span>
                 )}
@@ -224,7 +219,7 @@ export const VendasDashboard: React.FC = () => {
                     onClick={baixarPdf}
                     disabled={loading || !!erro || ranking.length === 0}
                     title="Baixa o ranking geral completo do período"
-                    className="inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-xs font-black text-neutral-950 shadow-lg shadow-yellow-400/15 transition-all hover:bg-yellow-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950"
+                    className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3.5 py-2 text-xs font-bold text-neutral-700 transition-colors hover:border-yellow-400 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
                   >
                     <FileDown className="h-4 w-4" aria-hidden="true" />
                     Exportar PDF
@@ -233,15 +228,15 @@ export const VendasDashboard: React.FC = () => {
               </div>
             </div>
 
-            <nav className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-5" aria-label="Selecionar ranking geral ou por loja">
+            <nav className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-neutral-100 p-1.5" aria-label="Selecionar ranking geral ou por loja">
           <button
             type="button"
             aria-pressed={rankingSelecionado === 'geral'}
             onClick={() => setRankingSelecionado('geral')}
-            className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${
+            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${
               rankingSelecionado === 'geral'
-                ? 'border-yellow-400 bg-yellow-400 text-neutral-950 shadow-md shadow-yellow-400/15'
-                : 'border-white/10 bg-white/5 text-neutral-300 hover:border-yellow-400/50 hover:text-white'
+                ? 'bg-white text-neutral-950 shadow-sm'
+                : 'text-neutral-500 hover:bg-white/60 hover:text-neutral-900'
             }`}
           >
             <Building2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -255,10 +250,10 @@ export const VendasDashboard: React.FC = () => {
                 type="button"
                 aria-pressed={selecionada}
                 onClick={() => setRankingSelecionado(loja.id)}
-                className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${
+                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${
                   selecionada
-                    ? 'border-yellow-400 bg-yellow-400 text-neutral-950 shadow-md shadow-yellow-400/15'
-                    : 'border-white/10 bg-white/5 text-neutral-300 hover:border-yellow-400/50 hover:text-white'
+                    ? 'bg-white text-neutral-950 shadow-sm'
+                    : 'text-neutral-500 hover:bg-white/60 hover:text-neutral-900'
                 }`}
               >
                 <Store className="w-3.5 h-3.5" aria-hidden="true" />
@@ -271,15 +266,15 @@ export const VendasDashboard: React.FC = () => {
         </header>
 
         {!loading && !erro && (
-          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Resumo do ranking selecionado">
+          <section className="grid grid-cols-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white lg:grid-cols-4" aria-label="Resumo do ranking selecionado">
             {[
               { label: 'Volume vendido', value: formatCurrency(resumoRanking.vendas), Icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
               { label: 'Vendedores ativos', value: formatInteiro(resumoRanking.vendedoresAtivos), Icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
               { label: 'Pedidos no período', value: formatInteiro(resumoRanking.pedidos), Icon: Package, color: 'text-violet-600', bg: 'bg-violet-50' },
               { label: 'Área comercializada', value: formatMetrosQuadrados(resumoRanking.area), Icon: Ruler, color: 'text-sky-600', bg: 'bg-sky-50' },
             ].map(({ label, value, Icon, color, bg }) => (
-              <article key={label} className="flex min-w-0 items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg} ${color}`}>
+              <article key={label} className="flex min-w-0 items-center gap-3 border-b border-r border-neutral-100 p-4 last:border-r-0 lg:border-b-0">
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${bg} ${color}`}>
                   <Icon className="h-4.5 w-4.5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">

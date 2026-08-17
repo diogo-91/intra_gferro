@@ -13,9 +13,9 @@ interface RankingPodioProps {
 }
 
 const estilos = {
-  1: { ordem: 'order-1 sm:order-2', card: 'sm:-translate-y-5 border-yellow-300 shadow-yellow-200/70', faixa: 'from-yellow-300 via-yellow-400 to-amber-500', medalha: 'bg-yellow-400 text-neutral-950 ring-yellow-100', numero: 'text-yellow-600', titulo: 'Campeão de vendas' },
-  2: { ordem: 'order-2 sm:order-1', card: 'border-slate-200 shadow-slate-200/70', faixa: 'from-slate-200 via-slate-300 to-slate-400', medalha: 'bg-slate-200 text-slate-700 ring-slate-100', numero: 'text-slate-500', titulo: 'Vice-campeão' },
-  3: { ordem: 'order-3', card: 'border-orange-200 shadow-orange-200/60', faixa: 'from-orange-200 via-orange-300 to-orange-500', medalha: 'bg-orange-500 text-white ring-orange-100', numero: 'text-orange-600', titulo: 'Terceiro lugar' },
+  1: { ordem: 'order-1 sm:order-2', card: 'sm:-translate-y-3 border-yellow-300 bg-yellow-50/40', faixa: 'from-yellow-300 via-yellow-400 to-amber-500', medalha: 'bg-yellow-400 text-neutral-950 ring-yellow-100', numero: 'text-yellow-600', titulo: 'Campeão de vendas' },
+  2: { ordem: 'order-2 sm:order-1', card: 'border-neutral-200 bg-white', faixa: 'from-slate-200 via-slate-300 to-slate-400', medalha: 'bg-slate-200 text-slate-700 ring-slate-100', numero: 'text-slate-500', titulo: 'Vice-campeão' },
+  3: { ordem: 'order-3', card: 'border-neutral-200 bg-white', faixa: 'from-orange-200 via-orange-300 to-orange-500', medalha: 'bg-orange-500 text-white ring-orange-100', numero: 'text-orange-600', titulo: 'Terceiro lugar' },
 } as const;
 
 function nomeDaLoja(nomeVendedor: string): string {
@@ -30,13 +30,10 @@ export const RankingPodio: React.FC<RankingPodioProps> = ({ vendedores }) => {
   const ordemVisual = [primeiros[1], primeiros[0], primeiros[2]].filter(Boolean);
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-yellow-200/80 bg-gradient-to-br from-white via-yellow-50/50 to-amber-100/60 p-5 sm:p-7 shadow-sm">
-      <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-yellow-300/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-amber-200/25 blur-3xl" />
-
-      <div className="relative flex flex-col gap-3 mb-10 sm:flex-row sm:items-center sm:justify-between">
+    <section className="rounded-3xl border border-neutral-200 bg-neutral-50/60 p-5 sm:p-7">
+      <div className="flex flex-col gap-3 mb-8 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-neutral-950 text-yellow-400 shadow-lg shadow-neutral-900/15">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-100 text-yellow-700">
             <Trophy className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
@@ -44,19 +41,19 @@ export const RankingPodio: React.FC<RankingPodioProps> = ({ vendedores }) => {
             <h2 className="text-xl font-black tracking-tight text-neutral-950">Pódio GFERRO</h2>
           </div>
         </div>
-        <div className="w-fit rounded-full border border-yellow-200 bg-white/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500 shadow-sm backdrop-blur">
+        <div className="w-fit rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[10px] font-bold text-neutral-500">
           Ranking geral da empresa
         </div>
       </div>
 
-      <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-end gap-4 sm:grid-cols-3 sm:gap-5">
+      <div className="mx-auto grid max-w-5xl grid-cols-1 items-end gap-4 sm:grid-cols-3 sm:gap-5">
         {ordemVisual.map((vendedor) => {
           const estilo = estilos[vendedor.posicao as 1 | 2 | 3];
           const primeiro = vendedor.posicao === 1;
           const nomeExibido = formatNomeVendedor(vendedor.nome);
 
           return (
-            <article key={vendedor.nome} className={`${estilo.ordem} ${estilo.card} group relative overflow-hidden rounded-3xl border bg-white shadow-xl transition-transform duration-300 hover:-translate-y-1`}>
+            <article key={vendedor.nome} className={`${estilo.ordem} ${estilo.card} relative overflow-hidden rounded-2xl border shadow-sm`}>
               <div className={`h-1.5 bg-gradient-to-r ${estilo.faixa}`} />
               <div className="p-5 text-center sm:p-6">
                 <div className="relative mx-auto w-fit">
