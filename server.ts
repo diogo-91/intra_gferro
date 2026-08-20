@@ -21,7 +21,8 @@ import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
 import * as sac from './sac';
 import * as lojasFotos from './lojasFotos';
 import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
-import { loginHandler, logoutHandler, meHandler, exigirAutenticacao } from './auth';
+import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo } from './auth';
+import { cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
   if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
@@ -104,6 +105,30 @@ async function startServer() {
   app.post('/api/auth/logout', logoutHandler);
   app.get('/api/auth/me', meHandler);
   app.use('/api', exigirAutenticacao);
+
+  app.get('/api/usuarios', exigirAdministrador, async (_req, res) => {
+    res.json(await listarUsuarios());
+  });
+  app.post('/api/usuarios', exigirAdministrador, async (req, res) => {
+    try {
+      const { nome, email, senha, modulos } = req.body || {};
+      if (typeof nome !== 'string' || typeof email !== 'string' || typeof senha !== 'string' || !Array.isArray(modulos)) {
+        return res.status(400).json({ error: 'Nome, e-mail, senha e módulos são obrigatórios.' });
+      }
+      res.status(201).json(await cadastrarUsuario({ nome, email, senha, modulos }));
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Não foi possível cadastrar o usuário.' });
+    }
+  });
+  app.delete('/api/usuarios/:id', exigirAdministrador, async (req, res) => {
+    try {
+      await removerUsuario(req.params.id);
+      res.status(204).end();
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Não foi possível remover o usuário.' });
+    }
+  });
+  app.use('/api', exigirPermissaoDeModulo);
 
   // Anexos do SAC — servidos como arquivo estático, mas atrás do mesmo login
   // da intranet (não é rota /api, então o middleware acima não cobre).

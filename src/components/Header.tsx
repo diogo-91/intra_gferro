@@ -30,6 +30,8 @@ interface HeaderProps {
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
   onLogout: () => void;
+  podeCriarComunicado: boolean;
+  podeAbrirChamado: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -45,6 +47,8 @@ export const Header: React.FC<HeaderProps> = ({
   mobileMenuOpen,
   setMobileMenuOpen,
   onLogout,
+  podeCriarComunicado,
+  podeAbrirChamado,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -128,8 +132,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Quick Create Buttons */}
-            <div className="hidden sm:flex items-center gap-2 border-l border-white/10 pl-3">
-              <button
+            {(podeCriarComunicado || podeAbrirChamado) && <div className="hidden sm:flex items-center gap-2 border-l border-white/10 pl-3">
+              {podeCriarComunicado && <button
                 id="header-new-comunicado-btn"
                 onClick={onOpenNewComunicado}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 border border-white/10 hover:border-yellow-400 hover:text-yellow-400 text-neutral-300 text-xs font-semibold transition-all"
@@ -137,9 +141,9 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Comunicado</span>
-              </button>
+              </button>}
 
-              <button
+              {podeAbrirChamado && <button
                 id="header-new-chamado-btn"
                 onClick={onOpenNewChamado}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 border border-white/10 hover:border-yellow-400 hover:text-yellow-400 text-neutral-300 text-xs font-semibold transition-all"
@@ -147,8 +151,8 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <LifeBuoy className="w-3.5 h-3.5 text-yellow-400" />
                 <span>Chamado</span>
-              </button>
-            </div>
+              </button>}
+            </div>}
 
             {/* Notifications Popover Toggle */}
             <div className="relative">

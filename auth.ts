@@ -4,6 +4,9 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { createHmac, timingSafeEqual } from 'crypto';
+import type { ModuloId } from './src/modulos';
+import { TODOS_MODULOS } from './src/modulos';
+import { buscarUsuarioPorEmail, verificarSenha } from './usuarios';
 
 const COOKIE_NAME = 'intranet_auth';
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
@@ -24,7 +27,7 @@ function criarToken(email: string): string {
   return `${payloadB64}.${assinar(payloadB64)}`;
 }
 
-function verificarToken(token: unknown): string | null {
+export function verificarToken(token: unknown): string | null {
   if (typeof token !== 'string') return null;
   const [payloadB64, assinatura] = token.split('.');
   if (!payloadB64 || !assinatura) return null;
@@ -113,6 +116,10 @@ function cookieOptions() {
 }
 
 export function loginHandler(req: Request, res: Response) {
+  void login(req, res);
+}
+
+async function login(req: Request, res: Response) {
   const { email, password } = req.body || {};
   let credenciais: Credencial[];
   try {
@@ -122,20 +129,21 @@ export function loginHandler(req: Request, res: Response) {
     return res.status(500).json({ error: 'Configuração de usuários inválida no servidor.' });
   }
 
-  if (credenciais.length === 0) {
-    return res.status(500).json({ error: 'Login não configurado no servidor (nenhum usuário válido encontrado).' });
-  }
-
   const emailInformado = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const credencial = credenciais.find((item) => item.email === emailInformado);
-  const senhaOk = !!credencial && typeof password === 'string' && compararConstante(password, credencial.password);
+  const usuario = await buscarUsuarioPorEmail(emailInformado);
+  const senhaOk = typeof password === 'string' && (
+    (!!credencial && compararConstante(password, credencial.password)) ||
+    (!!usuario && await verificarSenha(password, usuario.senhaHash))
+  );
 
-  if (!credencial || !senhaOk) {
+  if ((!credencial && !usuario) || !senhaOk) {
     return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
   }
 
-  res.cookie(COOKIE_NAME, criarToken(credencial.email), cookieOptions());
-  res.json({ ok: true, email: credencial.email });
+  res.cookie(COOKIE_NAME, criarToken(emailInformado), cookieOptions());
+  const administrador = !!credencial;
+  res.json({ ok: true, email: emailInformado, nome: usuario?.nome, administrador, modulos: administrador ? TODOS_MODULOS : usuario?.modulos ?? [] });
 }
 
 export function logoutHandler(_req: Request, res: Response) {
@@ -144,9 +152,16 @@ export function logoutHandler(_req: Request, res: Response) {
 }
 
 export function meHandler(req: Request, res: Response) {
+  void me(req, res);
+}
+
+async function me(req: Request, res: Response) {
   const email = verificarToken(req.cookies?.[COOKIE_NAME]);
   if (!email) return res.status(401).json({ authenticated: false });
-  res.json({ authenticated: true, email });
+  const credencialAmbiente = carregarCredenciais().some((item) => item.email === email);
+  const usuario = await buscarUsuarioPorEmail(email);
+  if (!credencialAmbiente && !usuario) return res.status(401).json({ authenticated: false });
+  res.json({ authenticated: true, email, nome: usuario?.nome, administrador: credencialAmbiente, modulos: credencialAmbiente ? TODOS_MODULOS : usuario?.modulos ?? [] });
 }
 
 export function exigirAutenticacao(req: Request, res: Response, next: NextFunction) {
@@ -155,4 +170,29 @@ export function exigirAutenticacao(req: Request, res: Response, next: NextFuncti
     return res.status(401).json({ error: 'Não autenticado.' });
   }
   next();
+}
+
+export async function obterSessao(req: Request) {
+  const email = verificarToken(req.cookies?.[COOKIE_NAME]);
+  if (!email) return null;
+  const administrador = carregarCredenciais().some((item) => item.email === email);
+  const usuario = await buscarUsuarioPorEmail(email);
+  if (!administrador && !usuario) return null;
+  return { email, nome: usuario?.nome, administrador, modulos: (administrador ? TODOS_MODULOS : usuario?.modulos ?? []) as ModuloId[] };
+}
+
+export function exigirAdministrador(req: Request, res: Response, next: NextFunction) {
+  obterSessao(req).then((sessao) => sessao?.administrador ? next() : res.status(403).json({ error: 'Acesso restrito a administradores.' })).catch(next);
+}
+
+const MODULO_POR_ROTA: Array<[string, ModuloId]> = [
+  ['/api/vendas', 'vendas'], ['/api/financeiro', 'financeiro'], ['/api/producao', 'producao'],
+  ['/api/rh', 'pessoas'], ['/api/chat', 'ia-assistente'], ['/api/sac', 'servicos'],
+  ['/api/enquetes', 'informativos'],
+];
+
+export function exigirPermissaoDeModulo(req: Request, res: Response, next: NextFunction) {
+  const modulo = MODULO_POR_ROTA.find(([prefixo]) => req.originalUrl.startsWith(prefixo))?.[1];
+  if (!modulo || req.originalUrl.startsWith('/api/usuarios')) return next();
+  obterSessao(req).then((sessao) => sessao?.modulos.includes(modulo) ? next() : res.status(403).json({ error: 'Você não possui acesso a este módulo.' })).catch(next);
 }

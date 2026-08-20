@@ -16,9 +16,11 @@ import {
   Headphones,
   ClipboardList,
   Cpu,
-  ChevronDown
+  ChevronDown,
+  ShieldCheck
 } from 'lucide-react';
 import { TabType, Department } from '../types';
+import type { ModuloId } from '../modulos';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -29,6 +31,8 @@ interface SidebarProps {
   departments: Department[];
   selectedDeptId: string;
   onSelectDepartamento: (id: string) => void;
+  modulos: ModuloId[];
+  administrador: boolean;
 }
 
 type NavLeaf = { id: TabType; label: string; icon: React.FC<{ className?: string }>; badge?: string };
@@ -57,7 +61,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   departments,
   selectedDeptId,
   onSelectDepartamento,
+  modulos,
+  administrador,
 }) => {
+  const permitido = (id: TabType) => administrador || modulos.includes(id as ModuloId);
   const navItems: NavEntry[] = [
     { id: 'informativos', label: 'Informativos Internos', icon: Megaphone },
     { id: 'comunicados', label: 'Comunicados & Feed', icon: Newspaper },
@@ -121,7 +128,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             Menu Intranet
           </div>
 
-          {navItems.slice(0, 6).map((item) => {
+          {navItems.slice(0, 6).filter((item) => !isGroup(item) && permitido(item.id)).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
 
@@ -144,8 +151,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
+          {administrador && (
+            <div className="pt-3 mt-3 border-t border-white/10">
+              <div className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-neutral-500">
+                Administração
+              </div>
+              <button
+                id="sidebar-tab-usuarios"
+                onClick={() => handleSelectTab('usuarios')}
+                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-xs transition-all ${
+                  activeTab === 'usuarios'
+                    ? 'bg-yellow-400 text-black font-bold shadow-lg shadow-yellow-400/20'
+                    : 'text-neutral-400 hover:text-yellow-400 hover:bg-white/5'
+                }`}
+              >
+                <ShieldCheck className={`w-4 h-4 shrink-0 ${activeTab === 'usuarios' ? 'text-black' : 'text-neutral-500'}`} />
+                <span>Cadastro de usuários</span>
+              </button>
+            </div>
+          )}
+
           {/* Departamentos & Áreas — grupo expansível com um submenu por área */}
-          <div>
+          {permitido('departamentos') && <div>
             <button
               id="sidebar-group-departamentos"
               onClick={() => setDepartamentosExpanded((prev) => !prev)}
@@ -190,13 +217,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 })}
               </div>
             )}
-          </div>
+          </div>}
 
           {navItems.slice(6).map((item) => {
             const Icon = item.icon;
 
             if (isGroup(item)) {
-              const groupActive = item.children.some((c) => c.id === activeTab);
+              const filhosPermitidos = item.children.filter((child) => permitido(child.id));
+              if (filhosPermitidos.length === 0) return null;
+              const groupActive = filhosPermitidos.some((c) => c.id === activeTab);
 
               return (
                 <div key={item.id}>
@@ -222,7 +251,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                   {dashboardExpanded && (
                     <div className="mt-1 ml-3 pl-3 border-l border-white/10 space-y-1">
-                      {item.children.map((child) => {
+                      {filhosPermitidos.map((child) => {
                         const ChildIcon = child.icon;
                         const isActive = activeTab === child.id;
 
@@ -247,6 +276,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               );
             }
+
+            if (!permitido(item.id)) return null;
 
             const isActive = activeTab === item.id;
 

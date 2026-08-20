@@ -10,7 +10,8 @@ export type TabType =
   | 'pessoas'
   | 'chat'
   | 'departamentos'
-  | 'ia-assistente';
+  | 'ia-assistente'
+  | 'usuarios';
 
 export interface VendedorRanking {
   nome: string;

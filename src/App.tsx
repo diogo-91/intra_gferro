@@ -36,7 +36,11 @@ import { AIAssistantModal } from './components/AIAssistantModal';
 import { NovoComunicadoModal } from './components/NovoComunicadoModal';
 import { NovoChamadoModal } from './components/NovoChamadoModal';
 import { Login } from './components/Login';
+import { GestaoUsuarios } from './components/GestaoUsuarios';
 import { nomeDoEmail } from './utils/format';
+import type { ModuloId } from './modulos';
+
+interface Sessao { email: string; nome?: string; administrador: boolean; modulos: ModuloId[] }
 
 export default function App() {
   // Autenticação — verifica o cookie de sessão (ver auth.ts) antes de
@@ -44,27 +48,34 @@ export default function App() {
   const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
   // Nome exibido no cabeçalho vem do e-mail usado no login (login único
   // compartilhado, ver auth.ts) — não de um cadastro de usuário à parte.
-  const [emailLogado, setEmailLogado] = useState<string | null>(null);
+  const [sessao, setSessao] = useState<Sessao | null>(null);
 
-  useEffect(() => {
-    fetch('/api/auth/me')
+  const carregarSessao = () => fetch('/api/auth/me')
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
         setAuthStatus(ok ? 'authenticated' : 'unauthenticated');
-        setEmailLogado(ok ? data.email : null);
+        setSessao(ok ? data : null);
       })
       .catch(() => setAuthStatus('unauthenticated'));
+
+  useEffect(() => {
+    void carregarSessao();
   }, []);
 
-  const usuarioAtual: User = emailLogado
-    ? { ...currentUser, name: nomeDoEmail(emailLogado), email: emailLogado }
+  const usuarioAtual: User = sessao
+    ? { ...currentUser, name: sessao.nome || nomeDoEmail(sessao.email), email: sessao.email, role: sessao.administrador ? 'Administrador' : 'Usuário' }
     : currentUser;
 
   const handleLogout = () => {
-    fetch('/api/auth/logout', { method: 'POST' }).finally(() => setAuthStatus('unauthenticated'));
+    fetch('/api/auth/logout', { method: 'POST' }).finally(() => { setSessao(null); setAuthStatus('unauthenticated'); });
   };
 
   const [activeTab, setActiveTab] = useState<TabType>('informativos');
+
+  useEffect(() => {
+    if (!sessao || sessao.administrador || sessao.modulos.includes(activeTab as ModuloId)) return;
+    setActiveTab(sessao.modulos[0] || 'informativos');
+  }, [sessao, activeTab]);
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -78,6 +89,7 @@ export default function App() {
   const [departments] = useState<Department[]>(initialDepartments);
   const [selectedDeptId, setSelectedDeptId] = useState<string>(initialDepartments[0]?.id ?? '');
   const [notifications, setNotifications] = useState<NotificationItem[]>(notificationsList);
+  const acessoAbaAtiva = !!sessao && (sessao.administrador || sessao.modulos.includes(activeTab as ModuloId));
 
   // Modals & Panels
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
@@ -172,7 +184,7 @@ export default function App() {
   }
 
   if (authStatus === 'unauthenticated') {
-    return <Login onLoginSuccess={() => setAuthStatus('authenticated')} />;
+    return <Login onLoginSuccess={carregarSessao} />;
   }
 
   return (
@@ -193,6 +205,8 @@ export default function App() {
         mobileMenuOpen={mobileMenuOpen}
         setMobileMenuOpen={setMobileMenuOpen}
         onLogout={handleLogout}
+        podeCriarComunicado={!!sessao && (sessao.administrador || sessao.modulos.includes('comunicados'))}
+        podeAbrirChamado={!!sessao && (sessao.administrador || sessao.modulos.includes('servicos'))}
       />
 
       {/* Main Layout Grid */}
@@ -207,12 +221,23 @@ export default function App() {
           departments={departments}
           selectedDeptId={selectedDeptId}
           onSelectDepartamento={setSelectedDeptId}
+          modulos={sessao?.modulos || []}
+          administrador={!!sessao?.administrador}
         />
 
         {/* Content View Container */}
         <main
           className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-4rem)] bg-white text-neutral-900 selection:bg-yellow-400 selection:text-black"
         >
+          {!acessoAbaAtiva && (
+            <div className="min-h-[60vh] flex items-center justify-center">
+              <div className="max-w-md text-center p-8 rounded-2xl border border-neutral-200 bg-neutral-50">
+                <h1 className="text-xl font-black">Nenhum módulo liberado</h1>
+                <p className="text-sm text-neutral-500 mt-2">Solicite a um administrador a liberação dos módulos necessários para o seu acesso.</p>
+              </div>
+            </div>
+          )}
+          {acessoAbaAtiva && <>
           {activeTab === 'informativos' && (
             <Dashboard
               user={usuarioAtual}
@@ -284,6 +309,9 @@ export default function App() {
           {activeTab === 'financeiro' && <ProgramacaoFinanceira />}
 
           {activeTab === 'producao' && <Producao />}
+
+          {activeTab === 'usuarios' && sessao?.administrador && <GestaoUsuarios />}
+          </>}
         </main>
       </div>
 
