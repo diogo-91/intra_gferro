@@ -1,0 +1,340 @@
+RELATÓRIO DE AUDITORIA DA DRE GERENCIAL - GFERRO
+Período analisado: Agosto/2026
+Consulta executada em: 20/08/2026 16:29 (America/Sao_Paulo)
+
+===============================================================================
+1. OBJETIVO
+===============================================================================
+
+Este relatório documenta de onde vem cada valor exibido na DRE da intranet.
+Ele permite validar endpoints, filtros, campos, agrupamentos e fórmulas.
+
+Importante: esta é uma DRE GERENCIAL baseada nos lançamentos financeiros do
+Nomus. Ela não substitui a DRE contábil, pois não apura estoque, competência
+contábil de impostos, depreciação ou outros ajustes contábeis.
+
+===============================================================================
+2. ORIGEM DOS DADOS
+===============================================================================
+
+Sistema: Nomus ERP
+Empresa consultada: idEmpresa=3 (GFERRO)
+
+Receitas:
+  Endpoint: GET /contasReceber
+
+Despesas, deduções, custos e demais saídas:
+  Endpoint: GET /contasPagar
+
+Filtro enviado aos dois endpoints:
+  dataCompetencia>2026-07-31T23:59:59;
+  dataCompetencia<2026-09-01T00:00:00;
+  idEmpresa=3
+
+Consulta completa paginada em lotes de 50 registros.
+Quantidade encontrada:
+  /contasReceber: 314 lançamentos
+  /contasPagar:   422 lançamentos
+  Total:          736 lançamentos
+
+Campos usados em cada lançamento:
+  classificacao      = código da conta/classificação, exemplo 4.2
+  nomeClassificacao  = nome exibido, exemplo Compra de Bobinas
+  dataCompetencia    = define se o lançamento pertence a Agosto/2026
+  idEmpresa          = impede misturar GFERRO com outra empresa do Nomus
+  valorReceber       = valor PROGRAMADO da conta
+  valorRecebido      = valor REALIZADO/liquidado da mesma conta
+  status             = indica se a conta foi totalmente baixada
+  saldoReceber       = saldo que ainda permanece em aberto
+
+Tratamento numérico:
+  Os valores do Nomus chegam no padrão brasileiro, por exemplo 32.468,04.
+  A aplicação converte para número e usa o valor absoluto. Isso é necessário
+  porque /contasPagar devolve valorReceber negativo.
+
+===============================================================================
+3. REGRAS DE CÁLCULO EXIBIDAS NA TELA
+===============================================================================
+
+PROGRAMADO da classificação:
+  Soma de abs(valorReceber) de todos os lançamentos daquela classificação.
+
+REALIZADO da classificação:
+  Soma de abs(valorRecebido) dos mesmos lançamentos por competência.
+
+DIFERENÇA:
+  Programado - Realizado
+
+% REALIZADO:
+  (Realizado / Programado) x 100
+
+Situação visual:
+  Pendente = realizado igual a zero
+  Parcial  = realizado maior que zero e menor que o programado
+  Quitado  = realizado igual ou maior que o programado
+
+Observação importante:
+  A situação mostrada no cartão é da CLASSIFICAÇÃO AGREGADA. Uma classificação
+  parcial pode conter alguns lançamentos quitados e outros completamente abertos.
+
+===============================================================================
+4. COMPOSIÇÃO DETALHADA POR CLASSIFICAÇÃO
+===============================================================================
+
+Legenda da coluna de lançamentos:
+  T = total | Q = quitados | P = parciais | A = abertos sem valor realizado
+
+GRUPO 1 - RECEITA BRUTA
+Fonte: /contasReceber
+
+1.6 Entrada por vendas
+  Programado: R$ 1.238.803,06 | Realizado: R$ 873.279,70
+  Lançamentos: T=314 | Q=225 | P=1 | A=88
+
+TOTAL GRUPO 1
+  Programado: R$ 1.238.803,06 | Realizado: R$ 873.279,70
+
+-------------------------------------------------------------------------------
+GRUPO 2 - DEDUÇÃO DE RECEITA BRUTA
+Fonte: /contasPagar
+
+2.1 Comissão de Vendas Externas
+  Programado: R$ 17.785,67 | Realizado: R$ 11.630,67
+  Lançamentos: T=13 | Q=9 | P=0 | A=4
+
+2.2 Comissão Vendas Internas
+  Programado: R$ 52.773,83 | Realizado: R$ 53.180,77
+  Lançamentos: T=15 | Q=15 | P=0 | A=0
+  ATENÇÃO: realizado excede o programado em R$ 406,94. Validar juros, multa,
+  acréscimo ou alteração do valor original no Nomus.
+
+2.3 Devoluções
+  Programado: R$ 956,32 | Realizado: R$ 634,54
+  Lançamentos: T=4 | Q=3 | P=0 | A=1
+
+TOTAL GRUPO 2
+  Programado: R$ 71.515,82 | Realizado: R$ 65.445,98
+
+-------------------------------------------------------------------------------
+GRUPO 4 - CMV / CPV / CSV
+Fonte: /contasPagar
+
+4.2 Compra de Bobinas                R$ 1.058.290,19 | R$ 12.440,00 | T=19 Q=2 P=0 A=17
+4.3 Compra de Cola                   R$     5.118,56 | R$      0,00 | T=4  Q=0 P=0 A=4
+4.4 Compra de EPS                    R$   202.618,76 | R$ 65.735,03 | T=21 Q=6 P=1 A=14
+4.5 Compra de Parafusos              R$     5.069,00 | R$  3.069,00 | T=2  Q=1 P=0 A=1
+4.6 Compra de Forro Metálico         R$    66.355,22 | R$ 17.159,22 | T=7  Q=3 P=0 A=4
+4.8 Compra de Tinta                  R$    54.721,45 | R$ 25.515,58 | T=11 Q=3 P=0 A=8
+4.9 Energia Elétrica                 R$     2.350,00 | R$      0,00 | T=1  Q=0 P=0 A=1
+4.11 Insumo de Produção              R$     3.361,50 | R$    361,50 | T=2  Q=1 P=0 A=1
+4.12 Locação e Equipamentos          R$       290,00 | R$      0,00 | T=1  Q=0 P=0 A=1
+
+TOTAL GRUPO 4
+  Programado: R$ 1.398.174,68 | Realizado: R$ 124.280,33
+
+-------------------------------------------------------------------------------
+GRUPO 6 - DESPESA ADMINISTRATIVA
+Fonte: /contasPagar
+
+6.1 Água                             R$   277,08 | R$     0,00 | T=2  Q=0 P=0 A=2
+6.2 Aluguel                          R$40.948,79 | R$29.852,00 | T=10 Q=4 P=0 A=6
+6.4 Assessoria Jurídica              R$   200,00 | R$   200,00 | T=1  Q=1 P=0 A=0
+6.6 Internet                         R$   296,40 | R$   142,88 | T=2  Q=1 P=0 A=1
+6.9 Material de Limpeza              R$   609,90 | R$   609,90 | T=3  Q=3 P=0 A=0
+6.10 Reembolso de Despesa            R$ 1.152,06 | R$   765,46 | T=9  Q=6 P=0 A=3
+6.14 Sistema de Ponto Eletrônico     R$   368,05 | R$     0,00 | T=3  Q=0 P=0 A=3
+6.15 Despesas com Café/Padaria       R$   482,00 | R$   182,00 | T=5  Q=2 P=0 A=3
+6.17 Plataformas Divulgação de Vagas R$   230,83 | R$     0,00 | T=1  Q=0 P=0 A=1
+
+TOTAL GRUPO 6
+  Programado: R$ 44.565,11 | Realizado: R$ 31.752,24
+
+-------------------------------------------------------------------------------
+GRUPO 7 - DESPESAS RH
+Fonte: /contasPagar
+
+7.1 Adiantamento Salário             R$55.659,00 | R$31.059,00 | T=25 Q=23 P=0 A=2
+7.2 Salário                          R$49.908,13 | R$49.908,13 | T=39 Q=39 P=0 A=0
+7.3 Horas Extra - Administrativo     R$   420,43 | R$   420,43 | T=2  Q=2  P=0 A=0
+7.4 Premiação                        R$84.304,50 | R$     0,00 | T=22 Q=0  P=0 A=22
+7.6 Férias                           R$ 4.795,18 | R$     0,00 | T=1  Q=0  P=0 A=1
+7.7 Rescisão                         R$13.371,21 | R$10.982,58 | T=9  Q=6  P=0 A=3
+7.8 Refeitório - Vale Alimentação    R$20.348,82 | R$ 5.271,32 | T=5  Q=2  P=0 A=3
+7.9 Vale Transporte                  R$ 9.334,00 | R$ 1.817,80 | T=42 Q=9  P=0 A=33
+7.10 Cesta Básica                    R$ 7.997,10 | R$     0,00 | T=2  Q=0  P=0 A=2
+7.11 Convênio                        R$ 7.361,40 | R$     0,00 | T=5  Q=0  P=0 A=5
+7.13 FGTS                            R$11.809,01 | R$     0,00 | T=3  Q=0  P=0 A=3
+7.16 Despesas Saúde Ocupacional      R$   416,00 | R$   348,00 | T=2  Q=1  P=0 A=1
+7.18 Seguro de Vida Colaboradores    R$   681,27 | R$     0,00 | T=1  Q=0  P=0 A=1
+7.19 Serviços a Parceiros            R$   800,00 | R$     0,00 | T=1  Q=0  P=0 A=1
+7.20 Hora Extra - Produção           R$13.390,90 | R$13.390,90 | T=14 Q=14 P=0 A=0
+7.21 Hora Extra Logística            R$ 2.482,49 | R$ 2.482,49 | T=4  Q=4  P=0 A=0
+
+TOTAL GRUPO 7
+  Programado: R$ 283.079,44 | Realizado: R$ 115.680,65
+
+-------------------------------------------------------------------------------
+GRUPO 8 - MANUTENÇÃO
+Fonte: /contasPagar
+
+8.3 Equipamentos de informática      R$ 850,00   | R$ 850,00   | T=1 Q=1 P=0 A=0
+8.5 Manutenção de máquinas           R$ 1.681,70 | R$ 1.681,70 | T=1 Q=1 P=0 A=0
+
+TOTAL GRUPO 8
+  Programado: R$ 2.531,70 | Realizado: R$ 2.531,70
+
+-------------------------------------------------------------------------------
+GRUPO 9 - DESPESA LOGÍSTICA
+Fonte: /contasPagar
+
+9.2 Aluguel Caminhão                 R$ 9.000,00  | R$ 9.000,00  | T=7  Q=7  P=0 A=0
+9.5 Diesel                           R$ 39.657,58 | R$ 17.965,58 | T=34 Q=17 P=0 A=17
+9.6 Combustível                      R$ 460,00    | R$ 460,00    | T=1  Q=1  P=0 A=0
+9.9 Frete                            R$ 19.222,34 | R$ 6.760,44  | T=4  Q=2  P=0 A=2
+9.11 Refeição                        R$ 284,29    | R$ 183,00    | T=2  Q=1  P=0 A=1
+
+TOTAL GRUPO 9
+  Programado: R$ 68.624,21 | Realizado: R$ 34.369,02
+
+-------------------------------------------------------------------------------
+GRUPO 10 - MARKETING
+Fonte: /contasPagar
+
+10.1 Redes Sociais                   R$ 8.000,00 | R$ 5.200,00 | T=7 Q=5 P=0 A=2
+
+TOTAL GRUPO 10
+  Programado: R$ 8.000,00 | Realizado: R$ 5.200,00
+
+-------------------------------------------------------------------------------
+GRUPO 11 - PRÓ-LABORE
+Fonte: /contasPagar
+
+11.1 Raquel                          R$ 1.879,31  | R$ 1.879,31 | T=1 Q=1 P=0 A=0
+11.3 Wellington                      R$ 20.450,00 | R$ 5.450,00 | T=7 Q=4 P=0 A=3
+11.4 Wesley                          R$ 19.537,87 | R$ 4.537,87 | T=9 Q=6 P=0 A=3
+
+TOTAL GRUPO 11
+  Programado: R$ 41.867,18 | Realizado: R$ 11.867,18
+
+-------------------------------------------------------------------------------
+GRUPO 13 - DESPESA FINANCEIRA
+Fonte: /contasPagar
+
+13.2 Tarifas Bancárias               R$ 358,00 | R$ 358,00 | T=1 Q=1 P=0 A=0
+13.3 Tarifas PIX                     R$ 12,24  | R$ 12,24  | T=1 Q=1 P=0 A=0
+
+TOTAL GRUPO 13
+  Programado: R$ 370,24 | Realizado: R$ 370,24
+
+===============================================================================
+5. RESULTADO OPERACIONAL MOSTRADO NA DRE
+===============================================================================
+
+Fórmula aplicada, tanto no Programado quanto no Realizado:
+
+  Grupo 1 Receita Bruta
+  (-) Grupo 2 Deduções
+  (-) Grupo 4 CMV / CPV / CSV
+  (-) Grupo 6 Despesa Administrativa
+  (-) Grupo 7 Despesas RH
+  (-) Grupo 8 Manutenção
+  (-) Grupo 9 Despesa Logística
+  (-) Grupo 10 Marketing
+  (-) Grupo 11 Pró-Labore
+  (-) Grupo 13 Despesa Financeira
+  (+) Grupo 14 Receita Financeira, quando existir
+
+RESULTADO PROGRAMADO:
+  R$ 1.238.803,06 - R$ 1.918.728,38 = -R$ 679.925,32
+
+RESULTADO REALIZADO:
+  R$ 873.279,70 - R$ 391.497,34 = R$ 481.782,36
+
+Os grupos 12, 15 e 16 são apresentados separadamente e NÃO entram no
+resultado operacional da tela.
+
+===============================================================================
+6. MOVIMENTAÇÕES FORA DO RESULTADO OPERACIONAL
+===============================================================================
+
+GRUPO 12 - INVESTIMENTOS E AQUISIÇÕES
+12.1 Compra de veículos              R$ 4.750,00  | R$ 4.878,17 | T=1  Q=1 P=0 A=0
+12.2 Compra de equipamentos          R$ 96.000,00 | R$ 0,00     | T=12 Q=0 P=0 A=12
+12.7 Seguro Patrimonial              R$ 2.361,04  | R$ 181,19   | T=2  Q=1 P=0 A=1
+TOTAL: Programado R$ 103.111,04 | Realizado R$ 5.059,36
+
+ATENÇÃO: Compra de veículos tem realizado R$ 128,17 acima do programado.
+
+GRUPO 15 - EMPRÉSTIMOS / ACORDOS
+15.7 Acordos Judiciais Cliente       R$ 19.701,74 | R$ 1.877,52 | T=18 Q=2 P=0 A=16
+TOTAL: Programado R$ 19.701,74 | Realizado R$ 1.877,52
+
+GRUPO 16 - AJUSTES DE SALDO
+Nenhum lançamento encontrado no período consultado.
+
+===============================================================================
+7. PONTOS QUE PRECISAM SER VALIDADOS PELA GFERRO
+===============================================================================
+
+1. CMV/CPV/CSV:
+   A tela considera todas as COMPRAS classificadas no grupo 4. Isso não é o
+   mesmo que custo contábil do produto efetivamente vendido quando há estoque.
+   Confirmar se, para a gestão interna, a intenção é usar compras do mês.
+
+2. Realizado por competência:
+   O valor realizado é valorRecebido das contas cuja dataCompetencia pertence
+   a agosto. Um pagamento feito em agosto de conta com competência de julho não
+   aparece nesta DRE. Da mesma forma, uma conta de agosto paga em setembro será
+   incorporada ao Realizado de agosto quando a baixa for registrada.
+
+3. Valores realizados acima do programado:
+   Foram encontrados casos acima de 100%. Isso pode ocorrer por juros, multas,
+   acréscimos, arredondamentos ou alteração do valor original. Validar no Nomus:
+     - 2.2 Comissão Vendas Internas: +R$ 406,94
+     - 12.1 Compra de veículos: +R$ 128,17
+
+4. Classificação financeira:
+   O agrupamento depende diretamente do código classificacao registrado em cada
+   conta do Nomus. Uma conta classificada incorretamente aparecerá no grupo
+   incorreto da DRE.
+
+5. Conta agregada x lançamento individual:
+   A linha da tela soma diversas contas. Para identificar fornecedor, documento,
+   vencimento e pagamento individual é necessário abrir os lançamentos da
+   classificação; o total agregado sozinho não identifica qual boleto foi pago.
+
+===============================================================================
+8. REFERÊNCIAS NO CÓDIGO
+===============================================================================
+
+Integração, consulta e cálculo:
+  nomus.ts
+  Função: montarDreFinanceira
+
+Filtro obrigatório da empresa:
+  nomus.ts
+  Constante: ID_EMPRESA_GFERRO = 3
+  Função: comFiltroEmpresa
+
+Conversão de valores brasileiros:
+  nomus.ts
+  Função: parseNum
+
+Catálogo e grupos das classificações:
+  src/data/classificacoesFinanceiras.ts
+  GRUPOS_CLASSIFICACAO_FINANCEIRA
+  CLASSIFICACOES_FINANCEIRAS
+
+Apresentação e fórmulas da interface:
+  src/components/ProgramacaoFinanceira.tsx
+  Visões: dre e dre-detalhada
+
+Endpoint interno consumido pelo navegador:
+  GET /api/financeiro/dre?mes=2026-08
+  Registrado em server.ts
+
+Cache persistente:
+  /app/data/financeiro-cache-dre.json
+  Volume do EasyPanel: intranet-data montado em /app/data
+
+FIM DO RELATÓRIO
