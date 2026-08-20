@@ -211,6 +211,19 @@ export interface ResumoFinanceiro {
   atualizadoEm: string;
 }
 
+export interface DreLinha {
+  codigoGrupo: string;
+  grupo: string;
+  programado: number;
+  realizado: number;
+}
+
+export interface DreFinanceira {
+  mesReferencia: string;
+  linhas: DreLinha[];
+  atualizadoEm: string;
+}
+
 export interface User {
   id: string;
   name: string;

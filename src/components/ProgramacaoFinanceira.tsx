@@ -27,8 +27,9 @@ import {
   ArrowUpCircle,
   ArrowLeft,
   FileDown,
+  BarChart3,
 } from 'lucide-react';
-import { ContaReceber, ContaPagar, ContaConcluida, ResumoFinanceiro } from '../types';
+import { ContaReceber, ContaPagar, ContaConcluida, DreFinanceira, DreLinha, ResumoFinanceiro } from '../types';
 import { formatCurrency, parseDataBr, chaveDia } from '../utils/format';
 import { GRUPOS_CLASSIFICACAO_FINANCEIRA } from '../data/classificacoesFinanceiras';
 import { COMPOSICAO_MATERIA_PRIMA, ItemComposicaoMateriaPrima } from '../data/composicaoMateriaPrima';
@@ -788,7 +789,25 @@ export const ProgramacaoFinanceira: React.FC = () => {
 
   // ---- Relatório Detalhado do dia (entrou/saiu + composição de Matéria Prima) ----
   // Tela cheia própria (view === 'relatorio-detalhado'), com "Voltar ao Painel".
-  const [view, setView] = useState<'painel' | 'relatorio-detalhado'>('painel');
+  const [view, setView] = useState<'painel' | 'relatorio-detalhado' | 'dre'>('painel');
+  const [dre, setDre] = useState<DreFinanceira | null>(null);
+  const [dreCarregando, setDreCarregando] = useState(false);
+  const [dreErro, setDreErro] = useState<string | null>(null);
+
+  function abrirDre() {
+    setView('dre');
+    setDreCarregando(true);
+    setDreErro(null);
+    fetch(`/api/financeiro/dre?mes=${mesKey}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Falha ao buscar a DRE no Nomus');
+        return data as DreFinanceira;
+      })
+      .then(setDre)
+      .catch((err) => setDreErro(err.message || 'Falha ao buscar a DRE no Nomus'))
+      .finally(() => setDreCarregando(false));
+  }
 
   // ---- Previsão de fluxo de caixa com IA ----
   const [previsaoIAAberta, setPrevisaoIAAberta] = useState(false);
@@ -813,6 +832,77 @@ export const ProgramacaoFinanceira: React.FC = () => {
   }
 
   const nomeMesSelecionado = NOMES_MES[mesSelecionado.mes];
+
+  if (view === 'dre') {
+    const linha = (codigo: string): DreLinha =>
+      dre?.linhas.find((item) => item.codigoGrupo === codigo) || {
+        codigoGrupo: codigo,
+        grupo: GRUPOS_CLASSIFICACAO_FINANCEIRA[codigo] || 'Outros',
+        programado: 0,
+        realizado: 0,
+      };
+    const codigosDre = ['1', '2', '4', '6', '7', '8', '9', '10', '11', '13', '14'];
+    const linhasDre = codigosDre.map(linha);
+    const sinal = (codigo: string) => (codigo === '1' || codigo === '14' ? 1 : -1);
+    const resultadoProgramado = linhasDre.reduce((total, item) => total + item.programado * sinal(item.codigoGrupo), 0);
+    const resultadoRealizado = linhasDre.reduce((total, item) => total + item.realizado * sinal(item.codigoGrupo), 0);
+    const receitaProgramada = linha('1').programado;
+    const receitaRealizada = linha('1').realizado;
+    const foraDaDre = ['12', '15', '16'].map(linha).filter((item) => item.programado || item.realizado);
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button type="button" onClick={() => setView('painel')} className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all">
+            <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Planejamento
+          </button>
+          <button type="button" onClick={abrirDre} disabled={dreCarregando} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">
+            <RefreshCw className={`w-3.5 h-3.5 ${dreCarregando ? 'animate-spin' : ''}`} /> Atualizar DRE
+          </button>
+        </div>
+
+        <div>
+          <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Financeiro • DRE gerencial</span>
+          <h1 className="text-2xl font-black text-neutral-900 mt-1 flex items-center gap-2"><BarChart3 className="w-6 h-6 text-yellow-600" />{nomeMesSelecionado} {mesSelecionado.ano}</h1>
+          <p className="text-neutral-500 text-sm mt-1">Comparação entre os lançamentos por competência e o caixa efetivamente realizado no período.</p>
+        </div>
+
+        {dreErro && <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700">{dreErro}</div>}
+        {dreCarregando && !dre && <div className="p-12 rounded-3xl bg-white border border-neutral-200 flex items-center justify-center gap-2 text-sm text-neutral-500"><RefreshCw className="w-5 h-5 animate-spin text-yellow-600" />Montando a DRE com os dados do Nomus...</div>}
+
+        {dre && <>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              ['Receita programada', receitaProgramada, 'text-neutral-900'],
+              ['Receita realizada', receitaRealizada, 'text-emerald-600'],
+              ['Resultado programado', resultadoProgramado, resultadoProgramado >= 0 ? 'text-emerald-600' : 'text-red-600'],
+              ['Resultado realizado', resultadoRealizado, resultadoRealizado >= 0 ? 'text-emerald-600' : 'text-red-600'],
+            ].map(([rotulo, valor, cor]) => <div key={String(rotulo)} className="rounded-2xl bg-white border border-neutral-200 p-5"><p className="text-xs font-bold text-neutral-500">{rotulo}</p><p className={`text-xl font-black mt-2 ${cor}`}>{formatCurrency(Number(valor))}</p></div>)}
+          </div>
+
+          <div className="rounded-3xl bg-white border border-neutral-200 overflow-hidden">
+            <div className="p-5 border-b border-neutral-100"><h2 className="font-black text-neutral-900">Demonstrativo do resultado</h2><p className="text-xs text-neutral-500 mt-1">Realizado considera recebimentos e pagamentos efetivos no mês.</p></div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500"><tr><th className="text-left px-5 py-3">Grupo</th><th className="text-right px-5 py-3">Programado</th><th className="text-right px-5 py-3">Realizado</th><th className="text-right px-5 py-3">Diferença</th><th className="text-right px-5 py-3">% realizado</th></tr></thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {linhasDre.map((item) => {
+                    const diferenca = item.programado - item.realizado;
+                    const percentual = item.programado > 0 ? (item.realizado / item.programado) * 100 : 0;
+                    return <tr key={item.codigoGrupo} className="hover:bg-neutral-50"><td className="px-5 py-4 font-bold text-neutral-800"><span className="text-neutral-400 mr-2">{item.codigoGrupo}</span>{item.grupo}</td><td className="px-5 py-4 text-right font-mono">{formatCurrency(item.programado)}</td><td className="px-5 py-4 text-right font-mono font-bold">{formatCurrency(item.realizado)}</td><td className={`px-5 py-4 text-right font-mono ${diferenca < 0 ? 'text-red-600' : 'text-neutral-600'}`}>{formatCurrency(diferenca)}</td><td className="px-5 py-4 text-right font-bold">{percentual.toFixed(1)}%</td></tr>;
+                  })}
+                  <tr className="bg-neutral-900 text-white"><td className="px-5 py-4 font-black">RESULTADO</td><td className="px-5 py-4 text-right font-mono font-black">{formatCurrency(resultadoProgramado)}</td><td className="px-5 py-4 text-right font-mono font-black">{formatCurrency(resultadoRealizado)}</td><td className="px-5 py-4 text-right font-mono font-black">{formatCurrency(resultadoProgramado - resultadoRealizado)}</td><td className="px-5 py-4" /></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {foraDaDre.length > 0 && <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5"><h3 className="text-sm font-black text-amber-900">Movimentações fora do resultado operacional</h3><div className="grid sm:grid-cols-3 gap-3 mt-3">{foraDaDre.map((item) => <div key={item.codigoGrupo} className="text-xs text-amber-800"><strong>{item.grupo}</strong><br />Programado {formatCurrency(item.programado)} • Realizado {formatCurrency(item.realizado)}</div>)}</div></div>}
+          <p className="text-[11px] text-neutral-400">Atualizado em {new Date(dre.atualizadoEm).toLocaleString('pt-BR')}. Esta é uma visão gerencial: o realizado é caixa e pode divergir da DRE contábil por competência e variação de estoque.</p>
+        </>}
+      </div>
+    );
+  }
 
   if (view === 'relatorio-detalhado') {
     return (
@@ -926,6 +1016,14 @@ export const ProgramacaoFinanceira: React.FC = () => {
         >
           <FileText className="w-3.5 h-3.5" aria-hidden="true" />
           Relatório Detalhado
+        </button>
+        <button
+          type="button"
+          onClick={abrirDre}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-900 bg-neutral-900 text-xs font-extrabold text-white hover:bg-neutral-800 transition-all"
+        >
+          <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" />
+          DRE
         </button>
         <button
           type="button"

@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { getRankingVendedores, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, Periodo } from './nomus';
+import { getRankingVendedores, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, getDreFinanceira, Periodo } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -343,6 +343,19 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao buscar resumo financeiro no Nomus:', error);
       res.status(500).json({ error: 'Erro ao buscar dados do Nomus', details: error.message });
+    }
+  });
+
+  app.get('/api/financeiro/dre', async (req, res) => {
+    try {
+      const mes = req.query.mes as string | undefined;
+      if (mes && !/^\d{4}-\d{2}$/.test(mes)) {
+        return res.status(400).json({ error: 'mes inválido (use o formato AAAA-MM)' });
+      }
+      res.json(await getDreFinanceira(mes));
+    } catch (error: any) {
+      console.error('Erro ao montar DRE no Nomus:', error);
+      res.status(500).json({ error: 'Erro ao buscar dados da DRE no Nomus', details: error.message });
     }
   });
 

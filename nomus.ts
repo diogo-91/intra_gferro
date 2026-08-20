@@ -19,9 +19,9 @@
 //   um DRE/EBITDA pronto — por isso o Painel Financeiro deriva só o que dá
 //   pra calcular com precisão a partir desses endpoints.
 
-import type { ContaReceber, ContaPagar, ContaConcluida, FluxoCaixaMes, ResumoFinanceiro } from './src/types';
+import type { ContaReceber, ContaPagar, ContaConcluida, DreFinanceira, DreLinha, FluxoCaixaMes, ResumoFinanceiro } from './src/types';
 import { aplicarReprogramacoes } from './reprogramacoes';
-import { nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
+import { GRUPOS_CLASSIFICACAO_FINANCEIRA, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
 import { lojaDoVendedor } from './src/data/vendedorLoja';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -1121,4 +1121,59 @@ export async function getResumoFinanceiro(mes?: string): Promise<ResumoFinanceir
     aplicarReprogramacoes(resumo.contasPagar, 'pagar'),
   ]);
   return { ...resumo, contasReceber, contasPagar };
+}
+
+const cacheDrePorMes = new Map<string, { atualizadoEm: number; dre: DreFinanceira }>();
+
+function codigoDoGrupo(nome?: string): string | undefined {
+  if (!nome) return undefined;
+  return Object.entries(GRUPOS_CLASSIFICACAO_FINANCEIRA).find(([, grupo]) => grupo === nome)?.[0];
+}
+
+export async function getDreFinanceira(mes?: string): Promise<DreFinanceira> {
+  const hoje = new Date();
+  const referencia = (mes && parseMesReferencia(mes)) || new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const chave = chaveMes(referencia);
+  const cacheado = cacheDrePorMes.get(chave);
+  if (cacheado && Date.now() - cacheado.atualizadoEm < CACHE_TTL_FINANCEIRO_MS) return cacheado.dre;
+
+  const { baseUrl, apiKey } = getConfig();
+  if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+
+  const inicio = new Date(referencia.getFullYear(), referencia.getMonth(), 1);
+  const fim = new Date(referencia.getFullYear(), referencia.getMonth() + 1, 0);
+  const porCompetencia = comFiltroEmpresa(intervaloQuery('dataCompetencia', inicio, fim));
+  const porRecebimento = comFiltroEmpresa(intervaloQuery('dataRecebimento', inicio, fim));
+  const porPagamento = comFiltroEmpresa(intervaloQuery('dataPagamento', inicio, fim));
+
+  // Sequencial pela mesma limitação de concorrência da instância Nomus descrita acima.
+  const contasReceber = await coletarTudo<ContaFinanceiraRaw>('contasReceber', baseUrl, apiKey, porCompetencia);
+  const contasPagar = await coletarTudo<ContaFinanceiraRaw>('contasPagar', baseUrl, apiKey, porCompetencia);
+  const recebimentos = await coletarTudo<RecebimentoRaw>('recebimentos', baseUrl, apiKey, porRecebimento);
+  const pagamentos = await coletarTudo<PagamentoRaw>('pagamentos', baseUrl, apiKey, porPagamento);
+
+  const valores = new Map<string, { programado: number; realizado: number }>();
+  const somar = (codigoGrupo: string | undefined, campo: 'programado' | 'realizado', valor: number) => {
+    if (!codigoGrupo || !GRUPOS_CLASSIFICACAO_FINANCEIRA[codigoGrupo]) return;
+    const atual = valores.get(codigoGrupo) || { programado: 0, realizado: 0 };
+    atual[campo] += Math.abs(valor);
+    valores.set(codigoGrupo, atual);
+  };
+
+  for (const conta of [...contasReceber, ...contasPagar]) {
+    somar(conta.classificacao?.split('.')[0], 'programado', parseNum(conta.valorReceber));
+  }
+  for (const recebimento of recebimentos) {
+    somar(codigoDoGrupo(grupoDaClassificacaoPorNome(recebimento.nomeClassificacaoFinanceira || '')), 'realizado', parseNum(recebimento.valorRecebido));
+  }
+  for (const pagamento of pagamentos) {
+    somar(codigoDoGrupo(grupoDaClassificacaoPorNome(pagamento.nomeClassificacaoFinanceira || '')), 'realizado', parseNum(pagamento.valorPago));
+  }
+
+  const linhas: DreLinha[] = Object.entries(GRUPOS_CLASSIFICACAO_FINANCEIRA)
+    .map(([codigoGrupo, grupo]) => ({ codigoGrupo, grupo, ...(valores.get(codigoGrupo) || { programado: 0, realizado: 0 }) }))
+    .filter((linha) => linha.programado !== 0 || linha.realizado !== 0);
+  const dre: DreFinanceira = { mesReferencia: chave, linhas, atualizadoEm: new Date().toISOString() };
+  cacheDrePorMes.set(chave, { atualizadoEm: Date.now(), dre });
+  return dre;
 }

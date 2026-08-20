@@ -177,11 +177,19 @@ export function grupoDaClassificacao(codigo: string): string | undefined {
 
 // Índice reverso nome -> código "grupo.sub" — para endpoints que só devolvem
 // o nome já resolvido (ex.: /recebimentos, /pagamentos), sem o código.
+function normalizarNomeClassificacao(nome: string): string {
+  return nome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toLowerCase();
+}
+
 const CODIGO_POR_NOME: Record<string, string> = Object.fromEntries(
-  Object.entries(CLASSIFICACOES_FINANCEIRAS).map(([codigo, nome]) => [nome, codigo])
+  Object.entries(CLASSIFICACOES_FINANCEIRAS).map(([codigo, nome]) => [normalizarNomeClassificacao(nome), codigo])
 );
 
 export function grupoDaClassificacaoPorNome(nome: string): string | undefined {
-  const codigo = CODIGO_POR_NOME[nome];
+  const codigo = CODIGO_POR_NOME[normalizarNomeClassificacao(nome)];
   return codigo ? grupoDaClassificacao(codigo) : undefined;
 }
