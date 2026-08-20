@@ -19,9 +19,9 @@
 //   um DRE/EBITDA pronto — por isso o Painel Financeiro deriva só o que dá
 //   pra calcular com precisão a partir desses endpoints.
 
-import type { ContaReceber, ContaPagar, ContaConcluida, DreFinanceira, DreLinha, FluxoCaixaMes, ResumoFinanceiro } from './src/types';
+import type { ContaReceber, ContaPagar, ContaConcluida, DreConta, DreFinanceira, DreLinha, FluxoCaixaMes, ResumoFinanceiro } from './src/types';
 import { aplicarReprogramacoes } from './reprogramacoes';
-import { GRUPOS_CLASSIFICACAO_FINANCEIRA, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
+import { CLASSIFICACOES_FINANCEIRAS, GRUPOS_CLASSIFICACAO_FINANCEIRA, codigoClassificacaoPorNome, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
 import { lojaDoVendedor } from './src/data/vendedorLoja';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -1150,11 +1150,6 @@ export async function getResumoFinanceiro(mes?: string): Promise<ResumoFinanceir
 const cacheDrePorMes = carregarCacheDreDoDisco();
 const cacheDreEmAndamentoPorMes = new Map<string, Promise<CacheDreFinanceira>>();
 
-function codigoDoGrupo(nome?: string): string | undefined {
-  if (!nome) return undefined;
-  return Object.entries(GRUPOS_CLASSIFICACAO_FINANCEIRA).find(([, grupo]) => grupo === nome)?.[0];
-}
-
 async function montarDreFinanceira(referencia: Date): Promise<DreFinanceira> {
   const chave = chaveMes(referencia);
   const { baseUrl, apiKey } = getConfig();
@@ -1173,25 +1168,46 @@ async function montarDreFinanceira(referencia: Date): Promise<DreFinanceira> {
   const pagamentos = await coletarTudo<PagamentoRaw>('pagamentos', baseUrl, apiKey, porPagamento);
 
   const valores = new Map<string, { programado: number; realizado: number }>();
-  const somar = (codigoGrupo: string | undefined, campo: 'programado' | 'realizado', valor: number) => {
-    if (!codigoGrupo || !GRUPOS_CLASSIFICACAO_FINANCEIRA[codigoGrupo]) return;
+  const contas = new Map<string, DreConta>();
+  const somar = (codigo: string | undefined, nome: string | undefined, campo: 'programado' | 'realizado', valor: number) => {
+    const codigoGrupo = codigo?.split('.')[0];
+    if (!codigo || !codigoGrupo || !GRUPOS_CLASSIFICACAO_FINANCEIRA[codigoGrupo]) return;
+    const valorAbsoluto = Math.abs(valor);
     const atual = valores.get(codigoGrupo) || { programado: 0, realizado: 0 };
-    atual[campo] += Math.abs(valor);
+    atual[campo] += valorAbsoluto;
     valores.set(codigoGrupo, atual);
+
+    const conta = contas.get(codigo) || {
+      codigo,
+      nome: nome || CLASSIFICACOES_FINANCEIRAS[codigo] || 'Sem classificação',
+      programado: 0,
+      realizado: 0,
+    };
+    conta[campo] += valorAbsoluto;
+    contas.set(codigo, conta);
   };
 
   for (const conta of [...contasReceber, ...contasPagar]) {
-    somar(conta.classificacao?.split('.')[0], 'programado', parseNum(conta.valorReceber));
+    somar(conta.classificacao, conta.nomeClassificacao, 'programado', parseNum(conta.valorReceber));
   }
   for (const recebimento of recebimentos) {
-    somar(codigoDoGrupo(grupoDaClassificacaoPorNome(recebimento.nomeClassificacaoFinanceira || '')), 'realizado', parseNum(recebimento.valorRecebido));
+    const codigo = codigoClassificacaoPorNome(recebimento.nomeClassificacaoFinanceira || '');
+    somar(codigo, recebimento.nomeClassificacaoFinanceira, 'realizado', parseNum(recebimento.valorRecebido));
   }
   for (const pagamento of pagamentos) {
-    somar(codigoDoGrupo(grupoDaClassificacaoPorNome(pagamento.nomeClassificacaoFinanceira || '')), 'realizado', parseNum(pagamento.valorPago));
+    const codigo = codigoClassificacaoPorNome(pagamento.nomeClassificacaoFinanceira || '');
+    somar(codigo, pagamento.nomeClassificacaoFinanceira, 'realizado', parseNum(pagamento.valorPago));
   }
 
   const linhas: DreLinha[] = Object.entries(GRUPOS_CLASSIFICACAO_FINANCEIRA)
-    .map(([codigoGrupo, grupo]) => ({ codigoGrupo, grupo, ...(valores.get(codigoGrupo) || { programado: 0, realizado: 0 }) }))
+    .map(([codigoGrupo, grupo]) => ({
+      codigoGrupo,
+      grupo,
+      ...(valores.get(codigoGrupo) || { programado: 0, realizado: 0 }),
+      contas: [...contas.values()]
+        .filter((conta) => conta.codigo.split('.')[0] === codigoGrupo)
+        .sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true })),
+    }))
     .filter((linha) => linha.programado !== 0 || linha.realizado !== 0);
   return { mesReferencia: chave, linhas, atualizadoEm: new Date().toISOString() };
 }
@@ -1205,7 +1221,8 @@ export async function getDreFinanceira(mes?: string): Promise<DreFinanceira> {
   // Stale-while-revalidate: responde imediatamente com o último dado bom,
   // mesmo após reiniciar o servidor, e atualiza o Nomus sem bloquear a tela.
   if (cacheado) {
-    const desatualizado = Date.now() - cacheado.atualizadoEm >= CACHE_TTL_FINANCEIRO_MS;
+    const possuiDetalhamento = cacheado.dre.linhas.every((linha) => Array.isArray(linha.contas));
+    const desatualizado = !possuiDetalhamento || Date.now() - cacheado.atualizadoEm >= CACHE_TTL_FINANCEIRO_MS;
     if (desatualizado && !cacheDreEmAndamentoPorMes.has(chave)) {
       const atualizacao = montarDreFinanceira(referencia)
         .then((dre) => {

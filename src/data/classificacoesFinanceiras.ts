@@ -190,6 +190,10 @@ const CODIGO_POR_NOME: Record<string, string> = Object.fromEntries(
 );
 
 export function grupoDaClassificacaoPorNome(nome: string): string | undefined {
-  const codigo = CODIGO_POR_NOME[normalizarNomeClassificacao(nome)];
+  const codigo = codigoClassificacaoPorNome(nome);
   return codigo ? grupoDaClassificacao(codigo) : undefined;
+}
+
+export function codigoClassificacaoPorNome(nome: string): string | undefined {
+  return CODIGO_POR_NOME[normalizarNomeClassificacao(nome)];
 }

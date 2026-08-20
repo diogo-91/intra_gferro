@@ -216,6 +216,14 @@ export interface DreLinha {
   grupo: string;
   programado: number;
   realizado: number;
+  contas: DreConta[];
+}
+
+export interface DreConta {
+  codigo: string;
+  nome: string;
+  programado: number;
+  realizado: number;
 }
 
 export interface DreFinanceira {

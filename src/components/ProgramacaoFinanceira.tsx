@@ -789,13 +789,13 @@ export const ProgramacaoFinanceira: React.FC = () => {
 
   // ---- Relatório Detalhado do dia (entrou/saiu + composição de Matéria Prima) ----
   // Tela cheia própria (view === 'relatorio-detalhado'), com "Voltar ao Painel".
-  const [view, setView] = useState<'painel' | 'relatorio-detalhado' | 'dre'>('painel');
+  const [view, setView] = useState<'painel' | 'relatorio-detalhado' | 'dre' | 'dre-detalhada'>('painel');
   const [dre, setDre] = useState<DreFinanceira | null>(null);
   const [dreCarregando, setDreCarregando] = useState(false);
   const [dreErro, setDreErro] = useState<string | null>(null);
 
   useEffect(() => {
-    if (view !== 'dre') return;
+    if (view !== 'dre' && view !== 'dre-detalhada') return;
     const intervalo = setInterval(() => {
       fetch(`/api/financeiro/dre?mes=${mesKey}`)
         .then(async (res) => {
@@ -810,8 +810,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
     return () => clearInterval(intervalo);
   }, [view, mesKey]);
 
-  function abrirDre() {
-    setView('dre');
+  function buscarDre() {
     setDreCarregando(true);
     setDreErro(null);
     fetch(`/api/financeiro/dre?mes=${mesKey}`)
@@ -823,6 +822,11 @@ export const ProgramacaoFinanceira: React.FC = () => {
       .then(setDre)
       .catch((err) => setDreErro(err.message || 'Falha ao buscar a DRE no Nomus'))
       .finally(() => setDreCarregando(false));
+  }
+
+  function abrirDre() {
+    setView('dre');
+    buscarDre();
   }
 
   // ---- Previsão de fluxo de caixa com IA ----
@@ -849,6 +853,50 @@ export const ProgramacaoFinanceira: React.FC = () => {
 
   const nomeMesSelecionado = NOMES_MES[mesSelecionado.mes];
 
+  if (view === 'dre-detalhada') {
+    const linhasDetalhadas = (dre?.linhas || []).filter((linha) => (linha.contas || []).length > 0);
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button type="button" onClick={() => setView('dre')} className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all">
+            <ArrowLeft className="w-3.5 h-3.5" /> Voltar à DRE
+          </button>
+          <button type="button" onClick={buscarDre} disabled={dreCarregando} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">
+            <RefreshCw className={`w-3.5 h-3.5 ${dreCarregando ? 'animate-spin' : ''}`} /> Atualizar
+          </button>
+        </div>
+
+        <div>
+          <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Financeiro • DRE detalhada</span>
+          <h1 className="text-2xl font-black text-neutral-900 mt-1 flex items-center gap-2"><BarChart3 className="w-6 h-6 text-yellow-600" />{nomeMesSelecionado} {mesSelecionado.ano}</h1>
+          <p className="text-neutral-500 text-sm mt-1">Todas as contas classificadas, organizadas nas respectivas colunas da DRE.</p>
+        </div>
+
+        {dreCarregando && !dre && <div className="p-12 rounded-3xl bg-white border border-neutral-200 flex items-center justify-center gap-2 text-sm text-neutral-500"><RefreshCw className="w-5 h-5 animate-spin text-yellow-600" />Carregando detalhamento...</div>}
+        {dreErro && <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700">{dreErro}</div>}
+        {dre && linhasDetalhadas.length === 0 && <div className="p-8 rounded-3xl bg-amber-50 border border-amber-200 text-sm text-amber-800">O detalhamento está sendo atualizado em segundo plano. Tente novamente em alguns instantes.</div>}
+
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+          {linhasDetalhadas.map((linha) => (
+            <section key={linha.codigoGrupo} className="rounded-3xl bg-white border border-neutral-200 overflow-hidden shadow-sm">
+              <div className="p-5 bg-neutral-900 text-white">
+                <div className="flex items-start justify-between gap-3"><div><span className="text-[10px] text-yellow-400 font-black uppercase tracking-widest">Grupo {linha.codigoGrupo}</span><h2 className="font-black mt-1">{linha.grupo}</h2></div><span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold">{linha.contas.length} conta(s)</span></div>
+                <div className="grid grid-cols-2 gap-3 mt-4 text-xs"><div><span className="text-neutral-400 block">Programado</span><strong className="font-mono text-sm">{formatCurrency(linha.programado)}</strong></div><div><span className="text-neutral-400 block">Realizado</span><strong className="font-mono text-sm text-emerald-400">{formatCurrency(linha.realizado)}</strong></div></div>
+              </div>
+              <div className="divide-y divide-neutral-100">
+                {linha.contas.map((conta) => {
+                  const percentual = conta.programado > 0 ? (conta.realizado / conta.programado) * 100 : 0;
+                  return <div key={conta.codigo} className="p-4 hover:bg-neutral-50 transition-colors"><div className="flex items-start gap-2"><span className="text-[10px] font-black text-neutral-400 bg-neutral-100 rounded px-1.5 py-1 shrink-0">{conta.codigo}</span><span className="text-xs font-bold text-neutral-800 leading-5">{conta.nome}</span></div><div className="grid grid-cols-3 gap-2 mt-3 text-[10px]"><div><span className="text-neutral-400 block">Programado</span><strong className="font-mono text-neutral-700">{formatCurrency(conta.programado)}</strong></div><div><span className="text-neutral-400 block">Realizado</span><strong className="font-mono text-emerald-600">{formatCurrency(conta.realizado)}</strong></div><div className="text-right"><span className="text-neutral-400 block">Realizado</span><strong>{percentual.toFixed(1)}%</strong></div></div><div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden mt-2"><div className="h-full bg-yellow-400 rounded-full" style={{ width: `${Math.min(percentual, 100)}%` }} /></div></div>;
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+        {dre && <p className="text-[11px] text-neutral-400">Atualizado em {new Date(dre.atualizadoEm).toLocaleString('pt-BR')}. Valores realizados representam movimentação de caixa no período.</p>}
+      </div>
+    );
+  }
+
   if (view === 'dre') {
     const linha = (codigo: string): DreLinha =>
       dre?.linhas.find((item) => item.codigoGrupo === codigo) || {
@@ -856,6 +904,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
         grupo: GRUPOS_CLASSIFICACAO_FINANCEIRA[codigo] || 'Outros',
         programado: 0,
         realizado: 0,
+        contas: [],
       };
     const codigosDre = ['1', '2', '4', '6', '7', '8', '9', '10', '11', '13', '14'];
     const linhasDre = codigosDre.map(linha);
@@ -872,9 +921,10 @@ export const ProgramacaoFinanceira: React.FC = () => {
           <button type="button" onClick={() => setView('painel')} className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all">
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Planejamento
           </button>
-          <button type="button" onClick={abrirDre} disabled={dreCarregando} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">
-            <RefreshCw className={`w-3.5 h-3.5 ${dreCarregando ? 'animate-spin' : ''}`} /> Atualizar DRE
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setView('dre-detalhada')} disabled={!dre} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-neutral-900 text-white text-xs font-extrabold hover:bg-neutral-800 disabled:opacity-40 transition-all"><FileText className="w-3.5 h-3.5" />Detalhado</button>
+            <button type="button" onClick={buscarDre} disabled={dreCarregando} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all"><RefreshCw className={`w-3.5 h-3.5 ${dreCarregando ? 'animate-spin' : ''}`} /> Atualizar DRE</button>
+          </div>
         </div>
 
         <div>
