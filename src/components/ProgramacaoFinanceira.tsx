@@ -794,6 +794,22 @@ export const ProgramacaoFinanceira: React.FC = () => {
   const [dreCarregando, setDreCarregando] = useState(false);
   const [dreErro, setDreErro] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (view !== 'dre') return;
+    const intervalo = setInterval(() => {
+      fetch(`/api/financeiro/dre?mes=${mesKey}`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Falha ao atualizar a DRE');
+          return res.json() as Promise<DreFinanceira>;
+        })
+        .then(setDre)
+        .catch(() => {
+          // Mantém o último cache bom na tela; a próxima rodada tenta novamente.
+        });
+    }, 60_000);
+    return () => clearInterval(intervalo);
+  }, [view, mesKey]);
+
   function abrirDre() {
     setView('dre');
     setDreCarregando(true);

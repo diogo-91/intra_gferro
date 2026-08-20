@@ -34,6 +34,7 @@ import path from 'path';
 // jeito que já faz em memória — só que sobrevive ao processo reiniciar.
 const PASTA_CACHE_DISCO = path.join(process.cwd(), 'data');
 const ARQUIVO_CACHE_RESUMOS = path.join(PASTA_CACHE_DISCO, 'financeiro-cache-resumos.json');
+const ARQUIVO_CACHE_DRE = path.join(PASTA_CACHE_DISCO, 'financeiro-cache-dre.json');
 
 function carregarCacheResumosDoDisco(): Map<string, CacheResumoFinanceiro> {
   try {
@@ -50,6 +51,29 @@ function persistirCacheResumosNoDisco(mapa: Map<string, CacheResumoFinanceiro>):
     writeFileSync(ARQUIVO_CACHE_RESUMOS, JSON.stringify(Object.fromEntries(mapa), null, 2), 'utf-8');
   } catch (err) {
     console.error('[nomus] falha ao persistir cache de resumos financeiros no disco:', err);
+  }
+}
+
+interface CacheDreFinanceira {
+  atualizadoEm: number;
+  dre: DreFinanceira;
+}
+
+function carregarCacheDreDoDisco(): Map<string, CacheDreFinanceira> {
+  try {
+    const objeto = JSON.parse(readFileSync(ARQUIVO_CACHE_DRE, 'utf-8')) as Record<string, CacheDreFinanceira>;
+    return new Map(Object.entries(objeto));
+  } catch {
+    return new Map();
+  }
+}
+
+function persistirCacheDreNoDisco(mapa: Map<string, CacheDreFinanceira>): void {
+  try {
+    mkdirSync(PASTA_CACHE_DISCO, { recursive: true });
+    writeFileSync(ARQUIVO_CACHE_DRE, JSON.stringify(Object.fromEntries(mapa), null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[nomus] falha ao persistir cache da DRE no disco:', err);
   }
 }
 
@@ -1123,20 +1147,16 @@ export async function getResumoFinanceiro(mes?: string): Promise<ResumoFinanceir
   return { ...resumo, contasReceber, contasPagar };
 }
 
-const cacheDrePorMes = new Map<string, { atualizadoEm: number; dre: DreFinanceira }>();
+const cacheDrePorMes = carregarCacheDreDoDisco();
+const cacheDreEmAndamentoPorMes = new Map<string, Promise<CacheDreFinanceira>>();
 
 function codigoDoGrupo(nome?: string): string | undefined {
   if (!nome) return undefined;
   return Object.entries(GRUPOS_CLASSIFICACAO_FINANCEIRA).find(([, grupo]) => grupo === nome)?.[0];
 }
 
-export async function getDreFinanceira(mes?: string): Promise<DreFinanceira> {
-  const hoje = new Date();
-  const referencia = (mes && parseMesReferencia(mes)) || new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+async function montarDreFinanceira(referencia: Date): Promise<DreFinanceira> {
   const chave = chaveMes(referencia);
-  const cacheado = cacheDrePorMes.get(chave);
-  if (cacheado && Date.now() - cacheado.atualizadoEm < CACHE_TTL_FINANCEIRO_MS) return cacheado.dre;
-
   const { baseUrl, apiKey } = getConfig();
   if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
 
@@ -1173,7 +1193,49 @@ export async function getDreFinanceira(mes?: string): Promise<DreFinanceira> {
   const linhas: DreLinha[] = Object.entries(GRUPOS_CLASSIFICACAO_FINANCEIRA)
     .map(([codigoGrupo, grupo]) => ({ codigoGrupo, grupo, ...(valores.get(codigoGrupo) || { programado: 0, realizado: 0 }) }))
     .filter((linha) => linha.programado !== 0 || linha.realizado !== 0);
-  const dre: DreFinanceira = { mesReferencia: chave, linhas, atualizadoEm: new Date().toISOString() };
-  cacheDrePorMes.set(chave, { atualizadoEm: Date.now(), dre });
-  return dre;
+  return { mesReferencia: chave, linhas, atualizadoEm: new Date().toISOString() };
+}
+
+export async function getDreFinanceira(mes?: string): Promise<DreFinanceira> {
+  const hoje = new Date();
+  const referencia = (mes && parseMesReferencia(mes)) || new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const chave = chaveMes(referencia);
+  const cacheado = cacheDrePorMes.get(chave);
+
+  // Stale-while-revalidate: responde imediatamente com o último dado bom,
+  // mesmo após reiniciar o servidor, e atualiza o Nomus sem bloquear a tela.
+  if (cacheado) {
+    const desatualizado = Date.now() - cacheado.atualizadoEm >= CACHE_TTL_FINANCEIRO_MS;
+    if (desatualizado && !cacheDreEmAndamentoPorMes.has(chave)) {
+      const atualizacao = montarDreFinanceira(referencia)
+        .then((dre) => {
+          const novo = { atualizadoEm: Date.now(), dre };
+          cacheDrePorMes.set(chave, novo);
+          persistirCacheDreNoDisco(cacheDrePorMes);
+          return novo;
+        })
+        .catch((err) => {
+          console.error(`Erro ao atualizar DRE de ${chave} em segundo plano:`, err);
+          return cacheado;
+        })
+        .finally(() => cacheDreEmAndamentoPorMes.delete(chave));
+      cacheDreEmAndamentoPorMes.set(chave, atualizacao);
+    }
+    return cacheado.dre;
+  }
+
+  // Só a primeira consulta de um mês ainda nunca armazenado precisa aguardar.
+  let emAndamento = cacheDreEmAndamentoPorMes.get(chave);
+  if (!emAndamento) {
+    emAndamento = montarDreFinanceira(referencia)
+      .then((dre) => {
+        const novo = { atualizadoEm: Date.now(), dre };
+        cacheDrePorMes.set(chave, novo);
+        persistirCacheDreNoDisco(cacheDrePorMes);
+        return novo;
+      })
+      .finally(() => cacheDreEmAndamentoPorMes.delete(chave));
+    cacheDreEmAndamentoPorMes.set(chave, emAndamento);
+  }
+  return (await emAndamento).dre;
 }
