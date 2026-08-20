@@ -227,6 +227,7 @@ export interface DreConta {
 }
 
 export interface DreFinanceira {
+  versao: 2;
   mesReferencia: string;
   linhas: DreLinha[];
   atualizadoEm: string;

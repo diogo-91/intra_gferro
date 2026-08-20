@@ -21,7 +21,7 @@
 
 import type { ContaReceber, ContaPagar, ContaConcluida, DreConta, DreFinanceira, DreLinha, FluxoCaixaMes, ResumoFinanceiro } from './src/types';
 import { aplicarReprogramacoes } from './reprogramacoes';
-import { CLASSIFICACOES_FINANCEIRAS, GRUPOS_CLASSIFICACAO_FINANCEIRA, codigoClassificacaoPorNome, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
+import { CLASSIFICACOES_FINANCEIRAS, GRUPOS_CLASSIFICACAO_FINANCEIRA, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
 import { lojaDoVendedor } from './src/data/vendedorLoja';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -1158,14 +1158,13 @@ async function montarDreFinanceira(referencia: Date): Promise<DreFinanceira> {
   const inicio = new Date(referencia.getFullYear(), referencia.getMonth(), 1);
   const fim = new Date(referencia.getFullYear(), referencia.getMonth() + 1, 0);
   const porCompetencia = comFiltroEmpresa(intervaloQuery('dataCompetencia', inicio, fim));
-  const porRecebimento = comFiltroEmpresa(intervaloQuery('dataRecebimento', inicio, fim));
-  const porPagamento = comFiltroEmpresa(intervaloQuery('dataPagamento', inicio, fim));
 
-  // Sequencial pela mesma limitação de concorrência da instância Nomus descrita acima.
+  // Duas varreduras por competência são suficientes: valorReceber é o total
+  // programado e valorRecebido é quanto dessa mesma competência já foi
+  // efetivamente liquidado. Além de conceitualmente mais próximo de uma DRE,
+  // isso evita outras duas varreduras pesadas em recebimentos/pagamentos.
   const contasReceber = await coletarTudo<ContaFinanceiraRaw>('contasReceber', baseUrl, apiKey, porCompetencia);
   const contasPagar = await coletarTudo<ContaFinanceiraRaw>('contasPagar', baseUrl, apiKey, porCompetencia);
-  const recebimentos = await coletarTudo<RecebimentoRaw>('recebimentos', baseUrl, apiKey, porRecebimento);
-  const pagamentos = await coletarTudo<PagamentoRaw>('pagamentos', baseUrl, apiKey, porPagamento);
 
   const valores = new Map<string, { programado: number; realizado: number }>();
   const contas = new Map<string, DreConta>();
@@ -1189,14 +1188,7 @@ async function montarDreFinanceira(referencia: Date): Promise<DreFinanceira> {
 
   for (const conta of [...contasReceber, ...contasPagar]) {
     somar(conta.classificacao, conta.nomeClassificacao, 'programado', parseNum(conta.valorReceber));
-  }
-  for (const recebimento of recebimentos) {
-    const codigo = codigoClassificacaoPorNome(recebimento.nomeClassificacaoFinanceira || '');
-    somar(codigo, recebimento.nomeClassificacaoFinanceira, 'realizado', parseNum(recebimento.valorRecebido));
-  }
-  for (const pagamento of pagamentos) {
-    const codigo = codigoClassificacaoPorNome(pagamento.nomeClassificacaoFinanceira || '');
-    somar(codigo, pagamento.nomeClassificacaoFinanceira, 'realizado', parseNum(pagamento.valorPago));
+    somar(conta.classificacao, conta.nomeClassificacao, 'realizado', parseNum(conta.valorRecebido));
   }
 
   const linhas: DreLinha[] = Object.entries(GRUPOS_CLASSIFICACAO_FINANCEIRA)
@@ -1209,7 +1201,7 @@ async function montarDreFinanceira(referencia: Date): Promise<DreFinanceira> {
         .sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true })),
     }))
     .filter((linha) => linha.programado !== 0 || linha.realizado !== 0);
-  return { mesReferencia: chave, linhas, atualizadoEm: new Date().toISOString() };
+  return { versao: 2, mesReferencia: chave, linhas, atualizadoEm: new Date().toISOString() };
 }
 
 export async function getDreFinanceira(mes?: string): Promise<DreFinanceira> {
@@ -1221,7 +1213,7 @@ export async function getDreFinanceira(mes?: string): Promise<DreFinanceira> {
   // Stale-while-revalidate: responde imediatamente com o último dado bom,
   // mesmo após reiniciar o servidor, e atualiza o Nomus sem bloquear a tela.
   if (cacheado) {
-    const possuiDetalhamento = cacheado.dre.linhas.every((linha) => Array.isArray(linha.contas));
+    const possuiDetalhamento = cacheado.dre.versao === 2 && cacheado.dre.linhas.every((linha) => Array.isArray(linha.contas));
     const desatualizado = !possuiDetalhamento || Date.now() - cacheado.atualizadoEm >= CACHE_TTL_FINANCEIRO_MS;
     if (desatualizado && !cacheDreEmAndamentoPorMes.has(chave)) {
       const atualizacao = montarDreFinanceira(referencia)

@@ -813,15 +813,20 @@ export const ProgramacaoFinanceira: React.FC = () => {
   function buscarDre() {
     setDreCarregando(true);
     setDreErro(null);
-    fetch(`/api/financeiro/dre?mes=${mesKey}`)
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 180_000);
+    fetch(`/api/financeiro/dre?mes=${mesKey}`, { signal: controller.signal })
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Falha ao buscar a DRE no Nomus');
         return data as DreFinanceira;
       })
       .then(setDre)
-      .catch((err) => setDreErro(err.message || 'Falha ao buscar a DRE no Nomus'))
-      .finally(() => setDreCarregando(false));
+      .catch((err) => setDreErro(err.name === 'AbortError' ? 'O Nomus demorou demais para responder. A atualização continuará em segundo plano; tente novamente em alguns instantes.' : err.message || 'Falha ao buscar a DRE no Nomus'))
+      .finally(() => {
+        window.clearTimeout(timeout);
+        setDreCarregando(false);
+      });
   }
 
   function abrirDre() {
@@ -892,7 +897,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
             </section>
           ))}
         </div>
-        {dre && <p className="text-[11px] text-neutral-400">Atualizado em {new Date(dre.atualizadoEm).toLocaleString('pt-BR')}. Valores realizados representam movimentação de caixa no período.</p>}
+        {dre && <p className="text-[11px] text-neutral-400">Atualizado em {new Date(dre.atualizadoEm).toLocaleString('pt-BR')}. Valores realizados representam quanto das contas da competência já foi liquidado.</p>}
       </div>
     );
   }
@@ -930,7 +935,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
         <div>
           <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Financeiro • DRE gerencial</span>
           <h1 className="text-2xl font-black text-neutral-900 mt-1 flex items-center gap-2"><BarChart3 className="w-6 h-6 text-yellow-600" />{nomeMesSelecionado} {mesSelecionado.ano}</h1>
-          <p className="text-neutral-500 text-sm mt-1">Comparação entre os lançamentos por competência e o caixa efetivamente realizado no período.</p>
+          <p className="text-neutral-500 text-sm mt-1">Comparação entre os lançamentos por competência e os valores já liquidados dessas mesmas contas.</p>
         </div>
 
         {dreErro && <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700">{dreErro}</div>}
@@ -947,7 +952,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
           </div>
 
           <div className="rounded-3xl bg-white border border-neutral-200 overflow-hidden">
-            <div className="p-5 border-b border-neutral-100"><h2 className="font-black text-neutral-900">Demonstrativo do resultado</h2><p className="text-xs text-neutral-500 mt-1">Realizado considera recebimentos e pagamentos efetivos no mês.</p></div>
+            <div className="p-5 border-b border-neutral-100"><h2 className="font-black text-neutral-900">Demonstrativo do resultado</h2><p className="text-xs text-neutral-500 mt-1">Realizado considera o valor já liquidado das contas da competência selecionada.</p></div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500"><tr><th className="text-left px-5 py-3">Grupo</th><th className="text-right px-5 py-3">Programado</th><th className="text-right px-5 py-3">Realizado</th><th className="text-right px-5 py-3">Diferença</th><th className="text-right px-5 py-3">% realizado</th></tr></thead>
@@ -964,7 +969,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
           </div>
 
           {foraDaDre.length > 0 && <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5"><h3 className="text-sm font-black text-amber-900">Movimentações fora do resultado operacional</h3><div className="grid sm:grid-cols-3 gap-3 mt-3">{foraDaDre.map((item) => <div key={item.codigoGrupo} className="text-xs text-amber-800"><strong>{item.grupo}</strong><br />Programado {formatCurrency(item.programado)} • Realizado {formatCurrency(item.realizado)}</div>)}</div></div>}
-          <p className="text-[11px] text-neutral-400">Atualizado em {new Date(dre.atualizadoEm).toLocaleString('pt-BR')}. Esta é uma visão gerencial: o realizado é caixa e pode divergir da DRE contábil por competência e variação de estoque.</p>
+          <p className="text-[11px] text-neutral-400">Atualizado em {new Date(dre.atualizadoEm).toLocaleString('pt-BR')}. Esta é uma visão gerencial e pode divergir da DRE contábil por critérios de reconhecimento e variação de estoque.</p>
         </>}
       </div>
     );
