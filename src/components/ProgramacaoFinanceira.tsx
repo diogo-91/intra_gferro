@@ -793,6 +793,8 @@ export const ProgramacaoFinanceira: React.FC = () => {
   const [dre, setDre] = useState<DreFinanceira | null>(null);
   const [dreCarregando, setDreCarregando] = useState(false);
   const [dreErro, setDreErro] = useState<string | null>(null);
+  const [buscaDreDetalhada, setBuscaDreDetalhada] = useState('');
+  const [gruposDreAbertos, setGruposDreAbertos] = useState<Set<string>>(() => new Set(['1', '2', '4']));
 
   useEffect(() => {
     if (view !== 'dre' && view !== 'dre-detalhada') return;
@@ -859,7 +861,20 @@ export const ProgramacaoFinanceira: React.FC = () => {
   const nomeMesSelecionado = NOMES_MES[mesSelecionado.mes];
 
   if (view === 'dre-detalhada') {
-    const linhasDetalhadas = (dre?.linhas || []).filter((linha) => (linha.contas || []).length > 0);
+    const termoBusca = buscaDreDetalhada.trim().toLowerCase();
+    const linhasDetalhadas = (dre?.linhas || [])
+      .filter((linha) => (linha.contas || []).length > 0)
+      .map((linha) => {
+        if (!termoBusca || `${linha.codigoGrupo} ${linha.grupo}`.toLowerCase().includes(termoBusca)) return linha;
+        return { ...linha, contas: linha.contas.filter((conta) => `${conta.codigo} ${conta.nome}`.toLowerCase().includes(termoBusca)) };
+      })
+      .filter((linha) => linha.contas.length > 0);
+    const alternarGrupoDre = (codigo: string) => setGruposDreAbertos((atuais) => {
+      const novos = new Set(atuais);
+      if (novos.has(codigo)) novos.delete(codigo);
+      else novos.add(codigo);
+      return novos;
+    });
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -874,26 +889,37 @@ export const ProgramacaoFinanceira: React.FC = () => {
         <div>
           <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Financeiro • DRE detalhada</span>
           <h1 className="text-2xl font-black text-neutral-900 mt-1 flex items-center gap-2"><BarChart3 className="w-6 h-6 text-yellow-600" />{nomeMesSelecionado} {mesSelecionado.ano}</h1>
-          <p className="text-neutral-500 text-sm mt-1">Todas as contas classificadas, organizadas nas respectivas colunas da DRE.</p>
+          <p className="text-neutral-500 text-sm mt-1">Compare os grupos e expanda somente as contas que deseja analisar.</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="relative flex-1 max-w-xl"><Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input value={buscaDreDetalhada} onChange={(e) => setBuscaDreDetalhada(e.target.value)} placeholder="Buscar grupo, código ou conta..." className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white border border-neutral-200 text-sm outline-none focus:border-yellow-400" /></div>
+          <div className="flex items-center gap-2"><button type="button" onClick={() => setGruposDreAbertos(new Set(linhasDetalhadas.map((linha) => linha.codigoGrupo)))} className="px-3.5 py-2.5 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400">Expandir todos</button><button type="button" onClick={() => setGruposDreAbertos(new Set())} className="px-3.5 py-2.5 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400">Recolher todos</button></div>
         </div>
 
         {dreCarregando && !dre && <div className="p-12 rounded-3xl bg-white border border-neutral-200 flex items-center justify-center gap-2 text-sm text-neutral-500"><RefreshCw className="w-5 h-5 animate-spin text-yellow-600" />Carregando detalhamento...</div>}
         {dreErro && <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700">{dreErro}</div>}
         {dre && linhasDetalhadas.length === 0 && <div className="p-8 rounded-3xl bg-amber-50 border border-amber-200 text-sm text-amber-800">O detalhamento está sendo atualizado em segundo plano. Tente novamente em alguns instantes.</div>}
 
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+        <div className="rounded-3xl bg-white border border-neutral-200 overflow-hidden shadow-sm">
+          <div className="hidden md:grid grid-cols-[minmax(0,1fr)_150px_150px_150px_52px] gap-4 px-6 py-3 bg-neutral-50 border-b border-neutral-200 text-[10px] font-black uppercase tracking-wider text-neutral-500"><span>Grupo da DRE</span><span className="text-right">Programado</span><span className="text-right">Realizado</span><span className="text-right">Diferença</span><span /></div>
           {linhasDetalhadas.map((linha) => (
-            <section key={linha.codigoGrupo} className="rounded-3xl bg-white border border-neutral-200 overflow-hidden shadow-sm">
-              <div className="p-5 bg-neutral-900 text-white">
-                <div className="flex items-start justify-between gap-3"><div><span className="text-[10px] text-yellow-400 font-black uppercase tracking-widest">Grupo {linha.codigoGrupo}</span><h2 className="font-black mt-1">{linha.grupo}</h2></div><span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold">{linha.contas.length} conta(s)</span></div>
-                <div className="grid grid-cols-2 gap-3 mt-4 text-xs"><div><span className="text-neutral-400 block">Programado</span><strong className="font-mono text-sm">{formatCurrency(linha.programado)}</strong></div><div><span className="text-neutral-400 block">Realizado</span><strong className="font-mono text-sm text-emerald-400">{formatCurrency(linha.realizado)}</strong></div></div>
-              </div>
-              <div className="divide-y divide-neutral-100">
+            <section key={linha.codigoGrupo} className="border-b border-neutral-100 last:border-b-0">
+              <button type="button" onClick={() => alternarGrupoDre(linha.codigoGrupo)} className={`w-full grid md:grid-cols-[minmax(0,1fr)_150px_150px_150px_52px] gap-3 md:gap-4 items-center px-5 md:px-6 py-5 text-left hover:bg-neutral-50 transition-colors ${gruposDreAbertos.has(linha.codigoGrupo) ? 'bg-yellow-50/50' : 'bg-white'}`}>
+                <div className="min-w-0 flex items-center gap-3"><span className="w-9 h-9 rounded-xl bg-neutral-900 text-yellow-400 flex items-center justify-center text-xs font-black shrink-0">{linha.codigoGrupo}</span><div className="min-w-0"><h2 className="font-black text-neutral-900 truncate">{linha.grupo}</h2><span className="text-[11px] text-neutral-400">{linha.contas.length} conta(s)</span></div></div>
+                <div className="grid grid-cols-3 md:contents gap-2 col-span-full md:col-span-1"><div className="md:text-right"><span className="md:hidden text-[9px] uppercase text-neutral-400 block">Programado</span><strong className="font-mono text-xs text-neutral-800">{formatCurrency(linha.programado)}</strong></div><div className="md:text-right"><span className="md:hidden text-[9px] uppercase text-neutral-400 block">Realizado</span><strong className="font-mono text-xs text-emerald-600">{formatCurrency(linha.realizado)}</strong></div><div className="md:text-right"><span className="md:hidden text-[9px] uppercase text-neutral-400 block">Diferença</span><strong className="font-mono text-xs text-neutral-600">{formatCurrency(linha.programado - linha.realizado)}</strong></div></div>
+                <ChevronDown className={`hidden md:block w-4 h-4 mx-auto text-neutral-400 transition-transform ${gruposDreAbertos.has(linha.codigoGrupo) ? 'rotate-180' : ''}`} />
+              </button>
+              {gruposDreAbertos.has(linha.codigoGrupo) && <div className="bg-neutral-50 border-t border-neutral-100 px-4 md:px-6 py-3">
+                <div className="hidden md:grid grid-cols-[minmax(0,1fr)_150px_150px_110px] gap-4 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-neutral-400"><span>Conta / classificação</span><span className="text-right">Programado</span><span className="text-right">Realizado</span><span className="text-right">% realizado</span></div>
+                <div className="rounded-2xl bg-white border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
                 {linha.contas.map((conta) => {
                   const percentual = conta.programado > 0 ? (conta.realizado / conta.programado) * 100 : 0;
-                  return <div key={conta.codigo} className="p-4 hover:bg-neutral-50 transition-colors"><div className="flex items-start gap-2"><span className="text-[10px] font-black text-neutral-400 bg-neutral-100 rounded px-1.5 py-1 shrink-0">{conta.codigo}</span><span className="text-xs font-bold text-neutral-800 leading-5">{conta.nome}</span></div><div className="grid grid-cols-3 gap-2 mt-3 text-[10px]"><div><span className="text-neutral-400 block">Programado</span><strong className="font-mono text-neutral-700">{formatCurrency(conta.programado)}</strong></div><div><span className="text-neutral-400 block">Realizado</span><strong className="font-mono text-emerald-600">{formatCurrency(conta.realizado)}</strong></div><div className="text-right"><span className="text-neutral-400 block">Realizado</span><strong>{percentual.toFixed(1)}%</strong></div></div><div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden mt-2"><div className="h-full bg-yellow-400 rounded-full" style={{ width: `${Math.min(percentual, 100)}%` }} /></div></div>;
+                  return <div key={conta.codigo} className="grid md:grid-cols-[minmax(0,1fr)_150px_150px_110px] gap-3 md:gap-4 items-center px-4 py-3.5 hover:bg-neutral-50"><div className="flex items-center gap-2 min-w-0"><span className="text-[10px] font-black text-neutral-500 bg-neutral-100 rounded-md px-2 py-1 shrink-0">{conta.codigo}</span><span className="text-xs font-bold text-neutral-800 truncate">{conta.nome}</span></div><div className="grid grid-cols-3 md:contents gap-2"><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Programado</span><span className="font-mono text-[11px]">{formatCurrency(conta.programado)}</span></div><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Realizado</span><span className="font-mono text-[11px] text-emerald-600">{formatCurrency(conta.realizado)}</span></div><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Realizado</span><strong className="text-[11px]">{percentual.toFixed(1)}%</strong></div></div></div>;
                 })}
+                </div>
               </div>
+              }
             </section>
           ))}
         </div>
