@@ -60,6 +60,23 @@ const BADGE_STYLE: Record<'vencido' | 'pagar' | 'receber', string> = {
   receber: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
+const DRE_GROUP_STYLE: Record<string, { accent: string; soft: string; code: string; bar: string }> = {
+  '1': { accent: 'border-l-emerald-500', soft: 'bg-emerald-50/70', code: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-500' },
+  '2': { accent: 'border-l-rose-500', soft: 'bg-rose-50/70', code: 'bg-rose-100 text-rose-700', bar: 'bg-rose-500' },
+  '4': { accent: 'border-l-amber-500', soft: 'bg-amber-50/70', code: 'bg-amber-100 text-amber-700', bar: 'bg-amber-500' },
+  '6': { accent: 'border-l-sky-500', soft: 'bg-sky-50/70', code: 'bg-sky-100 text-sky-700', bar: 'bg-sky-500' },
+  '7': { accent: 'border-l-violet-500', soft: 'bg-violet-50/70', code: 'bg-violet-100 text-violet-700', bar: 'bg-violet-500' },
+  '8': { accent: 'border-l-orange-500', soft: 'bg-orange-50/70', code: 'bg-orange-100 text-orange-700', bar: 'bg-orange-500' },
+  '9': { accent: 'border-l-cyan-500', soft: 'bg-cyan-50/70', code: 'bg-cyan-100 text-cyan-700', bar: 'bg-cyan-500' },
+  '10': { accent: 'border-l-pink-500', soft: 'bg-pink-50/70', code: 'bg-pink-100 text-pink-700', bar: 'bg-pink-500' },
+  '11': { accent: 'border-l-purple-500', soft: 'bg-purple-50/70', code: 'bg-purple-100 text-purple-700', bar: 'bg-purple-500' },
+  '12': { accent: 'border-l-indigo-500', soft: 'bg-indigo-50/70', code: 'bg-indigo-100 text-indigo-700', bar: 'bg-indigo-500' },
+  '13': { accent: 'border-l-red-500', soft: 'bg-red-50/70', code: 'bg-red-100 text-red-700', bar: 'bg-red-500' },
+  '14': { accent: 'border-l-green-500', soft: 'bg-green-50/70', code: 'bg-green-100 text-green-700', bar: 'bg-green-500' },
+  '15': { accent: 'border-l-slate-500', soft: 'bg-slate-50/70', code: 'bg-slate-200 text-slate-700', bar: 'bg-slate-500' },
+  '16': { accent: 'border-l-neutral-500', soft: 'bg-neutral-50/70', code: 'bg-neutral-200 text-neutral-700', bar: 'bg-neutral-500' },
+};
+
 function chaveMes(ano: number, mes: number): string {
   return `${ano}-${String(mes + 1).padStart(2, '0')}`;
 }
@@ -886,10 +903,10 @@ export const ProgramacaoFinanceira: React.FC = () => {
           </button>
         </div>
 
-        <div>
+        <div className="rounded-3xl bg-gradient-to-r from-neutral-950 via-neutral-900 to-amber-950 p-6 text-white shadow-lg shadow-neutral-900/10">
           <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Financeiro • DRE detalhada</span>
-          <h1 className="text-2xl font-black text-neutral-900 mt-1 flex items-center gap-2"><BarChart3 className="w-6 h-6 text-yellow-600" />{nomeMesSelecionado} {mesSelecionado.ano}</h1>
-          <p className="text-neutral-500 text-sm mt-1">Compare os grupos e expanda somente as contas que deseja analisar.</p>
+          <h1 className="text-2xl font-black mt-1 flex items-center gap-2"><BarChart3 className="w-6 h-6 text-yellow-400" />{nomeMesSelecionado} {mesSelecionado.ano}</h1>
+          <p className="text-neutral-300 text-sm mt-1">Compare os grupos e expanda somente as contas que deseja analisar.</p>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -903,10 +920,12 @@ export const ProgramacaoFinanceira: React.FC = () => {
 
         <div className="rounded-3xl bg-white border border-neutral-200 overflow-hidden shadow-sm">
           <div className="hidden md:grid grid-cols-[minmax(0,1fr)_150px_150px_150px_52px] gap-4 px-6 py-3 bg-neutral-50 border-b border-neutral-200 text-[10px] font-black uppercase tracking-wider text-neutral-500"><span>Grupo da DRE</span><span className="text-right">Programado</span><span className="text-right">Realizado</span><span className="text-right">Diferença</span><span /></div>
-          {linhasDetalhadas.map((linha) => (
-            <section key={linha.codigoGrupo} className="border-b border-neutral-100 last:border-b-0">
-              <button type="button" onClick={() => alternarGrupoDre(linha.codigoGrupo)} className={`w-full grid md:grid-cols-[minmax(0,1fr)_150px_150px_150px_52px] gap-3 md:gap-4 items-center px-5 md:px-6 py-5 text-left hover:bg-neutral-50 transition-colors ${gruposDreAbertos.has(linha.codigoGrupo) ? 'bg-yellow-50/50' : 'bg-white'}`}>
-                <div className="min-w-0 flex items-center gap-3"><span className="w-9 h-9 rounded-xl bg-neutral-900 text-yellow-400 flex items-center justify-center text-xs font-black shrink-0">{linha.codigoGrupo}</span><div className="min-w-0"><h2 className="font-black text-neutral-900 truncate">{linha.grupo}</h2><span className="text-[11px] text-neutral-400">{linha.contas.length} conta(s)</span></div></div>
+          {linhasDetalhadas.map((linha) => {
+            const estilo = DRE_GROUP_STYLE[linha.codigoGrupo] || DRE_GROUP_STYLE['16'];
+            return (
+            <section key={linha.codigoGrupo} className={`border-b border-neutral-100 border-l-4 last:border-b-0 ${estilo.accent}`}>
+              <button type="button" onClick={() => alternarGrupoDre(linha.codigoGrupo)} className={`w-full grid md:grid-cols-[minmax(0,1fr)_150px_150px_150px_52px] gap-3 md:gap-4 items-center px-5 md:px-6 py-5 text-left hover:brightness-[.98] transition-all ${gruposDreAbertos.has(linha.codigoGrupo) ? estilo.soft : 'bg-white'}`}>
+                <div className="min-w-0 flex items-center gap-3"><span className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${estilo.code}`}>{linha.codigoGrupo}</span><div className="min-w-0"><h2 className="font-black text-neutral-900 truncate">{linha.grupo}</h2><span className="text-[11px] text-neutral-400">{linha.contas.length} conta(s)</span></div></div>
                 <div className="grid grid-cols-3 md:contents gap-2 col-span-full md:col-span-1"><div className="md:text-right"><span className="md:hidden text-[9px] uppercase text-neutral-400 block">Programado</span><strong className="font-mono text-xs text-neutral-800">{formatCurrency(linha.programado)}</strong></div><div className="md:text-right"><span className="md:hidden text-[9px] uppercase text-neutral-400 block">Realizado</span><strong className="font-mono text-xs text-emerald-600">{formatCurrency(linha.realizado)}</strong></div><div className="md:text-right"><span className="md:hidden text-[9px] uppercase text-neutral-400 block">Diferença</span><strong className="font-mono text-xs text-neutral-600">{formatCurrency(linha.programado - linha.realizado)}</strong></div></div>
                 <ChevronDown className={`hidden md:block w-4 h-4 mx-auto text-neutral-400 transition-transform ${gruposDreAbertos.has(linha.codigoGrupo) ? 'rotate-180' : ''}`} />
               </button>
@@ -915,13 +934,15 @@ export const ProgramacaoFinanceira: React.FC = () => {
                 <div className="rounded-2xl bg-white border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
                 {linha.contas.map((conta) => {
                   const percentual = conta.programado > 0 ? (conta.realizado / conta.programado) * 100 : 0;
-                  return <div key={conta.codigo} className="grid md:grid-cols-[minmax(0,1fr)_150px_150px_110px] gap-3 md:gap-4 items-center px-4 py-3.5 hover:bg-neutral-50"><div className="flex items-center gap-2 min-w-0"><span className="text-[10px] font-black text-neutral-500 bg-neutral-100 rounded-md px-2 py-1 shrink-0">{conta.codigo}</span><span className="text-xs font-bold text-neutral-800 truncate">{conta.nome}</span></div><div className="grid grid-cols-3 md:contents gap-2"><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Programado</span><span className="font-mono text-[11px]">{formatCurrency(conta.programado)}</span></div><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Realizado</span><span className="font-mono text-[11px] text-emerald-600">{formatCurrency(conta.realizado)}</span></div><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Realizado</span><strong className="text-[11px]">{percentual.toFixed(1)}%</strong></div></div></div>;
+                  const situacao = percentual >= 99.9 ? 'Quitado' : percentual > 0 ? 'Parcial' : 'Pendente';
+                  const situacaoStyle = percentual >= 99.9 ? 'bg-emerald-100 text-emerald-700' : percentual > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-50 text-red-600';
+                  return <div key={conta.codigo} className="px-4 py-3.5 hover:bg-neutral-50"><div className="grid md:grid-cols-[minmax(0,1fr)_150px_150px_110px] gap-3 md:gap-4 items-center"><div className="flex items-center gap-2 min-w-0"><span className={`text-[10px] font-black rounded-md px-2 py-1 shrink-0 ${estilo.code}`}>{conta.codigo}</span><span className="text-xs font-bold text-neutral-800 truncate">{conta.nome}</span><span className={`hidden sm:inline-flex rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${situacaoStyle}`}>{situacao}</span></div><div className="grid grid-cols-3 md:contents gap-2"><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Programado</span><span className="font-mono text-[11px]">{formatCurrency(conta.programado)}</span></div><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Realizado</span><span className="font-mono text-[11px] font-bold text-emerald-600">{formatCurrency(conta.realizado)}</span></div><div className="md:text-right"><span className="md:hidden text-[9px] text-neutral-400 block">Realizado</span><strong className="text-[11px]">{percentual.toFixed(1)}%</strong></div></div></div><div className="h-1 bg-neutral-100 rounded-full overflow-hidden mt-2.5"><div className={`h-full rounded-full transition-all ${estilo.bar}`} style={{ width: `${Math.min(percentual, 100)}%` }} /></div></div>;
                 })}
                 </div>
               </div>
               }
             </section>
-          ))}
+          );})}
         </div>
         {dre && <p className="text-[11px] text-neutral-400">Atualizado em {new Date(dre.atualizadoEm).toLocaleString('pt-BR')}. Valores realizados representam quanto das contas da competência já foi liquidado.</p>}
       </div>
