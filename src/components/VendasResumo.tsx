@@ -188,7 +188,9 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
             Recebido dos Pedidos
           </span>
           <span className="text-xl font-black text-teal-900 tabular-nums" title="Valor já recebido das contas vinculadas aos pedidos do período">
-            {formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
+            {resumo.financeiroPedidosCarregando ? (
+              <span className="inline-flex items-center gap-1.5 text-sm"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Atualizando...</span>
+            ) : formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
           </span>
         </div>
 
@@ -198,7 +200,9 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
             Falta Receber
           </span>
           <span className="text-xl font-black text-orange-900 tabular-nums" title="Total dos pedidos menos os valores já recebidos">
-            {formatCurrency(resumo.valorPendentePedidos ?? resumo.totalVendas)}
+            {resumo.financeiroPedidosCarregando ? (
+              <span className="inline-flex items-center gap-1.5 text-sm"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Atualizando...</span>
+            ) : formatCurrency(resumo.valorPendentePedidos ?? resumo.totalVendas)}
           </span>
         </div>
 

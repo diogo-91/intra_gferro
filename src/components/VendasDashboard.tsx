@@ -170,6 +170,32 @@ export const VendasDashboard: React.FC = () => {
   // período já carregado na tela.
   const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
 
+  // O financeiro dos pedidos é atualizado separadamente porque a paginação
+  // de contas a receber pode levar alguns minutos no Nomus. Enquanto isso,
+  // mantém os dados de vendas visíveis e consulta silenciosamente até o novo
+  // cache financeiro ficar pronto.
+  useEffect(() => {
+    const resumoAtual = view === 'loja' ? resumoLoja : resumo;
+    if (!resumoAtual?.financeiroPedidosCarregando || view === 'ranking') return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const url = view === 'loja' && lojaSelecionada
+          ? `/api/vendas/lojas/${lojaSelecionada}/resumo?periodo=${periodo}${mesQuery}`
+          : `/api/vendas/resumo?periodo=${periodo}${mesQuery}`;
+        const resposta = await fetch(url);
+        const dados = await resposta.json();
+        if (!resposta.ok) return;
+        if (view === 'loja') setResumoLoja(dados as ResumoVendas);
+        else setResumo(dados as ResumoVendas);
+      } catch {
+        // A tela continua com o último dado bom; a próxima interação tenta de novo.
+      }
+    }, 12_000);
+
+    return () => window.clearTimeout(timer);
+  }, [view, resumo, resumoLoja, lojaSelecionada, periodo, mesQuery]);
+
   const baixarPdf = () => {
     const a = document.createElement('a');
     a.href = `/api/vendas/ranking/pdf?periodo=${periodo}${mesQuery}`;

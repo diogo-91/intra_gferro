@@ -31,6 +31,7 @@ export interface ResumoVendas {
   totalVendas: number;
   valorRecebidoPedidos: number;
   valorPendentePedidos: number;
+  financeiroPedidosCarregando: boolean;
   totalPedidos: number;
   totalMetrosQuadrados: number;
   vendedoresAtivos: number;

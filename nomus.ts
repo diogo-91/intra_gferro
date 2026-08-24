@@ -154,6 +154,7 @@ export interface ResumoVendas {
   totalVendas: number;
   valorRecebidoPedidos: number;
   valorPendentePedidos: number;
+  financeiroPedidosCarregando: boolean;
   totalPedidos: number;
   totalMetrosQuadrados: number;
   vendedoresAtivos: number;
@@ -694,12 +695,19 @@ function dataEmissaoPedido(data?: string): Date | null {
   return dia && mes && ano ? new Date(ano, mes - 1, dia) : null;
 }
 
-async function getFinanceiroDosPedidos(periodo: Periodo, mes: string | undefined, pedidos: Pedido[]): Promise<FinanceiroPedidoRaw[]> {
-  if (pedidos.length === 0) return [];
+async function getFinanceiroDosPedidos(
+  periodo: Periodo,
+  mes: string | undefined,
+  pedidos: Pedido[],
+  aguardarPrimeiraConsulta = false
+): Promise<{ contas: FinanceiroPedidoRaw[]; carregando: boolean }> {
+  if (pedidos.length === 0) return { contas: [], carregando: false };
   const chave = chavePedidos(periodo, mes);
   const agora = Date.now();
   const cacheado = cacheFinanceiroPedidosPorPeriodo.get(chave);
-  if (cacheado && agora - cacheado.atualizadoEm < CACHE_TTL_MS) return cacheado.contas;
+  if (cacheado && agora - cacheado.atualizadoEm < CACHE_TTL_MS) {
+    return { contas: cacheado.contas, carregando: false };
+  }
 
   let emAndamento = cacheFinanceiroPedidosEmAndamento.get(chave);
   if (!emAndamento) {
@@ -707,7 +715,7 @@ async function getFinanceiroDosPedidos(periodo: Periodo, mes: string | undefined
     if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
 
     const datas = pedidos.map((pedido) => dataEmissaoPedido(pedido.dataEmissao)).filter((data): data is Date => data != null);
-    if (datas.length === 0) return [];
+    if (datas.length === 0) return { contas: [], carregando: false };
     const inicio = new Date(Math.min(...datas.map((data) => data.getTime())));
     const fim = new Date(Math.max(...datas.map((data) => data.getTime())));
     const query = comFiltroEmpresa(intervaloQuery('dataCompetencia', inicio, fim));
@@ -728,7 +736,18 @@ async function getFinanceiroDosPedidos(periodo: Periodo, mes: string | undefined
     cacheFinanceiroPedidosEmAndamento.set(chave, emAndamento);
   }
 
-  return (cacheado ?? (await emAndamento)).contas;
+  // A consulta de contas pode levar minutos por causa do rate limit do Nomus.
+  // No carregamento normal, devolve imediatamente o cache disponível (ou
+  // vazio na primeira vez) e deixa a varredura seguir em segundo plano.
+  if (!aguardarPrimeiraConsulta) {
+    if (!cacheado) {
+      void emAndamento.catch((err) => console.error(`[nomus] falha ao carregar financeiro dos pedidos de ${chave}:`, err));
+    }
+    return { contas: cacheado?.contas ?? [], carregando: true };
+  }
+
+  const atualizado = cacheado ?? (await emAndamento);
+  return { contas: atualizado.contas, carregando: false };
 }
 
 function chaveCodigoPedido(codigo?: string): string | null {
@@ -791,7 +810,8 @@ async function montarResumoDePedidos(
   pedidos: Pedido[],
   unidades: Map<number, string>,
   atualizadoEm: number,
-  contasFinanceiras: FinanceiroPedidoRaw[] = []
+  contasFinanceiras: FinanceiroPedidoRaw[] = [],
+  financeiroPedidosCarregando = false
 ): Promise<ResumoVendas> {
   const totalVendas = pedidos.reduce((soma, p) => soma + parseNum(p.valorTotal), 0);
   const valorRecebidoPedidos = calcularRecebimentoDosPedidos(pedidos, contasFinanceiras);
@@ -840,6 +860,7 @@ async function montarResumoDePedidos(
     totalVendas,
     valorRecebidoPedidos,
     valorPendentePedidos,
+    financeiroPedidosCarregando,
     totalPedidos,
     totalMetrosQuadrados,
     vendedoresAtivos,
@@ -848,11 +869,11 @@ async function montarResumoDePedidos(
   };
 }
 
-export async function getResumoVendas(periodo: Periodo, mes?: string): Promise<ResumoVendas> {
+export async function getResumoVendas(periodo: Periodo, mes?: string, aguardarFinanceiro = false): Promise<ResumoVendas> {
   const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes), getUnidadesMedida()]);
-  const contasFinanceiras = await getFinanceiroDosPedidos(periodo, mes, pedidos);
+  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, aguardarFinanceiro);
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
-  return montarResumoDePedidos(pedidos, unidades, atualizadoEm, contasFinanceiras);
+  return montarResumoDePedidos(pedidos, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
 }
 
 // Mesmo resumo de getResumoVendas, mas só com os pedidos dos vendedores
@@ -870,9 +891,9 @@ export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, m
     const nome = mapaVendedor.get(p.idPessoaVendedor);
     return nome != null && lojaDoVendedor(nome) === lojaId;
   });
-  const contasFinanceiras = await getFinanceiroDosPedidos(periodo, mes, pedidos);
+  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos);
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
-  return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, contasFinanceiras);
+  return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
 }
 
 /**
@@ -903,7 +924,7 @@ export async function atualizarDadosVendas(periodo: Periodo, mes?: string): Prom
 
   const [{ ranking, atualizadoEm }, resumo] = await Promise.all([
     getRankingVendedores(periodo, mes),
-    getResumoVendas(periodo, mes),
+    getResumoVendas(periodo, mes, true),
   ]);
 
   return { ranking, resumo, atualizadoEm };
