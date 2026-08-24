@@ -938,6 +938,30 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor GFERRO Intranet rodando em http://0.0.0.0:${PORT}`);
+
+    // Mantém o mês corrente de Vendas aquecido mesmo quando ninguém está com
+    // o dashboard aberto. O ciclo é agendado somente depois que a consulta
+    // anterior termina, evitando duas varreduras concorrentes no Nomus.
+    const intervaloAtualizacaoVendasMs = 3 * 60 * 1000;
+    const atualizarVendasContinuamente = async () => {
+      const inicio = Date.now();
+      try {
+        const resultado = await atualizarRankingVendas('mes');
+        const totalPedidos = resultado.ranking.reduce((soma, vendedor) => soma + vendedor.pedidos, 0);
+        console.log(
+          `[vendas] cache automático atualizado: ${totalPedidos} pedidos em ${((Date.now() - inicio) / 1000).toFixed(1)}s`
+        );
+      } catch (error) {
+        console.error('[vendas] falha na atualização automática; mantendo último cache bom:', error);
+      } finally {
+        const proximoCiclo = setTimeout(atualizarVendasContinuamente, intervaloAtualizacaoVendasMs);
+        proximoCiclo.unref();
+      }
+    };
+
+    // Pequeno atraso para não disputar CPU/rede com a inicialização do app.
+    const primeiroCiclo = setTimeout(atualizarVendasContinuamente, 10_000);
+    primeiroCiclo.unref();
   });
 }
 
