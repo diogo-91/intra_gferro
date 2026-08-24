@@ -535,7 +535,17 @@ const cacheFinanceiroPedidosPorPeriodo = carregarCacheFinanceiroPedidosDoDisco()
 const cacheFinanceiroPedidosEmAndamento = new Map<string, Promise<CacheFinanceiroPedidos>>();
 
 function chavePedidos(periodo: Periodo, mes?: string): string {
-  return periodo === 'mes' && mes ? `mes:${mes}` : periodo;
+  if (periodo !== 'mes') return periodo;
+
+  // O mês corrente chegava por dois caminhos diferentes:
+  // - seletor "Mês atual": chave "mes"
+  // - seletor explícito de agosto: chave "mes:2026-08"
+  // Isso criava dois caches para o mesmo intervalo e permitia que a tela
+  // continuasse exibindo o registro antigo enquanto o outro era atualizado.
+  // Canonicaliza ambos para uma única chave mensal.
+  const hoje = new Date();
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  return `mes:${mes || mesAtual}`;
 }
 
 async function getVendedores(): Promise<Vendedor[]> {
