@@ -11,6 +11,22 @@ import { formatCurrency, formatInteiro, formatMetrosQuadrados } from '../utils/f
 
 type VendasView = 'painel' | 'ranking' | 'loja';
 
+const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null) =>
+  `gferro:ranking:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}`;
+
+const salvarRankingLocal = (
+  periodo: Periodo,
+  mes: string | null,
+  dados: { ranking: VendedorRanking[]; atualizadoEm: string }
+) => {
+  try {
+    localStorage.setItem(chaveCacheRankingLocal(periodo, mes), JSON.stringify(dados));
+  } catch {
+    // O cache do servidor continua sendo a fonte principal quando o navegador
+    // bloqueia localStorage (modo privado/política corporativa).
+  }
+};
+
 export const VendasDashboard: React.FC = () => {
   const [view, setView] = useState<VendasView>('painel');
   const [periodo, setPeriodo] = useState<Periodo>('mes');
@@ -39,7 +55,22 @@ export const VendasDashboard: React.FC = () => {
     if (view !== 'ranking') return;
 
     let cancelado = false;
-    setLoading(true);
+    let possuiCacheLocal = false;
+    try {
+      const salvo = localStorage.getItem(chaveCacheRankingLocal(periodo, mes));
+      if (salvo) {
+        const cache = JSON.parse(salvo) as { ranking?: VendedorRanking[]; atualizadoEm?: string };
+        if (Array.isArray(cache.ranking) && cache.atualizadoEm) {
+          setRanking(cache.ranking);
+          setAtualizadoEm(cache.atualizadoEm);
+          possuiCacheLocal = true;
+        }
+      }
+    } catch {
+      // Se o cache local estiver inválido, busca normalmente no servidor.
+    }
+    if (!possuiCacheLocal) setRanking([]);
+    setLoading(!possuiCacheLocal);
     setErro(null);
 
     const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
@@ -53,10 +84,13 @@ export const VendasDashboard: React.FC = () => {
         if (cancelado) return;
         setRanking(data.ranking);
         setAtualizadoEm(data.atualizadoEm);
+        salvarRankingLocal(periodo, mes, data);
       })
       .catch((err) => {
         if (cancelado) return;
-        setErro(err.message || 'Falha ao buscar dados do Nomus');
+        // Uma falha de atualização não deve apagar o último ranking bom que
+        // já foi mostrado pelo cache local.
+        if (!possuiCacheLocal) setErro(err.message || 'Falha ao buscar dados do Nomus');
       })
       .finally(() => {
         if (!cancelado) setLoading(false);
@@ -182,6 +216,7 @@ export const VendasDashboard: React.FC = () => {
         if (!resposta.ok) return;
         setRanking(dados.ranking);
         setAtualizadoEm(dados.atualizadoEm);
+        salvarRankingLocal(periodo, mes, dados);
       } catch {
         // Preserva o último ranking bom e tenta novamente no próximo ciclo.
       }
@@ -238,6 +273,7 @@ export const VendasDashboard: React.FC = () => {
         if (!resposta.ok) throw new Error(dados?.error || 'Falha ao atualizar o ranking no Nomus');
         setRanking(dados.ranking);
         setAtualizadoEm(dados.atualizadoEm);
+        salvarRankingLocal(periodo, mes, dados);
         return;
       }
 
@@ -247,6 +283,7 @@ export const VendasDashboard: React.FC = () => {
 
       setRanking(dados.ranking);
       setAtualizadoEm(dados.atualizadoEm);
+      salvarRankingLocal(periodo, mes, dados);
       setResumo(dados.resumo);
 
       if (view === 'loja' && lojaSelecionada) {

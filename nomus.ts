@@ -473,6 +473,22 @@ function carregarCachePedidosDoDisco(): Map<string, CachePedidos> {
   try {
     const objeto = JSON.parse(readFileSync(ARQUIVO_CACHE_PEDIDOS, 'utf-8')) as Record<string, CachePedidos>;
     const mapa = new Map(Object.entries(objeto));
+
+    // Migração do formato antigo: até agosto/2026 o mês corrente era salvo
+    // apenas como "mes". Ao adotar a chave canônica "mes:AAAA-MM", preserve
+    // esse último dado bom para que o primeiro acesso após o deploy responda
+    // imediatamente e faça a atualização do Nomus em segundo plano.
+    const legadoMesAtual = mapa.get('mes');
+    if (legadoMesAtual) {
+      const data = new Date(legadoMesAtual.atualizadoEm);
+      const chaveCanonica = `mes:${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+      const canonico = mapa.get(chaveCanonica);
+      if (!canonico || canonico.atualizadoEm < legadoMesAtual.atualizadoEm) {
+        mapa.set(chaveCanonica, legadoMesAtual);
+      }
+      mapa.delete('mes');
+    }
+
     for (const [chave, valor] of mapa) {
       if (!chaveAindaRelevante(chave, valor.atualizadoEm)) mapa.delete(chave);
     }
