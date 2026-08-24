@@ -774,6 +774,39 @@ export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, m
   return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm);
 }
 
+/**
+ * Descarta os caches compartilhados do módulo e só conclui depois de buscar
+ * novamente os dados no Nomus. Diferentemente de recarregar a página, esta
+ * operação ignora o TTL e também funciona para meses já encerrados.
+ */
+export async function atualizarDadosVendas(periodo: Periodo, mes?: string): Promise<{
+  ranking: VendedorRanking[];
+  resumo: ResumoVendas;
+  atualizadoEm: string;
+}> {
+  const chave = chavePedidos(periodo, mes);
+
+  // Se já houver uma consulta antiga em andamento, deixe-a terminar antes de
+  // iniciar a atualização forçada para não reaproveitar aquela Promise.
+  const atualizacoesEmAndamento: Promise<unknown>[] = [];
+  const pedidosEmAndamento = cachePedidosEmAndamento.get(chave);
+  if (pedidosEmAndamento) atualizacoesEmAndamento.push(pedidosEmAndamento);
+  if (cacheVendedoresEmAndamento) atualizacoesEmAndamento.push(cacheVendedoresEmAndamento);
+  if (cacheUnidadesEmAndamento) atualizacoesEmAndamento.push(cacheUnidadesEmAndamento);
+  await Promise.allSettled(atualizacoesEmAndamento);
+
+  cachePedidosPorPeriodo.delete(chave);
+  cacheVendedores = null;
+  cacheUnidades = null;
+
+  const [{ ranking, atualizadoEm }, resumo] = await Promise.all([
+    getRankingVendedores(periodo, mes),
+    getResumoVendas(periodo, mes),
+  ]);
+
+  return { ranking, resumo, atualizadoEm };
+}
+
 // ================== Financeiro (Contas a Pagar/Receber) ==================
 
 interface ContaFinanceiraRaw {

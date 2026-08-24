@@ -33,6 +33,7 @@ export const VendasDashboard: React.FC = () => {
   const [resumoLoja, setResumoLoja] = useState<ResumoVendas | null>(null);
   const [resumoLojaLoading, setResumoLojaLoading] = useState(false);
   const [resumoLojaErro, setResumoLojaErro] = useState<string | null>(null);
+  const [atualizandoForcado, setAtualizandoForcado] = useState(false);
 
   useEffect(() => {
     if (view !== 'ranking') return;
@@ -181,6 +182,47 @@ export const VendasDashboard: React.FC = () => {
     a.click();
   };
 
+  const atualizarAgora = async () => {
+    setAtualizandoForcado(true);
+    setResumoErro(null);
+    setErro(null);
+    try {
+      const resposta = await fetch(`/api/vendas/atualizar?periodo=${periodo}${mesQuery}`, { method: 'POST' });
+      const dados = await resposta.json();
+      if (!resposta.ok) throw new Error(dados?.error || 'Falha ao atualizar os dados do Nomus');
+
+      setRanking(dados.ranking);
+      setAtualizadoEm(dados.atualizadoEm);
+      setResumo(dados.resumo);
+
+      if (view === 'loja' && lojaSelecionada) {
+        const lojaResposta = await fetch(`/api/vendas/lojas/${lojaSelecionada}/resumo?periodo=${periodo}${mesQuery}`);
+        const lojaDados = await lojaResposta.json();
+        if (!lojaResposta.ok) throw new Error(lojaDados?.error || 'Falha ao atualizar os dados da loja');
+        setResumoLoja(lojaDados);
+      }
+    } catch (err: any) {
+      const mensagem = err.message || 'Falha ao atualizar os dados do Nomus';
+      if (view === 'ranking') setErro(mensagem);
+      else if (view === 'loja') setResumoLojaErro(mensagem);
+      else setResumoErro(mensagem);
+    } finally {
+      setAtualizandoForcado(false);
+    }
+  };
+
+  const BotaoAtualizar = () => (
+    <button
+      type="button"
+      onClick={atualizarAgora}
+      disabled={atualizandoForcado}
+      className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs font-bold text-neutral-700 transition-all hover:border-yellow-400 hover:text-yellow-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+    >
+      <RefreshCw className={`h-4 w-4 ${atualizandoForcado ? 'animate-spin' : ''}`} aria-hidden="true" />
+      {atualizandoForcado ? 'Atualizando no Nomus...' : 'Atualizar dados'}
+    </button>
+  );
+
   if (view === 'ranking') {
     return (
       <div className="space-y-5">
@@ -213,6 +255,7 @@ export const VendasDashboard: React.FC = () => {
                     Atualizado em {new Date(atualizadoEm).toLocaleString('pt-BR')}
                   </span>
                 )}
+                <BotaoAtualizar />
                 {rankingSelecionado === 'geral' && (
                   <button
                     type="button"
@@ -367,11 +410,14 @@ export const VendasDashboard: React.FC = () => {
             </h1>
             <p className="text-neutral-500 text-sm mt-1">Vendas do período — só os pedidos dos vendedores desta unidade.</p>
           </div>
-          {resumoLoja && !resumoLojaLoading && (
-            <span className="text-neutral-500 text-[11px] shrink-0 sm:text-right">
-              Atualizado em {new Date(resumoLoja.atualizadoEm).toLocaleString('pt-BR')}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {resumoLoja && !resumoLojaLoading && (
+              <span className="text-neutral-500 text-[11px] shrink-0 sm:text-right">
+                Atualizado em {new Date(resumoLoja.atualizadoEm).toLocaleString('pt-BR')}
+              </span>
+            )}
+            <BotaoAtualizar />
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -487,6 +533,7 @@ export const VendasDashboard: React.FC = () => {
               Atualizado em {new Date(resumo.atualizadoEm).toLocaleString('pt-BR')}
             </span>
           )}
+          <BotaoAtualizar />
           <button
             type="button"
             onClick={baixarPdfResumo}

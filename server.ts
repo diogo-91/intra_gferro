@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { getRankingVendedores, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, getDreFinanceira, Periodo } from './nomus';
+import { atualizarDadosVendas, getRankingVendedores, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, getDreFinanceira, Periodo } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -215,6 +215,23 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao buscar resumo de vendas no Nomus:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
+    }
+  });
+
+  app.post('/api/vendas/atualizar', async (req, res) => {
+    try {
+      const periodo = (req.query.periodo as string) || 'mes';
+      if (!['dia', 'semana', 'mes'].includes(periodo)) {
+        return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
+      }
+      const mes = validarMesQuery(req.query.mes);
+      res.json(await atualizarDadosVendas(periodo as Periodo, mes));
+    } catch (error: any) {
+      console.error('Erro ao forçar atualização das vendas no Nomus:', error);
+      res.status(error.status || 500).json({
+        error: error.status ? error.message : 'Erro ao atualizar os dados de vendas',
+        details: error.message,
+      });
     }
   });
 
