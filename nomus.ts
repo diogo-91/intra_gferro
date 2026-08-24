@@ -110,6 +110,8 @@ interface ItemPedido {
   valorAcrescimo?: string | number;
   percentualAcrescimo?: string | number;
   idUnidadeMedida?: number;
+  // Enum da API Nomus: 2 = Liberado. O status do pedido é controlado nos itens.
+  status?: number;
 }
 
 interface Pedido {
@@ -386,6 +388,18 @@ interface CachePedidos {
   pedidos: Pedido[];
 }
 
+const STATUS_ITEM_PEDIDO_LIBERADO = 2;
+
+// O Nomus controla o status no nível dos itens. Um pedido só é considerado
+// Liberado quando possui itens e TODOS eles estão com status 2; assim pedidos
+// aguardando liberação, atendidos, cortados ou cancelados não contaminam KPIs,
+// ranking, produtos, lojas e relatórios.
+function pedidoEstaLiberado(pedido: Pedido): boolean {
+  return Array.isArray(pedido.itensPedido)
+    && pedido.itensPedido.length > 0
+    && pedido.itensPedido.every((item) => item.status === STATUS_ITEM_PEDIDO_LIBERADO);
+}
+
 // Cache em disco pro mesmo padrão do financeiro (ver ARQUIVO_CACHE_RESUMOS
 // acima): sem isso, todo restart do servidor apagava vendedores/unidades/
 // pedidos e o painel de vendas ficava sem NENHUM dado até reaquecer de novo
@@ -471,6 +485,7 @@ function carregarCachePedidosDoDisco(): Map<string, CachePedidos> {
     const mapa = new Map(Object.entries(objeto));
     for (const [chave, valor] of mapa) {
       if (!chaveAindaRelevante(chave, valor.atualizadoEm)) mapa.delete(chave);
+      else valor.pedidos = valor.pedidos.filter(pedidoEstaLiberado);
     }
     return mapa;
   } catch {
@@ -673,7 +688,9 @@ async function getPedidosDoPeriodo(periodo: Periodo, mes?: string): Promise<Pedi
     const query = periodoParaQuery(periodo, mesReferencia);
     emAndamento = coletarTudo<Pedido>('pedidos', baseUrl, apiKey, query)
       .then((pedidos) => {
-        const novo = { atualizadoEm: Date.now(), pedidos };
+        const pedidosLiberados = pedidos.filter(pedidoEstaLiberado);
+        console.log(`[nomus] pedidos liberados em ${chave}: ${pedidosLiberados.length} de ${pedidos.length}`);
+        const novo = { atualizadoEm: Date.now(), pedidos: pedidosLiberados };
         cachePedidosPorPeriodo.set(chave, novo);
         persistirCachePedidosNoDisco(cachePedidosPorPeriodo);
         return novo;
