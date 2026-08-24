@@ -20,7 +20,11 @@ export interface VendedorRanking {
   metrosQuadrados: number;
   pedidosParafusos: number;
   quantidadeParafusos: number;
+  valorParafusos: number;
+  pedidosComFrete: number;
   valorFrete: number;
+  ticketMedio: number;
+  valorRecebido: number;
 }
 
 export interface ProdutoRanking {

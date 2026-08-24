@@ -12,7 +12,7 @@ import { formatCurrency, formatInteiro, formatMetrosQuadrados } from '../utils/f
 type VendasView = 'painel' | 'ranking' | 'loja';
 
 const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null) =>
-  `gferro:ranking:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}`;
+  `gferro:ranking-v2:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}`;
 
 const salvarRankingLocal = (
   periodo: Periodo,

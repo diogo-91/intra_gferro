@@ -144,7 +144,11 @@ export interface VendedorRanking {
   metrosQuadrados: number;
   pedidosParafusos: number;
   quantidadeParafusos: number;
+  valorParafusos: number;
+  pedidosComFrete: number;
   valorFrete: number;
+  ticketMedio: number;
+  valorRecebido: number;
 }
 
 export interface ProdutoRanking {
@@ -532,7 +536,18 @@ interface CacheFinanceiroPedidos {
 function carregarCacheFinanceiroPedidosDoDisco(): Map<string, CacheFinanceiroPedidos> {
   try {
     const objeto = JSON.parse(readFileSync(ARQUIVO_CACHE_FINANCEIRO_PEDIDOS, 'utf-8')) as Record<string, CacheFinanceiroPedidos>;
-    return new Map(Object.entries(objeto));
+    const mapa = new Map(Object.entries(objeto));
+    const legadoMesAtual = mapa.get('mes');
+    if (legadoMesAtual) {
+      const data = new Date(legadoMesAtual.atualizadoEm);
+      const chaveCanonica = `mes:${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+      const canonico = mapa.get(chaveCanonica);
+      if (!canonico || canonico.atualizadoEm < legadoMesAtual.atualizadoEm) {
+        mapa.set(chaveCanonica, legadoMesAtual);
+      }
+      mapa.delete('mes');
+    }
+    return mapa;
   } catch {
     return new Map();
   }
@@ -798,6 +813,10 @@ export async function getRankingVendedores(
   mes?: string
 ): Promise<{ ranking: VendedorRanking[]; atualizadoEm: string }> {
   const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes)]);
+  // O financeiro segue o mesmo padrão stale-while-revalidate: usa o último
+  // cache disponível imediatamente e atualiza contas a receber em segundo
+  // plano, sem segurar a renderização do ranking.
+  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos);
   const mapaVendedor = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
 
   const grupos = new Map<string, Pedido[]>();
@@ -847,7 +866,18 @@ export async function getRankingVendedores(
         .reduce((soma, item) => soma + parseNum(item.quantidade), 0),
       0
     ),
+    valorParafusos: peds.reduce(
+      (total, pedido) => total + (pedido.itensPedido || [])
+        .filter((item) => item.idProduto != null && idsParafusos.has(item.idProduto))
+        .reduce((soma, item) => soma + valorEstimadoItem(item), 0),
+      0
+    ),
+    pedidosComFrete: peds.filter((pedido) => parseNum(pedido.valorTotalFrete) > 0).length,
     valorFrete: peds.reduce((soma, pedido) => soma + parseNum(pedido.valorTotalFrete), 0),
+    ticketMedio: peds.length > 0
+      ? peds.reduce((soma, pedido) => soma + parseNum(pedido.valorTotal), 0) / peds.length
+      : 0,
+    valorRecebido: calcularRecebimentoDosPedidos(peds, financeiro.contas),
   }));
 
   // Ordena por valor total desc, empate por nome asc.

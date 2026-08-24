@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Ruler, Package, Nut, Truck } from 'lucide-react';
+import { Wallet, Ruler, Package, Nut, Truck, Receipt, BadgeDollarSign } from 'lucide-react';
 import { VendedorRanking } from '../types';
 import { formatCurrency, formatMetrosQuadrados, formatInteiro, formatNomeVendedor } from '../utils/format';
 
@@ -30,7 +30,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-100">
-      <table className="w-full text-xs border-collapse min-w-[980px]">
+      <table className="w-full text-xs border-collapse min-w-[1500px]">
         <thead className="bg-neutral-50">
           <tr className="text-[11px] font-bold uppercase tracking-wider text-neutral-600">
             <th scope="col" className="w-12 px-5 py-3 text-center font-bold">
@@ -43,6 +43,18 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
               <span className="inline-flex items-center justify-end gap-1.5">
                 <Wallet className="w-3 h-3" aria-hidden="true" />
                 Total Vendido
+              </span>
+            </th>
+            <th scope="col" className="w-28 px-2 py-3 text-right font-bold">
+              <span className="inline-flex items-center justify-end gap-1.5" title="Média do valor vendido por pedido">
+                <BadgeDollarSign className="w-3 h-3" aria-hidden="true" />
+                Ticket médio
+              </span>
+            </th>
+            <th scope="col" className="w-28 px-2 py-3 text-right font-bold">
+              <span className="inline-flex items-center justify-end gap-1.5" title="Valor já recebido nas contas vinculadas aos pedidos">
+                <Receipt className="w-3 h-3" aria-hidden="true" />
+                Recebíveis
               </span>
             </th>
             <th scope="col" className="w-28 px-2 py-3 text-right font-bold">
@@ -61,6 +73,18 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
               <span className="inline-flex items-center justify-end gap-1.5" title="Quantidade total de parafusos vendidos">
                 <Nut className="w-3 h-3" aria-hidden="true" />
                 Qtd. parafusos
+              </span>
+            </th>
+            <th scope="col" className="w-28 px-2 py-3 text-right font-bold">
+              <span className="inline-flex items-center justify-end gap-1.5" title="Valor total vendido em itens classificados como parafuso">
+                <Nut className="w-3 h-3" aria-hidden="true" />
+                R$ parafusos
+              </span>
+            </th>
+            <th scope="col" className="w-24 px-2 py-3 text-right font-bold">
+              <span className="inline-flex items-center justify-end gap-1.5" title="Quantidade de pedidos com valor de frete maior que zero">
+                <Truck className="w-3 h-3" aria-hidden="true" />
+                Ped. frete
               </span>
             </th>
             <th scope="col" className="w-28 px-2 py-3 text-right font-bold">
@@ -109,6 +133,12 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
                 <td className="px-2 py-3 text-right text-emerald-600 font-bold tabular-nums whitespace-nowrap">
                   {formatCurrency(v.valorTotal)}
                 </td>
+                <td className="px-2 py-3 text-right text-fuchsia-700 font-bold tabular-nums whitespace-nowrap">
+                  {formatCurrency(v.ticketMedio)}
+                </td>
+                <td className="px-2 py-3 text-right text-teal-700 font-bold tabular-nums whitespace-nowrap">
+                  {formatCurrency(v.valorRecebido)}
+                </td>
                 <td className="px-2 py-3 text-right text-sky-600 font-bold tabular-nums whitespace-nowrap">
                   {formatMetrosQuadrados(v.metrosQuadrados)}
                 </td>
@@ -117,6 +147,12 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
                 </td>
                 <td className="px-2 py-3 text-right text-orange-600 font-bold tabular-nums whitespace-nowrap">
                   {formatInteiro(v.quantidadeParafusos)}
+                </td>
+                <td className="px-2 py-3 text-right text-rose-600 font-bold tabular-nums whitespace-nowrap">
+                  {formatCurrency(v.valorParafusos)}
+                </td>
+                <td className="px-2 py-3 text-right text-indigo-600 font-bold tabular-nums whitespace-nowrap">
+                  {formatInteiro(v.pedidosComFrete)}
                 </td>
                 <td className="px-2 py-3 text-right text-cyan-700 font-bold tabular-nums whitespace-nowrap">
                   {formatCurrency(v.valorFrete)}
