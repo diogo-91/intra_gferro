@@ -896,6 +896,23 @@ export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, m
   return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
 }
 
+/** Atualização rápida usada pela tela de ranking: não espera produtos, unidades nem financeiro. */
+export async function atualizarRankingVendas(
+  periodo: Periodo,
+  mes?: string
+): Promise<{ ranking: VendedorRanking[]; atualizadoEm: string }> {
+  const chave = chavePedidos(periodo, mes);
+  const atualizacoesEmAndamento: Promise<unknown>[] = [];
+  const pedidosEmAndamento = cachePedidosEmAndamento.get(chave);
+  if (pedidosEmAndamento) atualizacoesEmAndamento.push(pedidosEmAndamento);
+  if (cacheVendedoresEmAndamento) atualizacoesEmAndamento.push(cacheVendedoresEmAndamento);
+  await Promise.allSettled(atualizacoesEmAndamento);
+
+  cachePedidosPorPeriodo.delete(chave);
+  cacheVendedores = null;
+  return getRankingVendedores(periodo, mes);
+}
+
 /**
  * Descarta os caches compartilhados do módulo e só conclui depois de buscar
  * novamente os dados no Nomus. Diferentemente de recarregar a página, esta

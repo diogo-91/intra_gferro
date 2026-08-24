@@ -170,6 +170,25 @@ export const VendasDashboard: React.FC = () => {
   // período já carregado na tela.
   const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
 
+  // O primeiro GET pode devolver o último cache enquanto o Nomus atualiza em
+  // segundo plano. Esta consulta silenciosa reaplica o resultado novo sem
+  // recarregar a página nem esconder o ranking já visível.
+  useEffect(() => {
+    if (view !== 'ranking') return;
+    const timer = window.setInterval(async () => {
+      try {
+        const resposta = await fetch(`/api/vendas/ranking?periodo=${periodo}${mesQuery}`);
+        const dados = await resposta.json();
+        if (!resposta.ok) return;
+        setRanking(dados.ranking);
+        setAtualizadoEm(dados.atualizadoEm);
+      } catch {
+        // Preserva o último ranking bom e tenta novamente no próximo ciclo.
+      }
+    }, 20_000);
+    return () => window.clearInterval(timer);
+  }, [view, periodo, mesQuery]);
+
   // O financeiro dos pedidos é atualizado separadamente porque a paginação
   // de contas a receber pode levar alguns minutos no Nomus. Enquanto isso,
   // mantém os dados de vendas visíveis e consulta silenciosamente até o novo
@@ -213,6 +232,15 @@ export const VendasDashboard: React.FC = () => {
     setResumoErro(null);
     setErro(null);
     try {
+      if (view === 'ranking') {
+        const resposta = await fetch(`/api/vendas/ranking/atualizar?periodo=${periodo}${mesQuery}`, { method: 'POST' });
+        const dados = await resposta.json();
+        if (!resposta.ok) throw new Error(dados?.error || 'Falha ao atualizar o ranking no Nomus');
+        setRanking(dados.ranking);
+        setAtualizadoEm(dados.atualizadoEm);
+        return;
+      }
+
       const resposta = await fetch(`/api/vendas/atualizar?periodo=${periodo}${mesQuery}`, { method: 'POST' });
       const dados = await resposta.json();
       if (!resposta.ok) throw new Error(dados?.error || 'Falha ao atualizar os dados do Nomus');
