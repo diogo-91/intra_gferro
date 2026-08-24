@@ -152,6 +152,8 @@ export interface ProdutoRanking {
 
 export interface ResumoVendas {
   totalVendas: number;
+  valorRecebidoPedidos: number;
+  valorPendentePedidos: number;
   totalPedidos: number;
   totalMetrosQuadrados: number;
   vendedoresAtivos: number;
@@ -395,6 +397,7 @@ interface CachePedidos {
 const ARQUIVO_CACHE_VENDEDORES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-vendedores.json');
 const ARQUIVO_CACHE_UNIDADES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-unidades.json');
 const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-cache-pedidos.json');
+const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-cache-financeiro-pedidos.json');
 
 // "dia"/"semana"/"mes" (mês corrente) são períodos RELATIVOS a hoje — um cache
 // salvo ontem (ou na semana/mês passado) mostraria dado errado rotulado como
@@ -491,6 +494,40 @@ let cacheVendedoresEmAndamento: Promise<CacheVendedores> | null = null;
 // cada combinação fica em cache separado.
 const cachePedidosPorPeriodo = carregarCachePedidosDoDisco();
 const cachePedidosEmAndamento = new Map<string, Promise<CachePedidos>>();
+
+interface FinanceiroPedidoRaw {
+  id: number;
+  descricaoLancamento?: string;
+  saldoReceber?: string | number;
+  valorReceber?: string | number;
+  valorRecebido?: string | number;
+}
+
+interface CacheFinanceiroPedidos {
+  atualizadoEm: number;
+  contas: FinanceiroPedidoRaw[];
+}
+
+function carregarCacheFinanceiroPedidosDoDisco(): Map<string, CacheFinanceiroPedidos> {
+  try {
+    const objeto = JSON.parse(readFileSync(ARQUIVO_CACHE_FINANCEIRO_PEDIDOS, 'utf-8')) as Record<string, CacheFinanceiroPedidos>;
+    return new Map(Object.entries(objeto));
+  } catch {
+    return new Map();
+  }
+}
+
+function persistirCacheFinanceiroPedidosNoDisco(mapa: Map<string, CacheFinanceiroPedidos>): void {
+  try {
+    mkdirSync(PASTA_CACHE_DISCO, { recursive: true });
+    writeFileSync(ARQUIVO_CACHE_FINANCEIRO_PEDIDOS, JSON.stringify(Object.fromEntries(mapa), null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[nomus] falha ao persistir cache financeiro dos pedidos:', err);
+  }
+}
+
+const cacheFinanceiroPedidosPorPeriodo = carregarCacheFinanceiroPedidosDoDisco();
+const cacheFinanceiroPedidosEmAndamento = new Map<string, Promise<CacheFinanceiroPedidos>>();
 
 function chavePedidos(periodo: Periodo, mes?: string): string {
   return periodo === 'mes' && mes ? `mes:${mes}` : periodo;
@@ -650,6 +687,63 @@ async function getPedidosDoPeriodo(periodo: Periodo, mes?: string): Promise<Pedi
   return resultado.pedidos;
 }
 
+function dataEmissaoPedido(data?: string): Date | null {
+  if (!data) return null;
+  const [parteData] = data.split(' ');
+  const [dia, mes, ano] = parteData.split('/').map(Number);
+  return dia && mes && ano ? new Date(ano, mes - 1, dia) : null;
+}
+
+async function getFinanceiroDosPedidos(periodo: Periodo, mes: string | undefined, pedidos: Pedido[]): Promise<FinanceiroPedidoRaw[]> {
+  if (pedidos.length === 0) return [];
+  const chave = chavePedidos(periodo, mes);
+  const agora = Date.now();
+  const cacheado = cacheFinanceiroPedidosPorPeriodo.get(chave);
+  if (cacheado && agora - cacheado.atualizadoEm < CACHE_TTL_MS) return cacheado.contas;
+
+  let emAndamento = cacheFinanceiroPedidosEmAndamento.get(chave);
+  if (!emAndamento) {
+    const { baseUrl, apiKey } = getConfig();
+    if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+
+    const datas = pedidos.map((pedido) => dataEmissaoPedido(pedido.dataEmissao)).filter((data): data is Date => data != null);
+    if (datas.length === 0) return [];
+    const inicio = new Date(Math.min(...datas.map((data) => data.getTime())));
+    const fim = new Date(Math.max(...datas.map((data) => data.getTime())));
+    const query = comFiltroEmpresa(intervaloQuery('dataCompetencia', inicio, fim));
+
+    emAndamento = coletarTudo<FinanceiroPedidoRaw>('contasReceber', baseUrl, apiKey, query)
+      .then((contas) => {
+        const novo = { atualizadoEm: Date.now(), contas };
+        cacheFinanceiroPedidosPorPeriodo.set(chave, novo);
+        persistirCacheFinanceiroPedidosNoDisco(cacheFinanceiroPedidosPorPeriodo);
+        return novo;
+      })
+      .catch((err) => {
+        if (!cacheado) throw err;
+        console.error(`[nomus] falha ao atualizar financeiro dos pedidos de ${chave}; mantendo cache anterior:`, err);
+        return cacheado;
+      })
+      .finally(() => cacheFinanceiroPedidosEmAndamento.delete(chave));
+    cacheFinanceiroPedidosEmAndamento.set(chave, emAndamento);
+  }
+
+  return (cacheado ?? (await emAndamento)).contas;
+}
+
+function chaveCodigoPedido(codigo?: string): string | null {
+  const numero = codigo?.match(/\bPD\s*0*(\d+)\b/i)?.[1];
+  return numero ? String(Number(numero)) : null;
+}
+
+function calcularRecebimentoDosPedidos(pedidos: Pedido[], contas: FinanceiroPedidoRaw[]): number {
+  const codigos = new Set(pedidos.map((pedido) => chaveCodigoPedido(pedido.codigoPedido)).filter((codigo): codigo is string => codigo != null));
+  return contas.reduce((total, conta) => {
+    const codigo = chaveCodigoPedido(conta.descricaoLancamento);
+    return codigo && codigos.has(codigo) ? total + Math.max(0, parseNum(conta.valorRecebido)) : total;
+  }, 0);
+}
+
 export async function getRankingVendedores(
   periodo: Periodo,
   mes?: string
@@ -696,9 +790,12 @@ export async function getRankingVendedores(
 async function montarResumoDePedidos(
   pedidos: Pedido[],
   unidades: Map<number, string>,
-  atualizadoEm: number
+  atualizadoEm: number,
+  contasFinanceiras: FinanceiroPedidoRaw[] = []
 ): Promise<ResumoVendas> {
   const totalVendas = pedidos.reduce((soma, p) => soma + parseNum(p.valorTotal), 0);
+  const valorRecebidoPedidos = calcularRecebimentoDosPedidos(pedidos, contasFinanceiras);
+  const valorPendentePedidos = Math.max(0, totalVendas - valorRecebidoPedidos);
   const totalPedidos = pedidos.length;
   const totalMetrosQuadrados = pedidos.reduce((soma, p) => soma + metrosQuadradosPedido(p), 0);
   const vendedoresAtivos = new Set(
@@ -741,6 +838,8 @@ async function montarResumoDePedidos(
 
   return {
     totalVendas,
+    valorRecebidoPedidos,
+    valorPendentePedidos,
     totalPedidos,
     totalMetrosQuadrados,
     vendedoresAtivos,
@@ -751,8 +850,9 @@ async function montarResumoDePedidos(
 
 export async function getResumoVendas(periodo: Periodo, mes?: string): Promise<ResumoVendas> {
   const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes), getUnidadesMedida()]);
+  const contasFinanceiras = await getFinanceiroDosPedidos(periodo, mes, pedidos);
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
-  return montarResumoDePedidos(pedidos, unidades, atualizadoEm);
+  return montarResumoDePedidos(pedidos, unidades, atualizadoEm, contasFinanceiras);
 }
 
 // Mesmo resumo de getResumoVendas, mas só com os pedidos dos vendedores
@@ -770,8 +870,9 @@ export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, m
     const nome = mapaVendedor.get(p.idPessoaVendedor);
     return nome != null && lojaDoVendedor(nome) === lojaId;
   });
+  const contasFinanceiras = await getFinanceiroDosPedidos(periodo, mes, pedidos);
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
-  return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm);
+  return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, contasFinanceiras);
 }
 
 /**
@@ -796,6 +897,7 @@ export async function atualizarDadosVendas(periodo: Periodo, mes?: string): Prom
   await Promise.allSettled(atualizacoesEmAndamento);
 
   cachePedidosPorPeriodo.delete(chave);
+  cacheFinanceiroPedidosPorPeriodo.delete(chave);
   cacheVendedores = null;
   cacheUnidades = null;
 

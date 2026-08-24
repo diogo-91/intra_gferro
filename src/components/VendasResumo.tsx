@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt, Target } from 'lucide-react';
+import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt, Target, CircleDollarSign, Hourglass } from 'lucide-react';
 import { ResumoVendas } from '../types';
 import { formatCurrency, formatMetrosQuadrados, formatInteiro } from '../utils/format';
 
@@ -137,7 +137,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
         <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 flex flex-col gap-1.5">
           <span className="flex items-center gap-1.5 text-xs text-emerald-700/80 font-medium">
             <Wallet className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
@@ -179,6 +179,26 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
           </span>
           <span className="text-xl font-black text-rose-900 tabular-nums" title="Total de vendas ÷ número de pedidos do período">
             {formatCurrency(ticketMedio)}
+          </span>
+        </div>
+
+        <div className="rounded-2xl bg-teal-50 border border-teal-100 p-4 flex flex-col gap-1.5">
+          <span className="flex items-center gap-1.5 text-xs text-teal-700/80 font-medium">
+            <CircleDollarSign className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
+            Recebido dos Pedidos
+          </span>
+          <span className="text-xl font-black text-teal-900 tabular-nums" title="Valor já recebido das contas vinculadas aos pedidos do período">
+            {formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
+          </span>
+        </div>
+
+        <div className="rounded-2xl bg-orange-50 border border-orange-100 p-4 flex flex-col gap-1.5">
+          <span className="flex items-center gap-1.5 text-xs text-orange-700/80 font-medium">
+            <Hourglass className="w-3.5 h-3.5 text-orange-600" aria-hidden="true" />
+            Falta Receber
+          </span>
+          <span className="text-xl font-black text-orange-900 tabular-nums" title="Total dos pedidos menos os valores já recebidos">
+            {formatCurrency(resumo.valorPendentePedidos ?? resumo.totalVendas)}
           </span>
         </div>
 

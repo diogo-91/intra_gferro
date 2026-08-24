@@ -29,6 +29,8 @@ export interface ProdutoRanking {
 
 export interface ResumoVendas {
   totalVendas: number;
+  valorRecebidoPedidos: number;
+  valorPendentePedidos: number;
   totalPedidos: number;
   totalMetrosQuadrados: number;
   vendedoresAtivos: number;
