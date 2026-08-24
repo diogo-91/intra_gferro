@@ -118,6 +118,7 @@ interface Pedido {
   dataEmissao?: string;
   idPessoaVendedor?: number;
   valorTotal?: string | number;
+  valorTotalFrete?: string | number;
   itensPedido?: ItemPedido[];
 }
 
@@ -141,6 +142,9 @@ export interface VendedorRanking {
   pedidos: number;
   valorTotal: number;
   metrosQuadrados: number;
+  pedidosParafusos: number;
+  quantidadeParafusos: number;
+  valorFrete: number;
 }
 
 export interface ProdutoRanking {
@@ -780,6 +784,24 @@ export async function getRankingVendedores(
     grupos.get(nome)!.push(pedido);
   }
 
+  // Resolve uma única vez os produtos do período e identifica parafusos pela
+  // descrição oficial do cadastro no Nomus. A busca não diferencia maiúsculas
+  // e aceita singular/plural ("parafuso"/"parafusos").
+  const idsProdutos = new Set<number>();
+  for (const pedido of pedidos) {
+    for (const item of pedido.itensPedido || []) {
+      if (item.idProduto != null) idsProdutos.add(item.idProduto);
+    }
+  }
+  const produtos = await Promise.all(
+    Array.from(idsProdutos).map(async (id) => [id, await getProdutoPorId(id)] as const)
+  );
+  const idsParafusos = new Set(
+    produtos
+      .filter(([, produto]) => produto?.descricao?.toLocaleLowerCase('pt-BR').includes('parafuso'))
+      .map(([id]) => id)
+  );
+
   // Soma direto o "valorTotal" de cada pedido (campo pronto da API), sem
   // recalcular pelos itens — inclui TODOS os pedidos do período, não só os
   // que têm itens em aberto. Metros quadrados somam só os itens vendidos
@@ -790,6 +812,16 @@ export async function getRankingVendedores(
     pedidos: peds.length,
     valorTotal: peds.reduce((soma, p) => soma + parseNum(p.valorTotal), 0),
     metrosQuadrados: peds.reduce((soma, p) => soma + metrosQuadradosPedido(p), 0),
+    pedidosParafusos: peds.filter((pedido) =>
+      (pedido.itensPedido || []).some((item) => item.idProduto != null && idsParafusos.has(item.idProduto))
+    ).length,
+    quantidadeParafusos: peds.reduce(
+      (total, pedido) => total + (pedido.itensPedido || [])
+        .filter((item) => item.idProduto != null && idsParafusos.has(item.idProduto))
+        .reduce((soma, item) => soma + parseNum(item.quantidade), 0),
+      0
+    ),
+    valorFrete: peds.reduce((soma, pedido) => soma + parseNum(pedido.valorTotalFrete), 0),
   }));
 
   // Ordena por valor total desc, empate por nome asc.

@@ -18,6 +18,9 @@ export interface VendedorRanking {
   pedidos: number;
   valorTotal: number;
   metrosQuadrados: number;
+  pedidosParafusos: number;
+  quantidadeParafusos: number;
+  valorFrete: number;
 }
 
 export interface ProdutoRanking {

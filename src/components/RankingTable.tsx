@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Ruler, Package } from 'lucide-react';
+import { Wallet, Ruler, Package, Nut, Truck } from 'lucide-react';
 import { VendedorRanking } from '../types';
 import { formatCurrency, formatMetrosQuadrados, formatInteiro, formatNomeVendedor } from '../utils/format';
 
@@ -30,7 +30,7 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-100">
-      <table className="w-full text-xs border-collapse min-w-[560px]">
+      <table className="w-full text-xs border-collapse min-w-[980px]">
         <thead className="bg-neutral-50">
           <tr className="text-[11px] font-bold uppercase tracking-wider text-neutral-600">
             <th scope="col" className="w-12 px-5 py-3 text-center font-bold">
@@ -49,6 +49,24 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
               <span className="inline-flex items-center justify-end gap-1.5">
                 <Ruler className="w-3 h-3" aria-hidden="true" />
                 Área vendida
+              </span>
+            </th>
+            <th scope="col" className="w-24 px-2 py-3 text-right font-bold">
+              <span className="inline-flex items-center justify-end gap-1.5" title="Quantidade de pedidos que contêm parafusos">
+                <Nut className="w-3 h-3" aria-hidden="true" />
+                Ped. parafusos
+              </span>
+            </th>
+            <th scope="col" className="w-24 px-2 py-3 text-right font-bold">
+              <span className="inline-flex items-center justify-end gap-1.5" title="Quantidade total de parafusos vendidos">
+                <Nut className="w-3 h-3" aria-hidden="true" />
+                Qtd. parafusos
+              </span>
+            </th>
+            <th scope="col" className="w-28 px-2 py-3 text-right font-bold">
+              <span className="inline-flex items-center justify-end gap-1.5">
+                <Truck className="w-3 h-3" aria-hidden="true" />
+                Frete
               </span>
             </th>
             <th scope="col" className="w-20 px-5 py-3 text-right font-bold">
@@ -93,6 +111,15 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
                 </td>
                 <td className="px-2 py-3 text-right text-sky-600 font-bold tabular-nums whitespace-nowrap">
                   {formatMetrosQuadrados(v.metrosQuadrados)}
+                </td>
+                <td className="px-2 py-3 text-right text-amber-700 font-bold tabular-nums whitespace-nowrap">
+                  {formatInteiro(v.pedidosParafusos)}
+                </td>
+                <td className="px-2 py-3 text-right text-orange-600 font-bold tabular-nums whitespace-nowrap">
+                  {formatInteiro(v.quantidadeParafusos)}
+                </td>
+                <td className="px-2 py-3 text-right text-cyan-700 font-bold tabular-nums whitespace-nowrap">
+                  {formatCurrency(v.valorFrete)}
                 </td>
                 <td className="px-5 py-3 text-right text-violet-600 font-bold tabular-nums whitespace-nowrap">
                   {formatInteiro(v.pedidos)}
