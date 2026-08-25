@@ -52,7 +52,7 @@ export const VendasDashboard: React.FC = () => {
   const [atualizandoForcado, setAtualizandoForcado] = useState(false);
 
   useEffect(() => {
-    if (view !== 'ranking') return;
+    if (view !== 'ranking' && view !== 'loja') return;
 
     let cancelado = false;
     let possuiCacheLocal = false;
@@ -188,6 +188,13 @@ export const VendasDashboard: React.FC = () => {
     });
   }, [rankingDaVisao, busca, somenteComPedidos]);
 
+  const vendedoresDaLojaSelecionada = useMemo(() => {
+    if (!lojaSelecionada) return [];
+    return ranking
+      .filter((vendedor) => lojaDoVendedor(vendedor.nome) === lojaSelecionada)
+      .map((vendedor, index) => ({ ...vendedor, posicao: index + 1 }));
+  }, [ranking, lojaSelecionada]);
+
   const resumoRanking = useMemo(
     () => rankingDaVisao.reduce(
       (total, vendedor) => ({
@@ -209,7 +216,7 @@ export const VendasDashboard: React.FC = () => {
   // segundo plano. Esta consulta silenciosa reaplica o resultado novo sem
   // recarregar a página nem esconder o ranking já visível.
   useEffect(() => {
-    if (view !== 'ranking') return;
+    if (view !== 'ranking' && view !== 'loja') return;
     const timer = window.setInterval(async () => {
       try {
         const resposta = await fetch(`/api/vendas/ranking?periodo=${periodo}${mesQuery}`);
@@ -546,7 +553,39 @@ export const VendasDashboard: React.FC = () => {
           erro={resumoLojaErro}
           metaVendas={loja?.metaVendas}
           exibirProgressoMeta={periodo === 'mes'}
+          exibirDetalhesProdutos={false}
         />
+
+        {!resumoLojaLoading && !resumoLojaErro && (
+          <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-1 border-b border-neutral-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-yellow-600">
+                  Desempenho da unidade
+                </span>
+                <h2 className="mt-0.5 text-lg font-black tracking-tight text-neutral-950">
+                  Vendedores da {loja?.nome ?? 'loja'}
+                </h2>
+              </div>
+              <span className="w-fit rounded-full bg-neutral-100 px-3 py-1.5 text-[10px] font-bold text-neutral-500">
+                {loading ? 'Atualizando em segundo plano...' : `${vendedoresDaLojaSelecionada.length} vendedores`}
+              </span>
+            </div>
+
+            {vendedoresDaLojaSelecionada.length > 0 ? (
+              <div className="p-4 sm:p-6">
+                <RankingTable vendedores={vendedoresDaLojaSelecionada} />
+              </div>
+            ) : loading ? (
+              <div className="flex items-center justify-center gap-2 px-5 py-10 text-xs text-neutral-500">
+                <RefreshCw className="h-4 w-4 animate-spin text-yellow-600" aria-hidden="true" />
+                Carregando vendedores da unidade...
+              </div>
+            ) : (
+              <RankingEmptyState />
+            )}
+          </section>
+        )}
       </div>
     );
   }

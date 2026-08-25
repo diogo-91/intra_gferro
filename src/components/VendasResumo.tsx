@@ -9,6 +9,7 @@ interface VendasResumoProps {
   erro: string | null;
   metaVendas?: number;
   exibirProgressoMeta?: boolean;
+  exibirDetalhesProdutos?: boolean;
 }
 
 const formatUnidade = (quantidade: number, unidade: string) => {
@@ -108,7 +109,14 @@ const ListaPrecoMedio: React.FC<ListaPrecoMedioProps> = ({ produtos, maiorPrecoM
   </ul>
 );
 
-export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, erro, metaVendas, exibirProgressoMeta = false }) => {
+export const VendasResumo: React.FC<VendasResumoProps> = ({
+  resumo,
+  loading,
+  erro,
+  metaVendas,
+  exibirProgressoMeta = false,
+  exibirDetalhesProdutos = true,
+}) => {
   if (loading) {
     return (
       <div className="p-10 rounded-3xl bg-white border border-neutral-200 flex flex-col items-center justify-center gap-2 text-neutral-500 text-xs">
@@ -238,7 +246,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
         )}
       </div>
 
-      {resumo.produtos.length === 0 ? (
+      {exibirDetalhesProdutos && (resumo.produtos.length === 0 ? (
         <div className="rounded-2xl bg-white border border-neutral-200 p-5">
           <p className="text-neutral-500 text-xs">Nenhuma venda de produto encontrada nesse período.</p>
         </div>
@@ -274,7 +282,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
             </div>
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 };
