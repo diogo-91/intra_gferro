@@ -33,6 +33,7 @@ export interface PedidoVendedorDetalhe {
   dataEmissao: string;
   condicaoPagamento: string;
   quantidadeItens: number;
+  quantidadeParafusos: number;
   valorTotal: number;
   valorFrete: number;
 }

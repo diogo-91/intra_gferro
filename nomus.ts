@@ -129,6 +129,7 @@ export interface PedidoVendedorDetalhe {
   dataEmissao: string;
   condicaoPagamento: string;
   quantidadeItens: number;
+  quantidadeParafusos: number;
   valorTotal: number;
   valorFrete: number;
 }
@@ -914,14 +915,34 @@ export async function getPedidosDoVendedor(
       .map((vendedor) => vendedor.id)
   );
 
-  const detalhes = pedidos
-    .filter((pedido) => pedido.idPessoaVendedor != null && idsVendedor.has(pedido.idPessoaVendedor))
+  const pedidosFiltrados = pedidos
+    .filter((pedido) => pedido.idPessoaVendedor != null && idsVendedor.has(pedido.idPessoaVendedor));
+
+  const idsProdutos = new Set<number>();
+  for (const pedido of pedidosFiltrados) {
+    for (const item of pedido.itensPedido || []) {
+      if (item.idProduto != null) idsProdutos.add(item.idProduto);
+    }
+  }
+  const produtos = await Promise.all(
+    Array.from(idsProdutos).map(async (id) => [id, await getProdutoPorId(id)] as const)
+  );
+  const idsParafusos = new Set(
+    produtos
+      .filter(([, produto]) => produto?.descricao?.toLocaleLowerCase('pt-BR').includes('parafuso'))
+      .map(([id]) => id)
+  );
+
+  const detalhes = pedidosFiltrados
     .map((pedido) => ({
       id: pedido.id,
       codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
       dataEmissao: pedido.dataEmissao || '—',
       condicaoPagamento: pedido.condicaoPagamentoTexto?.trim() || 'Não informada',
       quantidadeItens: (pedido.itensPedido || []).length,
+      quantidadeParafusos: (pedido.itensPedido || [])
+        .filter((item) => item.idProduto != null && idsParafusos.has(item.idProduto))
+        .reduce((total, item) => total + parseNum(item.quantidade), 0),
       valorTotal: parseNum(pedido.valorTotal),
       valorFrete: parseNum(pedido.valorTotalFrete),
     }))
