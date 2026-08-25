@@ -20,7 +20,7 @@ import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './
 import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
 import * as sac from './sac';
 import * as lojasFotos from './lojasFotos';
-import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
+import { LOJAS } from './src/data/vendedorLoja';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo } from './auth';
 import { cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
 
@@ -286,9 +286,9 @@ Contexto da GFERRO:
       doc.pipe(res);
       gerarPdfRankingVendedores(doc, {
         periodoRotulo: rotuloPeriodo(periodo as Periodo, mes),
-        // Mesma regra da tela: o ranking geral reúne somente vendedores que
-        // pertencem a uma das lojas cadastradas.
-        ranking: ranking.filter((vendedor) => !!lojaDoVendedor(vendedor.nome)),
+        // Mesma regra da tela: o ranking geral representa a empresa inteira,
+        // inclusive vendedores ainda sem unidade cadastrada.
+        ranking,
         atualizadoEm: new Date(atualizadoEm).toLocaleString('pt-BR'),
       });
       doc.end();

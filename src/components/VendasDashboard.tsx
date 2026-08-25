@@ -168,9 +168,10 @@ export const VendasDashboard: React.FC = () => {
   // são aplicados depois, para nunca fabricar posições ao filtrar a tabela.
   const rankingDaVisao = useMemo(() => {
     const vendedores = rankingSelecionado === 'geral'
-      // O geral é a união dos rankings das lojas. Vendedores sem unidade
-      // definida não participam nem do pódio nem da classificação corporativa.
-      ? ranking.filter((v) => !!lojaDoVendedor(v.nome))
+      // O geral representa a empresa inteira, inclusive vendedores que ainda
+      // não foram vinculados a uma das quatro unidades. Assim os KPIs batem
+      // com o Painel de Vendas, que também considera todos os pedidos.
+      ? ranking
       : ranking.filter((v) => lojaDoVendedor(v.nome) === rankingSelecionado);
     return vendedores.map((v, index) => ({ ...v, posicao: index + 1 }));
   }, [ranking, rankingSelecionado]);
