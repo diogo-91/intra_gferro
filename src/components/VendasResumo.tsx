@@ -186,24 +186,32 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({ resumo, loading, err
           <span className="flex items-center gap-1.5 text-xs text-teal-700/80 font-medium">
             <CircleDollarSign className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
             Recebido dos Pedidos
+            {resumo.financeiroPedidosCarregando && (
+              <RefreshCw className="h-3 w-3 animate-spin" aria-label="Atualizando em segundo plano" />
+            )}
           </span>
           <span className="text-xl font-black text-teal-900 tabular-nums" title="Valor já recebido das contas vinculadas aos pedidos do período">
-            {resumo.financeiroPedidosCarregando ? (
-              <span className="inline-flex items-center gap-1.5 text-sm"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Atualizando...</span>
-            ) : formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
+            {formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
           </span>
+          {resumo.financeiroPedidosCarregando && (
+            <span className="text-[9px] font-semibold text-teal-700/60">Atualizando em segundo plano</span>
+          )}
         </div>
 
         <div className="rounded-2xl bg-orange-50 border border-orange-100 p-4 flex flex-col gap-1.5">
           <span className="flex items-center gap-1.5 text-xs text-orange-700/80 font-medium">
             <Hourglass className="w-3.5 h-3.5 text-orange-600" aria-hidden="true" />
             Falta Receber
+            {resumo.financeiroPedidosCarregando && (
+              <RefreshCw className="h-3 w-3 animate-spin" aria-label="Atualizando em segundo plano" />
+            )}
           </span>
           <span className="text-xl font-black text-orange-900 tabular-nums" title="Total dos pedidos menos os valores já recebidos">
-            {resumo.financeiroPedidosCarregando ? (
-              <span className="inline-flex items-center gap-1.5 text-sm"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Atualizando...</span>
-            ) : formatCurrency(resumo.valorPendentePedidos ?? resumo.totalVendas)}
+            {formatCurrency(resumo.valorPendentePedidos ?? resumo.totalVendas)}
           </span>
+          {resumo.financeiroPedidosCarregando && (
+            <span className="text-[9px] font-semibold text-orange-700/60">Atualizando em segundo plano</span>
+          )}
         </div>
 
         {metaVendas !== undefined && (
