@@ -119,7 +119,18 @@ interface Pedido {
   idPessoaVendedor?: number;
   valorTotal?: string | number;
   valorTotalFrete?: string | number;
+  condicaoPagamentoTexto?: string;
   itensPedido?: ItemPedido[];
+}
+
+export interface PedidoVendedorDetalhe {
+  id: number;
+  codigo: string;
+  dataEmissao: string;
+  condicaoPagamento: string;
+  quantidadeItens: number;
+  valorTotal: number;
+  valorFrete: number;
 }
 
 interface Vendedor {
@@ -889,6 +900,35 @@ export async function getRankingVendedores(
   );
 
   return { ranking, atualizadoEm: new Date(atualizadoEm).toISOString() };
+}
+
+export async function getPedidosDoVendedor(
+  periodo: Periodo,
+  nomeVendedor: string,
+  mes?: string
+): Promise<{ pedidos: PedidoVendedorDetalhe[]; atualizadoEm: string }> {
+  const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes)]);
+  const idsVendedor = new Set(
+    vendedores
+      .filter((vendedor) => (vendedor.nome || `Vendedor #${vendedor.id}`) === nomeVendedor)
+      .map((vendedor) => vendedor.id)
+  );
+
+  const detalhes = pedidos
+    .filter((pedido) => pedido.idPessoaVendedor != null && idsVendedor.has(pedido.idPessoaVendedor))
+    .map((pedido) => ({
+      id: pedido.id,
+      codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
+      dataEmissao: pedido.dataEmissao || '—',
+      condicaoPagamento: pedido.condicaoPagamentoTexto?.trim() || 'Não informada',
+      quantidadeItens: (pedido.itensPedido || []).length,
+      valorTotal: parseNum(pedido.valorTotal),
+      valorFrete: parseNum(pedido.valorTotalFrete),
+    }))
+    .sort((a, b) => (dataEmissaoPedido(b.dataEmissao)?.getTime() ?? 0) - (dataEmissaoPedido(a.dataEmissao)?.getTime() ?? 0));
+
+  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
+  return { pedidos: detalhes, atualizadoEm: new Date(atualizadoEm).toISOString() };
 }
 
 // Agregação compartilhada por getResumoVendas (todos os pedidos do período)

@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store, Building2, Wallet, Users, Package, Ruler, Clock3 } from 'lucide-react';
-import { VendedorRanking, ResumoVendas } from '../types';
+import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store, Building2, Wallet, Users, Package, Clock3, X, ShoppingBag } from 'lucide-react';
+import { VendedorRanking, ResumoVendas, PedidoVendedorDetalhe } from '../types';
 import { RankingFilters, Periodo, periodos, SeletorMesEspecifico } from './RankingFilters';
 import { RankingEmptyState } from './RankingEmptyState';
 import { RankingPodio } from './RankingPodio';
 import { RankingTable } from './RankingTable';
 import { VendasResumo } from './VendasResumo';
 import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
-import { formatCurrency, formatInteiro, formatMetrosQuadrados } from '../utils/format';
+import { formatCurrency, formatInteiro, formatNomeVendedor } from '../utils/format';
 
 type VendasView = 'painel' | 'ranking' | 'loja';
 
@@ -26,6 +26,14 @@ const salvarRankingLocal = (
     // bloqueia localStorage (modo privado/política corporativa).
   }
 };
+
+const formatCurrencyComCentavos = (valor: number) =>
+  valor.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 export const VendasDashboard: React.FC = () => {
   const [view, setView] = useState<VendasView>('painel');
@@ -50,6 +58,11 @@ export const VendasDashboard: React.FC = () => {
   const [resumoLojaLoading, setResumoLojaLoading] = useState(false);
   const [resumoLojaErro, setResumoLojaErro] = useState<string | null>(null);
   const [atualizandoForcado, setAtualizandoForcado] = useState(false);
+  const [vendedorModal, setVendedorModal] = useState<string | null>(null);
+  const [pedidosVendedor, setPedidosVendedor] = useState<PedidoVendedorDetalhe[]>([]);
+  const [pedidosVendedorLoading, setPedidosVendedorLoading] = useState(false);
+  const [pedidosVendedorErro, setPedidosVendedorErro] = useState<string | null>(null);
+  const [pedidosVendedorAtualizadoEm, setPedidosVendedorAtualizadoEm] = useState<string | null>(null);
 
   useEffect(() => {
     if (view !== 'ranking' && view !== 'loja') return;
@@ -200,10 +213,9 @@ export const VendasDashboard: React.FC = () => {
       (total, vendedor) => ({
         vendas: total.vendas + vendedor.valorTotal,
         pedidos: total.pedidos + vendedor.pedidos,
-        area: total.area + vendedor.metrosQuadrados,
         vendedoresAtivos: total.vendedoresAtivos + (vendedor.pedidos > 0 ? 1 : 0),
       }),
-      { vendas: 0, pedidos: 0, area: 0, vendedoresAtivos: 0 }
+      { vendas: 0, pedidos: 0, vendedoresAtivos: 0 }
     ),
     [rankingDaVisao]
   );
@@ -269,6 +281,132 @@ export const VendasDashboard: React.FC = () => {
     a.href = `/api/vendas/resumo/pdf?periodo=${periodo}${mesQuery}`;
     a.click();
   };
+
+  const abrirPedidosVendedor = async (nome: string) => {
+    setVendedorModal(nome);
+    setPedidosVendedor([]);
+    setPedidosVendedorErro(null);
+    setPedidosVendedorAtualizadoEm(null);
+    setPedidosVendedorLoading(true);
+    try {
+      const resposta = await fetch(
+        `/api/vendas/vendedores/pedidos?periodo=${periodo}${mesQuery}&nome=${encodeURIComponent(nome)}`
+      );
+      const dados = await resposta.json();
+      if (!resposta.ok) throw new Error(dados?.error || 'Falha ao buscar os pedidos do vendedor');
+      setPedidosVendedor(dados.pedidos as PedidoVendedorDetalhe[]);
+      setPedidosVendedorAtualizadoEm(dados.atualizadoEm);
+    } catch (err: any) {
+      setPedidosVendedorErro(err.message || 'Falha ao buscar os pedidos do vendedor');
+    } finally {
+      setPedidosVendedorLoading(false);
+    }
+  };
+
+  const fecharPedidosVendedor = () => setVendedorModal(null);
+
+  useEffect(() => {
+    if (!vendedorModal) return;
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const fecharComEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') fecharPedidosVendedor();
+    };
+    window.addEventListener('keydown', fecharComEscape);
+    return () => {
+      document.body.style.overflow = overflowAnterior;
+      window.removeEventListener('keydown', fecharComEscape);
+    };
+  }, [vendedorModal]);
+
+  const modalPedidosVendedor = vendedorModal ? (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8" role="dialog" aria-modal="true" aria-labelledby="titulo-pedidos-vendedor">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+        onClick={fecharPedidosVendedor}
+        aria-label="Fechar pedidos do vendedor"
+      />
+      <div className="relative flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-2xl">
+        <header className="flex items-start justify-between gap-4 border-b border-neutral-100 px-5 py-5 sm:px-7">
+          <div>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-yellow-600">Pedidos do vendedor</span>
+            <h2 id="titulo-pedidos-vendedor" className="mt-1 flex items-center gap-2 text-xl font-black text-neutral-950 sm:text-2xl">
+              <ShoppingBag className="h-5 w-5 text-yellow-500" aria-hidden="true" />
+              {formatNomeVendedor(vendedorModal)}
+            </h2>
+            <p className="mt-1 text-xs text-neutral-500">
+              {pedidosVendedorLoading
+                ? 'Carregando pedidos do período...'
+                : `${formatInteiro(pedidosVendedor.length)} pedidos no período selecionado`}
+              {pedidosVendedorAtualizadoEm && ` • Atualizado em ${new Date(pedidosVendedorAtualizadoEm).toLocaleString('pt-BR')}`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={fecharPedidosVendedor}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 text-neutral-500 transition-colors hover:border-yellow-400 hover:text-neutral-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
+          {pedidosVendedorLoading ? (
+            <div className="flex min-h-52 items-center justify-center gap-2 text-xs text-neutral-500">
+              <RefreshCw className="h-5 w-5 animate-spin text-yellow-600" aria-hidden="true" />
+              Consultando pedidos no cache do Nomus...
+            </div>
+          ) : pedidosVendedorErro ? (
+            <div className="flex min-h-52 flex-col items-center justify-center gap-2 text-center">
+              <AlertTriangle className="h-5 w-5 text-red-600" aria-hidden="true" />
+              <span className="text-xs font-semibold text-red-600">{pedidosVendedorErro}</span>
+            </div>
+          ) : pedidosVendedor.length === 0 ? (
+            <div className="flex min-h-52 items-center justify-center text-xs text-neutral-500">
+              Nenhum pedido encontrado para este vendedor no período.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-neutral-200">
+              <table className="w-full min-w-[850px] border-collapse text-xs">
+                <thead className="sticky top-0 bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Pedido</th>
+                    <th className="px-4 py-3 text-left">Emissão</th>
+                    <th className="px-4 py-3 text-left">Condição de pagamento</th>
+                    <th className="px-4 py-3 text-left">Itens</th>
+                    <th className="px-4 py-3 text-left">Frete</th>
+                    <th className="px-4 py-3 text-left">Valor total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {pedidosVendedor.map((pedido) => (
+                    <tr key={pedido.id} className="transition-colors hover:bg-yellow-50/60">
+                      <td className="px-4 py-3 font-black text-neutral-900">{pedido.codigo}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-neutral-600">{pedido.dataEmissao}</td>
+                      <td className="max-w-64 px-4 py-3 text-neutral-600">{pedido.condicaoPagamento}</td>
+                      <td className="px-4 py-3 font-bold tabular-nums text-violet-600">{formatInteiro(pedido.quantidadeItens)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap font-bold tabular-nums text-cyan-700">{formatCurrencyComCentavos(pedido.valorFrete)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap font-black tabular-nums text-emerald-600">{formatCurrencyComCentavos(pedido.valorTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t-2 border-neutral-200 bg-neutral-50">
+                  <tr>
+                    <td colSpan={5} className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-neutral-500">Total vendido</td>
+                    <td className="px-4 py-3 whitespace-nowrap font-black tabular-nums text-emerald-700">
+                      {formatCurrencyComCentavos(pedidosVendedor.reduce((total, pedido) => total + pedido.valorTotal, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const atualizarAgora = async () => {
     setAtualizandoForcado(true);
@@ -408,12 +546,11 @@ export const VendasDashboard: React.FC = () => {
         </header>
 
         {!loading && !erro && (
-          <section className="grid grid-cols-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white lg:grid-cols-4" aria-label="Resumo do ranking selecionado">
+          <section className="grid grid-cols-1 overflow-hidden rounded-2xl border border-neutral-200 bg-white sm:grid-cols-3" aria-label="Resumo do ranking selecionado">
             {[
               { label: 'Volume vendido', value: formatCurrency(resumoRanking.vendas), Icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
               { label: 'Vendedores ativos', value: formatInteiro(resumoRanking.vendedoresAtivos), Icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
               { label: 'Pedidos no período', value: formatInteiro(resumoRanking.pedidos), Icon: Package, color: 'text-violet-600', bg: 'bg-violet-50' },
-              { label: 'Área comercializada', value: formatMetrosQuadrados(resumoRanking.area), Icon: Ruler, color: 'text-sky-600', bg: 'bg-sky-50' },
             ].map(({ label, value, Icon, color, bg }) => (
               <article key={label} className="flex min-w-0 items-center gap-3 border-b border-r border-neutral-100 p-4 last:border-r-0 lg:border-b-0">
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${bg} ${color}`}>
@@ -479,10 +616,11 @@ export const VendasDashboard: React.FC = () => {
 
           {!loading && !erro && rankingFiltrado.length > 0 && (
             <div className="p-4 sm:p-6">
-              <RankingTable vendedores={rankingFiltrado} />
+              <RankingTable vendedores={rankingFiltrado} onSelecionarVendedor={abrirPedidosVendedor} />
             </div>
           )}
         </section>
+        {modalPedidosVendedor}
       </div>
     );
   }
@@ -574,7 +712,7 @@ export const VendasDashboard: React.FC = () => {
 
             {vendedoresDaLojaSelecionada.length > 0 ? (
               <div className="p-4 sm:p-6">
-                <RankingTable vendedores={vendedoresDaLojaSelecionada} />
+                <RankingTable vendedores={vendedoresDaLojaSelecionada} onSelecionarVendedor={abrirPedidosVendedor} />
               </div>
             ) : loading ? (
               <div className="flex items-center justify-center gap-2 px-5 py-10 text-xs text-neutral-500">
@@ -586,6 +724,7 @@ export const VendasDashboard: React.FC = () => {
             )}
           </section>
         )}
+        {modalPedidosVendedor}
       </div>
     );
   }

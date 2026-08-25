@@ -27,6 +27,16 @@ export interface VendedorRanking {
   valorRecebido: number;
 }
 
+export interface PedidoVendedorDetalhe {
+  id: number;
+  codigo: string;
+  dataEmissao: string;
+  condicaoPagamento: string;
+  quantidadeItens: number;
+  valorTotal: number;
+  valorFrete: number;
+}
+
 export interface ProdutoRanking {
   nome: string;
   valorTotal: number;

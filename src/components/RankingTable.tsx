@@ -17,6 +17,7 @@ interface RankingComPosicao extends VendedorRanking {
 
 interface RankingTableProps {
   vendedores: RankingComPosicao[];
+  onSelecionarVendedor?: (nome: string) => void;
 }
 
 const badgeStyleByPosicao: Record<number, string> = {
@@ -33,7 +34,7 @@ const linhaDestaqueByPosicao: Record<number, string> = {
   3: 'bg-amber-50/70 hover:bg-amber-50',
 };
 
-export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
+export const RankingTable: React.FC<RankingTableProps> = ({ vendedores, onSelecionarVendedor }) => {
   if (vendedores.length === 0) return null;
 
   return (
@@ -123,14 +124,16 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
                   </span>
                 </td>
                 <th scope="row" className="px-2 py-3 text-left font-semibold text-neutral-900 max-w-[220px]">
-                  <span
-                    tabIndex={0}
+                  <button
+                    type="button"
+                    onClick={() => onSelecionarVendedor?.(v.nome)}
+                    disabled={!onSelecionarVendedor}
                     title={nomeExibido}
                     aria-label={nomeExibido}
-                    className="block truncate rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+                    className="block w-full truncate rounded text-left underline-offset-2 transition-colors enabled:cursor-pointer enabled:hover:text-yellow-700 enabled:hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 disabled:cursor-default"
                   >
                     {nomeExibido}
-                  </span>
+                  </button>
                 </th>
                 <td className="px-2 py-3 text-left text-emerald-600 font-bold tabular-nums whitespace-nowrap">
                   {formatCurrencyComCentavos(v.valorTotal)}

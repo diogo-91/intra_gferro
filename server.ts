@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, getDreFinanceira, Periodo } from './nomus';
+import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, getDreFinanceira, Periodo } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -215,6 +215,25 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao buscar resumo de vendas no Nomus:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
+    }
+  });
+
+  app.get('/api/vendas/vendedores/pedidos', async (req, res) => {
+    try {
+      const periodo = (req.query.periodo as string) || 'mes';
+      if (!['dia', 'semana', 'mes'].includes(periodo)) {
+        return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
+      }
+      const nome = typeof req.query.nome === 'string' ? req.query.nome.trim() : '';
+      if (!nome) return res.status(400).json({ error: 'Informe o vendedor.' });
+      const mes = validarMesQuery(req.query.mes);
+      res.json(await getPedidosDoVendedor(periodo as Periodo, nome, mes));
+    } catch (error: any) {
+      console.error('Erro ao buscar pedidos do vendedor no Nomus:', error);
+      res.status(error.status || 500).json({
+        error: error.status ? error.message : 'Erro ao buscar pedidos do vendedor',
+        details: error.message,
+      });
     }
   });
 

@@ -1,7 +1,7 @@
 import React from 'react';
-import { Wallet, Ruler, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt, Target, CircleDollarSign, Hourglass } from 'lucide-react';
+import { Wallet, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt, Target, CircleDollarSign, Hourglass } from 'lucide-react';
 import { ResumoVendas } from '../types';
-import { formatCurrency, formatMetrosQuadrados, formatInteiro } from '../utils/format';
+import { formatCurrency, formatInteiro } from '../utils/format';
 
 interface VendasResumoProps {
   resumo: ResumoVendas | null;
@@ -145,7 +145,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 flex flex-col gap-1.5">
           <span className="flex items-center gap-1.5 text-xs text-emerald-700/80 font-medium">
             <Wallet className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
@@ -160,16 +160,6 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
             Pedidos
           </span>
           <span className="text-xl font-black text-violet-900 tabular-nums">{formatInteiro(resumo.totalPedidos)}</span>
-        </div>
-
-        <div className="rounded-2xl bg-sky-50 border border-sky-100 p-4 flex flex-col gap-1.5">
-          <span className="flex items-center gap-1.5 text-xs text-sky-700/80 font-medium">
-            <Ruler className="w-3.5 h-3.5 text-sky-600" aria-hidden="true" />
-            Área Vendida
-          </span>
-          <span className="text-xl font-black text-sky-900 tabular-nums">
-            {formatMetrosQuadrados(resumo.totalMetrosQuadrados)}
-          </span>
         </div>
 
         <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4 flex flex-col gap-1.5">
