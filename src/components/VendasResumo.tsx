@@ -229,7 +229,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
             <div className="rounded-2xl bg-cyan-50 border border-cyan-200 p-4 flex flex-col gap-1.5">
               <span className="flex items-center gap-1.5 text-xs text-cyan-700/80 font-medium">
                 <Truck className="w-3.5 h-3.5 text-cyan-600" aria-hidden="true" />
-                Total em Frete
+                Total Fretes e Outros
               </span>
               <span className="text-xl font-black text-cyan-900 tabular-nums">
                 {formatCurrency(resumo.totalFrete ?? 0)}

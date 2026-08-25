@@ -119,6 +119,7 @@ interface Pedido {
   idPessoaVendedor?: number;
   valorTotal?: string | number;
   valorTotalFrete?: string | number;
+  valorTotalOutrasDespesasAcessorias?: string | number;
   itensPedido?: ItemPedido[];
 }
 
@@ -593,6 +594,13 @@ function chavePedidos(periodo: Periodo, mes?: string): string {
   return `mes:${mes || mesAtual}`;
 }
 
+// No Nomus, o valor comercialmente tratado como "Fretes e Outros" pode vir
+// dividido entre o campo de frete e o de outras despesas acessórias. A GFERRO
+// usa os dois para registrar esse custo no pedido.
+function valorFretesEOutrosPedido(pedido: Pedido): number {
+  return parseNum(pedido.valorTotalFrete) + parseNum(pedido.valorTotalOutrasDespesasAcessorias);
+}
+
 async function getVendedores(): Promise<Vendedor[]> {
   const agora = Date.now();
   if (cacheVendedores && agora - cacheVendedores.atualizadoEm < CACHE_TTL_MS) {
@@ -886,8 +894,8 @@ export async function getRankingVendedores(
         .reduce((soma, item) => soma + valorEstimadoItem(item), 0),
       0
     ),
-    pedidosComFrete: peds.filter((pedido) => parseNum(pedido.valorTotalFrete) > 0).length,
-    valorFrete: peds.reduce((soma, pedido) => soma + parseNum(pedido.valorTotalFrete), 0),
+    pedidosComFrete: peds.filter((pedido) => valorFretesEOutrosPedido(pedido) > 0).length,
+    valorFrete: peds.reduce((soma, pedido) => soma + valorFretesEOutrosPedido(pedido), 0),
     ticketMedio: peds.length > 0
       ? peds.reduce((soma, pedido) => soma + parseNum(pedido.valorTotal), 0) / peds.length
       : 0,
@@ -951,7 +959,7 @@ export async function getPedidosDoVendedor(
         valorRecebido,
         valorPendente: Math.max(0, valorTotal - valorRecebido),
         valorTotal,
-        valorFrete: parseNum(pedido.valorTotalFrete),
+        valorFrete: valorFretesEOutrosPedido(pedido),
       };
     })
     .sort((a, b) => (dataEmissaoPedido(b.dataEmissao)?.getTime() ?? 0) - (dataEmissaoPedido(a.dataEmissao)?.getTime() ?? 0));
@@ -1016,7 +1024,7 @@ async function montarResumoDePedidos(
   const totalValorParafusos = produtos
     .filter((produto) => produto.nome.toLocaleLowerCase('pt-BR').includes('parafuso'))
     .reduce((total, produto) => total + produto.valorTotal, 0);
-  const totalFrete = pedidos.reduce((total, pedido) => total + parseNum(pedido.valorTotalFrete), 0);
+  const totalFrete = pedidos.reduce((total, pedido) => total + valorFretesEOutrosPedido(pedido), 0);
 
   return {
     totalVendas,

@@ -378,7 +378,7 @@ export const VendasDashboard: React.FC = () => {
                     <th className="px-4 py-3 text-left">Parafusos</th>
                     <th className="px-4 py-3 text-left">Recebido</th>
                     <th className="px-4 py-3 text-left">Falta receber</th>
-                    <th className="px-4 py-3 text-left">Frete</th>
+                    <th className="px-4 py-3 text-left">Fretes e outros</th>
                     <th className="px-4 py-3 text-left">Valor total</th>
                   </tr>
                 </thead>

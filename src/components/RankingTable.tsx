@@ -91,15 +91,15 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores, onSeleci
               </span>
             </th>
             <th scope="col" className="w-24 px-2 py-3 text-left font-bold">
-              <span className="inline-flex items-center justify-start gap-1.5" title="Quantidade de pedidos com valor de frete maior que zero">
+              <span className="inline-flex items-center justify-start gap-1.5" title="Quantidade de pedidos com Fretes e Outros maior que zero">
                 <Truck className="w-3 h-3" aria-hidden="true" />
-                Ped. frete
+                Ped. frete/outros
               </span>
             </th>
             <th scope="col" className="w-28 px-2 py-3 text-left font-bold">
               <span className="inline-flex items-center justify-start gap-1.5">
                 <Truck className="w-3 h-3" aria-hidden="true" />
-                Frete
+                Frete/outros
               </span>
             </th>
           </tr>
