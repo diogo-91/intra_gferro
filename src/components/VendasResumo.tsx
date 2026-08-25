@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt, Target, CircleDollarSign, Hourglass } from 'lucide-react';
+import { Wallet, Package, Users, RefreshCw, AlertTriangle, BarChart3, Tag, Receipt, Target, CircleDollarSign, Hourglass, Nut, Truck } from 'lucide-react';
 import { ResumoVendas } from '../types';
 import { formatCurrency, formatInteiro } from '../utils/format';
 
@@ -10,6 +10,7 @@ interface VendasResumoProps {
   metaVendas?: number;
   exibirProgressoMeta?: boolean;
   exibirDetalhesProdutos?: boolean;
+  exibirKpisParafusosFrete?: boolean;
 }
 
 const formatUnidade = (quantidade: number, unidade: string) => {
@@ -116,6 +117,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
   metaVendas,
   exibirProgressoMeta = false,
   exibirDetalhesProdutos = true,
+  exibirKpisParafusosFrete = false,
 }) => {
   if (loading) {
     return (
@@ -211,6 +213,30 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
             <span className="text-[9px] font-semibold text-orange-700/60">Atualizando em segundo plano</span>
           )}
         </div>
+
+        {exibirKpisParafusosFrete && (
+          <>
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-xs text-amber-700/80 font-medium">
+                <Nut className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
+                Total em Parafusos
+              </span>
+              <span className="text-xl font-black text-amber-900 tabular-nums">
+                {formatCurrency(resumo.totalValorParafusos ?? 0)}
+              </span>
+            </div>
+
+            <div className="rounded-2xl bg-cyan-50 border border-cyan-200 p-4 flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-xs text-cyan-700/80 font-medium">
+                <Truck className="w-3.5 h-3.5 text-cyan-600" aria-hidden="true" />
+                Total em Frete
+              </span>
+              <span className="text-xl font-black text-cyan-900 tabular-nums">
+                {formatCurrency(resumo.totalFrete ?? 0)}
+              </span>
+            </div>
+          </>
+        )}
 
         {metaVendas !== undefined && (
           <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-4 flex flex-col gap-1.5">

@@ -48,6 +48,8 @@ export interface ProdutoRanking {
 
 export interface ResumoVendas {
   totalVendas: number;
+  totalValorParafusos: number;
+  totalFrete: number;
   valorRecebidoPedidos: number;
   valorPendentePedidos: number;
   financeiroPedidosCarregando: boolean;

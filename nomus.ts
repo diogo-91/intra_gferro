@@ -172,6 +172,8 @@ export interface ProdutoRanking {
 
 export interface ResumoVendas {
   totalVendas: number;
+  totalValorParafusos: number;
+  totalFrete: number;
   valorRecebidoPedidos: number;
   valorPendentePedidos: number;
   financeiroPedidosCarregando: boolean;
@@ -1011,8 +1013,15 @@ async function montarResumoDePedidos(
     })
   );
 
+  const totalValorParafusos = produtos
+    .filter((produto) => produto.nome.toLocaleLowerCase('pt-BR').includes('parafuso'))
+    .reduce((total, produto) => total + produto.valorTotal, 0);
+  const totalFrete = pedidos.reduce((total, pedido) => total + parseNum(pedido.valorTotalFrete), 0);
+
   return {
     totalVendas,
+    totalValorParafusos,
+    totalFrete,
     valorRecebidoPedidos,
     valorPendentePedidos,
     financeiroPedidosCarregando,

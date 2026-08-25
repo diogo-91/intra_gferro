@@ -698,6 +698,7 @@ export const VendasDashboard: React.FC = () => {
           metaVendas={loja?.metaVendas}
           exibirProgressoMeta={periodo === 'mes'}
           exibirDetalhesProdutos={false}
+          exibirKpisParafusosFrete
         />
 
         {!resumoLojaLoading && !resumoLojaErro && (
