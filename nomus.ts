@@ -119,7 +119,6 @@ interface Pedido {
   idPessoaVendedor?: number;
   valorTotal?: string | number;
   valorTotalFrete?: string | number;
-  condicaoPagamentoTexto?: string;
   itensPedido?: ItemPedido[];
 }
 
@@ -127,9 +126,10 @@ export interface PedidoVendedorDetalhe {
   id: number;
   codigo: string;
   dataEmissao: string;
-  condicaoPagamento: string;
   quantidadeItens: number;
   quantidadeParafusos: number;
+  valorRecebido: number;
+  valorPendente: number;
   valorTotal: number;
   valorFrete: number;
 }
@@ -909,6 +909,7 @@ export async function getPedidosDoVendedor(
   mes?: string
 ): Promise<{ pedidos: PedidoVendedorDetalhe[]; atualizadoEm: string }> {
   const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes)]);
+  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos);
   const idsVendedor = new Set(
     vendedores
       .filter((vendedor) => (vendedor.nome || `Vendedor #${vendedor.id}`) === nomeVendedor)
@@ -934,18 +935,23 @@ export async function getPedidosDoVendedor(
   );
 
   const detalhes = pedidosFiltrados
-    .map((pedido) => ({
-      id: pedido.id,
-      codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
-      dataEmissao: pedido.dataEmissao || '—',
-      condicaoPagamento: pedido.condicaoPagamentoTexto?.trim() || 'Não informada',
-      quantidadeItens: (pedido.itensPedido || []).length,
-      quantidadeParafusos: (pedido.itensPedido || [])
-        .filter((item) => item.idProduto != null && idsParafusos.has(item.idProduto))
-        .reduce((total, item) => total + parseNum(item.quantidade), 0),
-      valorTotal: parseNum(pedido.valorTotal),
-      valorFrete: parseNum(pedido.valorTotalFrete),
-    }))
+    .map((pedido) => {
+      const valorTotal = parseNum(pedido.valorTotal);
+      const valorRecebido = calcularRecebimentoDosPedidos([pedido], financeiro.contas);
+      return {
+        id: pedido.id,
+        codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
+        dataEmissao: pedido.dataEmissao || '—',
+        quantidadeItens: (pedido.itensPedido || []).length,
+        quantidadeParafusos: (pedido.itensPedido || [])
+          .filter((item) => item.idProduto != null && idsParafusos.has(item.idProduto))
+          .reduce((total, item) => total + parseNum(item.quantidade), 0),
+        valorRecebido,
+        valorPendente: Math.max(0, valorTotal - valorRecebido),
+        valorTotal,
+        valorFrete: parseNum(pedido.valorTotalFrete),
+      };
+    })
     .sort((a, b) => (dataEmissaoPedido(b.dataEmissao)?.getTime() ?? 0) - (dataEmissaoPedido(a.dataEmissao)?.getTime() ?? 0));
 
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();

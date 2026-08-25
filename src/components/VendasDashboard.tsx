@@ -374,9 +374,10 @@ export const VendasDashboard: React.FC = () => {
                   <tr>
                     <th className="px-4 py-3 text-left">Pedido</th>
                     <th className="px-4 py-3 text-left">Emissão</th>
-                    <th className="px-4 py-3 text-left">Condição de pagamento</th>
                     <th className="px-4 py-3 text-left">Itens</th>
                     <th className="px-4 py-3 text-left">Parafusos</th>
+                    <th className="px-4 py-3 text-left">Recebido</th>
+                    <th className="px-4 py-3 text-left">Falta receber</th>
                     <th className="px-4 py-3 text-left">Frete</th>
                     <th className="px-4 py-3 text-left">Valor total</th>
                   </tr>
@@ -386,11 +387,12 @@ export const VendasDashboard: React.FC = () => {
                     <tr key={pedido.id} className="transition-colors hover:bg-yellow-50/60">
                       <td className="px-4 py-3 font-black text-neutral-900">{pedido.codigo}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-neutral-600">{pedido.dataEmissao}</td>
-                      <td className="max-w-64 px-4 py-3 text-neutral-600">{pedido.condicaoPagamento}</td>
                       <td className="px-4 py-3 font-bold tabular-nums text-violet-600">{formatInteiro(pedido.quantidadeItens)}</td>
                       <td className="px-4 py-3 font-bold tabular-nums text-orange-600">
                         {pedido.quantidadeParafusos > 0 ? formatInteiro(pedido.quantidadeParafusos) : '—'}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap font-bold tabular-nums text-teal-700">{formatCurrencyComCentavos(pedido.valorRecebido)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap font-bold tabular-nums text-orange-700">{formatCurrencyComCentavos(pedido.valorPendente)}</td>
                       <td className="px-4 py-3 whitespace-nowrap font-bold tabular-nums text-cyan-700">{formatCurrencyComCentavos(pedido.valorFrete)}</td>
                       <td className="px-4 py-3 whitespace-nowrap font-black tabular-nums text-emerald-600">{formatCurrencyComCentavos(pedido.valorTotal)}</td>
                     </tr>
@@ -398,7 +400,7 @@ export const VendasDashboard: React.FC = () => {
                 </tbody>
                 <tfoot className="border-t-2 border-neutral-200 bg-neutral-50">
                   <tr>
-                    <td colSpan={6} className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-neutral-500">Total vendido</td>
+                    <td colSpan={7} className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-neutral-500">Total vendido</td>
                     <td className="px-4 py-3 whitespace-nowrap font-black tabular-nums text-emerald-700">
                       {formatCurrencyComCentavos(pedidosVendedor.reduce((total, pedido) => total + pedido.valorTotal, 0))}
                     </td>

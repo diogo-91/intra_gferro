@@ -31,9 +31,10 @@ export interface PedidoVendedorDetalhe {
   id: number;
   codigo: string;
   dataEmissao: string;
-  condicaoPagamento: string;
   quantidadeItens: number;
   quantidadeParafusos: number;
+  valorRecebido: number;
+  valorPendente: number;
   valorTotal: number;
   valorFrete: number;
 }
