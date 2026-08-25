@@ -1,7 +1,7 @@
 import React from 'react';
-import { Wallet, Ruler, Package, Nut, Truck, Receipt, BadgeDollarSign } from 'lucide-react';
+import { Wallet, Package, Nut, Truck, Receipt, BadgeDollarSign } from 'lucide-react';
 import { VendedorRanking } from '../types';
-import { formatCurrency, formatMetrosQuadrados, formatInteiro, formatNomeVendedor } from '../utils/format';
+import { formatCurrency, formatInteiro, formatNomeVendedor } from '../utils/format';
 
 interface RankingComPosicao extends VendedorRanking {
   posicao: number;
@@ -30,13 +30,13 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-100">
-      <table className="w-full text-xs border-collapse min-w-[1500px]">
+      <table className="w-full table-fixed text-xs border-collapse min-w-[1280px]">
         <thead className="bg-neutral-50">
           <tr className="text-[11px] font-bold uppercase tracking-wider text-neutral-600">
             <th scope="col" className="w-12 px-5 py-3 text-center font-bold">
               #
             </th>
-            <th scope="col" className="px-2 py-3 text-left font-bold">
+            <th scope="col" className="w-56 px-2 py-3 text-left font-bold">
               Vendedor
             </th>
             <th scope="col" className="w-32 px-2 py-3 text-right font-bold">
@@ -52,15 +52,15 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
               </span>
             </th>
             <th scope="col" className="w-28 px-2 py-3 text-right font-bold">
-              <span className="inline-flex items-center justify-end gap-1.5" title="Valor já recebido nas contas vinculadas aos pedidos">
-                <Receipt className="w-3 h-3" aria-hidden="true" />
-                Recebíveis
+              <span className="inline-flex items-center justify-end gap-1.5">
+                <Package className="w-3 h-3" aria-hidden="true" />
+                Pedidos
               </span>
             </th>
             <th scope="col" className="w-28 px-2 py-3 text-right font-bold">
-              <span className="inline-flex items-center justify-end gap-1.5">
-                <Ruler className="w-3 h-3" aria-hidden="true" />
-                Área vendida
+              <span className="inline-flex items-center justify-end gap-1.5" title="Valor já recebido nas contas vinculadas aos pedidos">
+                <Receipt className="w-3 h-3" aria-hidden="true" />
+                Recebíveis
               </span>
             </th>
             <th scope="col" className="w-24 px-2 py-3 text-right font-bold">
@@ -91,12 +91,6 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
               <span className="inline-flex items-center justify-end gap-1.5">
                 <Truck className="w-3 h-3" aria-hidden="true" />
                 Frete
-              </span>
-            </th>
-            <th scope="col" className="w-20 px-5 py-3 text-right font-bold">
-              <span className="inline-flex items-center justify-end gap-1.5">
-                <Package className="w-3 h-3" aria-hidden="true" />
-                Pedidos
               </span>
             </th>
           </tr>
@@ -136,11 +130,11 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
                 <td className="px-2 py-3 text-right text-fuchsia-700 font-bold tabular-nums whitespace-nowrap">
                   {formatCurrency(v.ticketMedio)}
                 </td>
+                <td className="px-2 py-3 text-right text-violet-600 font-bold tabular-nums whitespace-nowrap">
+                  {formatInteiro(v.pedidos)}
+                </td>
                 <td className="px-2 py-3 text-right text-teal-700 font-bold tabular-nums whitespace-nowrap">
                   {formatCurrency(v.valorRecebido)}
-                </td>
-                <td className="px-2 py-3 text-right text-sky-600 font-bold tabular-nums whitespace-nowrap">
-                  {formatMetrosQuadrados(v.metrosQuadrados)}
                 </td>
                 <td className="px-2 py-3 text-right text-amber-700 font-bold tabular-nums whitespace-nowrap">
                   {formatInteiro(v.pedidosParafusos)}
@@ -156,9 +150,6 @@ export const RankingTable: React.FC<RankingTableProps> = ({ vendedores }) => {
                 </td>
                 <td className="px-2 py-3 text-right text-cyan-700 font-bold tabular-nums whitespace-nowrap">
                   {formatCurrency(v.valorFrete)}
-                </td>
-                <td className="px-5 py-3 text-right text-violet-600 font-bold tabular-nums whitespace-nowrap">
-                  {formatInteiro(v.pedidos)}
                 </td>
               </tr>
             );
