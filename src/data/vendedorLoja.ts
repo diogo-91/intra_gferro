@@ -3,10 +3,8 @@
 // esse conceito de "loja" pros vendedores, então essa tabela é mantida à
 // mão aqui. Confirmado com o usuário: "JAMES" = Jaymes Janolla e
 // "ANDRESSA" = Andreza Soares Ribeiro de Andrade (grafias diferentes do
-// Nomus). Alguns nomes da lista original (Maria,
-// Virgínia, Telma, Vanessa) não batem com nenhum vendedor cadastrado no
-// Nomus — provavelmente não têm perfil de vendedor lá, só de funcionário —
-// e por isso ficam de fora até a GFERRO confirmar o nome exato.
+// Nomus). Virgínia ainda não aparece no cadastro de vendedores retornado
+// pela API; o vínculo fica preparado e passa a valer quando ela for cadastrada.
 
 export interface Loja {
   id: string;
@@ -19,7 +17,7 @@ export const LOJAS: Loja[] = [
   { id: 'petter', nome: 'Unidade 1 — Petter', metaVendas: 650000 },
   { id: 'lucas', nome: 'Unidade 2 — Lucas', metaVendas: 700000 },
   { id: 'paulo', nome: 'Unidade 3 — Paulo', metaVendas: 750000 },
-  { id: 'correa', nome: 'Unidade 4 — Correa' },
+  { id: 'correa', nome: 'Unidade 4 — Vera' },
 ];
 
 // Nome do vendedor exatamente como vem do Nomus -> id da loja.
@@ -38,6 +36,11 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'SAMUEL WOLFGAN SILVA': 'paulo',
   'Elson Marcelo Braga da Silva': 'paulo',
   'SUMAIA LUCENA': 'paulo',
+
+  'MARIA DE FATIMA DE SOUZA CAMPOS': 'correa',
+  'Telma Carlos Gomes de Camargo': 'correa',
+  'Vanessa Pereira Bezerra': 'correa',
+  'Virgínia': 'correa',
 };
 
 function normalizar(texto: string): string {
