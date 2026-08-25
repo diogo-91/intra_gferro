@@ -3,7 +3,7 @@
 // esse conceito de "loja" pros vendedores, então essa tabela é mantida à
 // mão aqui. Confirmado com o usuário: "JAMES" = Jaymes Janolla e
 // "ANDRESSA" = Andreza Soares Ribeiro de Andrade (grafias diferentes do
-// Nomus). Alguns nomes da lista original (Laís, Ana Caroline, Maria,
+// Nomus). Alguns nomes da lista original (Maria,
 // Virgínia, Telma, Vanessa) não batem com nenhum vendedor cadastrado no
 // Nomus — provavelmente não têm perfil de vendedor lá, só de funcionário —
 // e por isso ficam de fora até a GFERRO confirmar o nome exato.
@@ -33,6 +33,7 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'Myrene Aparecida da Silva': 'lucas',
   'REBECA GONÇALVES': 'lucas',
   'Andreza Soares Ribeiro de Andrade': 'lucas',
+  'Ana Caroline Paz Basseto': 'lucas',
 
   'SAMUEL WOLFGAN SILVA': 'paulo',
   'Elson Marcelo Braga da Silva': 'paulo',
