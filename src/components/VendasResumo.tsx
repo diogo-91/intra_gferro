@@ -144,6 +144,9 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
   const maiorPrecoMedio = resumo.produtos.reduce((max, p) => Math.max(max, precoMedioDe(p.valorTotal, p.quantidade) ?? 0), 0) || 1;
   const ticketMedio = resumo.totalPedidos > 0 ? resumo.totalVendas / resumo.totalPedidos : 0;
   const percentualMeta = metaVendas ? (resumo.totalVendas / metaVendas) * 100 : 0;
+  const percentualRecebido = resumo.totalVendas > 0
+    ? ((resumo.valorRecebidoPedidos ?? 0) / resumo.totalVendas) * 100
+    : 0;
 
   return (
     <div className="space-y-5">
@@ -185,14 +188,22 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
         <div className="rounded-xl bg-teal-50 border border-teal-100 p-3 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-xs text-teal-700/80 font-medium">
             <CircleDollarSign className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
-            Recebido dos Pedidos
+            Percentual Recebido
             {resumo.financeiroPedidosCarregando && (
               <RefreshCw className="h-3 w-3 animate-spin" aria-label="Atualizando em segundo plano" />
             )}
           </span>
-          <span className="text-lg font-black text-teal-900 tabular-nums" title="Valor já recebido das contas vinculadas aos pedidos do período">
-            {formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
-          </span>
+          <div
+            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+            title="Valor e percentual já recebidos sobre o total vendido no período"
+          >
+            <span className="text-lg font-black text-teal-900 tabular-nums">
+              {formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
+            </span>
+            <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[11px] font-black text-teal-700 tabular-nums">
+              {percentualRecebido.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+            </span>
+          </div>
           {resumo.financeiroPedidosCarregando && (
             <span className="text-[9px] font-semibold text-teal-700/60">Atualizando em segundo plano</span>
           )}
