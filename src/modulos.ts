@@ -12,6 +12,7 @@ export const MODULOS = [
   { id: 'vendas', nome: 'Dashboard de Vendas' },
   { id: 'financeiro', nome: 'Dashboard Financeiro' },
   { id: 'producao', nome: 'Produção' },
+  { id: 'gestao', nome: 'Dashboard de Gestão' },
 ] as const satisfies ReadonlyArray<{ id: TabType; nome: string }>;
 
 export type ModuloId = (typeof MODULOS)[number]['id'];

@@ -18,8 +18,8 @@ export const LOJAS: Loja[] = [
   { id: 'petter', nome: 'Unidade 1 — Petter', metaVendas: 650000 },
   { id: 'lucas', nome: 'Unidade 2 — Lucas', metaVendas: 700000 },
   { id: 'paulo', nome: 'Unidade 3 — Paulo', metaVendas: 750000 },
-  { id: 'correa', nome: 'Unidade 4 — Vera' },
-  { id: 'tatui', nome: 'Unidade 5 — Tatuí' },
+  { id: 'correa', nome: 'Unidade 4 — Vera', metaVendas: 250000 },
+  { id: 'tatui', nome: 'Unidade 5 — Tatuí', metaVendas: 250000 },
 ];
 
 // Nome do vendedor exatamente como vem do Nomus -> id da loja.

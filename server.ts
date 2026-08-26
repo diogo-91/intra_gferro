@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getComparativoMensalVendas, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
+import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getComparativoMensalVendas, getGestaoMetasMensais, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -247,6 +247,20 @@ Contexto da GFERRO:
       console.error('Erro ao buscar comparativo mensal de vendas:', error);
       res.status(error.status || 500).json({
         error: error.status ? error.message : 'Erro ao buscar comparativo mensal de vendas',
+        details: error.message,
+      });
+    }
+  });
+
+  app.get('/api/vendas/gestao-metas', async (req, res) => {
+    try {
+      const mes = validarMesQuery(req.query.mes);
+      if (!mes) return res.status(400).json({ error: 'Informe o mês no formato AAAA-MM.' });
+      res.json(await getGestaoMetasMensais(mes));
+    } catch (error: any) {
+      console.error('Erro ao buscar metas mensais de gestão:', error);
+      res.status(error.status || 500).json({
+        error: error.status ? error.message : 'Erro ao buscar metas mensais de gestão',
         details: error.message,
       });
     }

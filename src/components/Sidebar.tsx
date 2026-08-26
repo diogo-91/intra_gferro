@@ -17,7 +17,8 @@ import {
   ClipboardList,
   Cpu,
   ChevronDown,
-  ShieldCheck
+  ShieldCheck,
+  Target
 } from 'lucide-react';
 import { TabType, Department } from '../types';
 import type { ModuloId } from '../modulos';
@@ -81,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'vendas', label: 'Vendas', icon: TrendingUp },
         { id: 'financeiro', label: 'Financeiro', icon: Wallet },
         { id: 'producao', label: 'Produção', icon: Factory },
+        { id: 'gestao', label: 'Gestão', icon: Target },
       ],
     },
   ];

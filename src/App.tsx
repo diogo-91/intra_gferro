@@ -37,6 +37,7 @@ import { NovoComunicadoModal } from './components/NovoComunicadoModal';
 import { NovoChamadoModal } from './components/NovoChamadoModal';
 import { Login } from './components/Login';
 import { GestaoUsuarios } from './components/GestaoUsuarios';
+import { GestaoMetasMensais } from './components/GestaoMetasMensais';
 import { nomeDoEmail } from './utils/format';
 import type { ModuloId } from './modulos';
 
@@ -309,6 +310,8 @@ export default function App() {
           {activeTab === 'financeiro' && <ProgramacaoFinanceira />}
 
           {activeTab === 'producao' && <Producao />}
+
+          {activeTab === 'gestao' && <GestaoMetasMensais />}
 
           {activeTab === 'usuarios' && sessao?.administrador && <GestaoUsuarios />}
           </>}

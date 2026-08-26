@@ -22,7 +22,7 @@
 import type { ContaReceber, ContaPagar, ContaConcluida, DreConta, DreFinanceira, DreLinha, FluxoCaixaMes, ResumoFinanceiro } from './src/types';
 import { aplicarReprogramacoes } from './reprogramacoes';
 import { CLASSIFICACOES_FINANCEIRAS, GRUPOS_CLASSIFICACAO_FINANCEIRA, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
-import { lojaDoVendedor } from './src/data/vendedorLoja';
+import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
 
@@ -822,6 +822,62 @@ function dataEmissaoPedido(data?: string): Date | null {
   const [parteData] = data.split(' ');
   const [dia, mes, ano] = parteData.split('/').map(Number);
   return dia && mes && ano ? new Date(ano, mes - 1, dia) : null;
+}
+
+export interface GestaoMetaLojaMensal {
+  id: string;
+  nome: string;
+  meta: number;
+  totalRealizado: number;
+  realizadoPorDia: Record<string, number>;
+}
+
+export async function getGestaoMetasMensais(mes: string): Promise<{
+  mes: string;
+  lojas: GestaoMetaLojaMensal[];
+  atualizadoEm: string;
+}> {
+  const referencia = parseMesReferencia(mes);
+  if (!referencia) throw Object.assign(new Error('Mês inválido. Use AAAA-MM.'), { status: 400 });
+
+  const [pedidos, vendedores] = await Promise.all([
+    getPedidosDoPeriodo('mes', mes),
+    getVendedores(),
+  ]);
+  const nomeVendedorPorId = new Map(vendedores.map((vendedor) => [
+    vendedor.id,
+    vendedor.nome || `Vendedor #${vendedor.id}`,
+  ]));
+  const lojas = new Map(LOJAS.map((loja) => [loja.id, {
+    id: loja.id,
+    nome: loja.nome,
+    meta: loja.metaVendas ?? 0,
+    totalRealizado: 0,
+    realizadoPorDia: {} as Record<string, number>,
+  }]));
+
+  for (const pedido of pedidos) {
+    if (pedido.idPessoaVendedor == null) continue;
+    const nomeVendedor = nomeVendedorPorId.get(pedido.idPessoaVendedor);
+    const lojaId = nomeVendedor ? lojaDoVendedor(nomeVendedor) : undefined;
+    const loja = lojaId ? lojas.get(lojaId) : undefined;
+    const data = dataEmissaoPedido(pedido.dataEmissao);
+    if (!loja || !data) continue;
+    const chaveDia = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+    const valor = parseNum(pedido.valorTotal);
+    loja.totalRealizado += valor;
+    loja.realizadoPorDia[chaveDia] = (loja.realizadoPorDia[chaveDia] ?? 0) + valor;
+  }
+
+  const atualizadoEm = Math.max(
+    cachePedidosPorPeriodo.get(chavePedidos('mes', mes))?.atualizadoEm ?? 0,
+    cacheVendedores?.atualizadoEm ?? 0
+  );
+  return {
+    mes,
+    lojas: Array.from(lojas.values()),
+    atualizadoEm: new Date(atualizadoEm || Date.now()).toISOString(),
+  };
 }
 
 async function getFinanceiroDosPedidos(
