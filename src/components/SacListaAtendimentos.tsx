@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
+  Sheet,
 } from 'lucide-react';
 import { SacAtendimento, SacStatus, SacTipoAtendimento, SacPrioridade, SacProcedencia, User } from '../types';
 import {
@@ -33,6 +34,7 @@ export type SacAbaDetalhe = 'geral' | 'interacoes' | 'analise' | 'produtos' | 'a
 interface SacListaAtendimentosProps {
   user: User;
   onSelecionarAtendimento: (id: string, abaInicial?: SacAbaDetalhe) => void;
+  onAbrirPlanilha: () => void;
 }
 
 const ITENS_POR_PAGINA = 10;
@@ -47,7 +49,7 @@ function mesmoMesAno(dataIso: string, referencia: Date): boolean {
   return d.getFullYear() === referencia.getFullYear() && d.getMonth() === referencia.getMonth();
 }
 
-export const SacListaAtendimentos: React.FC<SacListaAtendimentosProps> = ({ user, onSelecionarAtendimento }) => {
+export const SacListaAtendimentos: React.FC<SacListaAtendimentosProps> = ({ user, onSelecionarAtendimento, onAbrirPlanilha }) => {
   const [atendimentos, setAtendimentos] = useState<SacAtendimento[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -208,14 +210,24 @@ export const SacListaAtendimentos: React.FC<SacListaAtendimentosProps> = ({ user
             <h1 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">SAC / Pós-Vendas</h1>
             <p className="text-sm text-neutral-500 mt-1">Gerencie atendimentos, reclamações e solicitações de clientes.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setNovoAberto(true)}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-yellow-400 text-black font-extrabold text-xs hover:bg-yellow-300 shadow-sm active:scale-95 transition-all shrink-0"
-          >
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            Novo Atendimento
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onAbrirPlanilha}
+              className="flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-xs font-extrabold text-emerald-800 shadow-sm transition-all hover:border-emerald-400 hover:bg-emerald-100 active:scale-95"
+            >
+              <Sheet className="w-4 h-4" aria-hidden="true" />
+              Planilha SAC
+            </button>
+            <button
+              type="button"
+              onClick={() => setNovoAberto(true)}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-yellow-400 text-black font-extrabold text-xs hover:bg-yellow-300 shadow-sm active:scale-95 transition-all shrink-0"
+            >
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              Novo Atendimento
+            </button>
+          </div>
         </div>
       </div>
 
