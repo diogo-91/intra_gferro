@@ -21,7 +21,7 @@ export interface AtendimentoPlanilhaSac {
   numeroPedido: string;
   statusPedido: string;
   prazoEntrega: string;
-  atendimento: StatusAtendimentoPlanilha;
+  atendimento: StatusAtendimentoPlanilha | null;
   responsavel?: string;
 }
 
@@ -38,6 +38,7 @@ const ARQUIVO_CACHE = path.join(process.cwd(), 'data', 'sac-planilha-cache.json'
 const CACHE_TTL_MS = 45_000;
 
 interface CacheDisco extends DadosPlanilhaSac {
+  versao: 2;
   geradoEm: number;
 }
 
@@ -55,16 +56,17 @@ function normalizar(texto: string): string {
     .toUpperCase();
 }
 
-function statusDaColunaF(valor: string): StatusAtendimentoPlanilha {
+function statusDaColunaF(valor: string): StatusAtendimentoPlanilha | null {
   const status = normalizar(valor);
-  if (!status || status === 'ATENDIMENTO ABERTO') return 'Atendimento aberto';
+  if (!status) return null;
+  if (status === 'ATENDIMENTO ABERTO') return 'Atendimento aberto';
   if (status === 'AGUARDANDO COMPRAS') return 'Aguardando compras';
   if (status === 'AGUARDADO PROGRAMACAO' || status === 'AGUARDANDO PROGRAMACAO') return 'Aguardado programação';
   if (status === 'AGUARDANDO PRODUCAO') return 'Aguardando produção';
   if (status === 'EM ANALISE') return 'Em Analise';
   if (status === 'AGUARDANDO RETORNO') return 'Aguardando retorno';
   if (status === 'RESOLVIDO') return 'Resolvido';
-  return 'Atendimento aberto';
+  return null;
 }
 
 function parseCsv(conteudo: string): string[][] {
@@ -164,7 +166,7 @@ function montarAtendimentos(csv: string): AtendimentoPlanilhaSac[] {
     'Resolvido': 6,
   };
   return atendimentos.sort((a, b) =>
-    pesoStatus[a.atendimento] - pesoStatus[b.atendimento]
+    (a.atendimento === null ? 7 : pesoStatus[a.atendimento]) - (b.atendimento === null ? 7 : pesoStatus[b.atendimento])
     || Number(b.numeroPedido) - Number(a.numeroPedido)
     || b.linha - a.linha
   );
@@ -172,7 +174,9 @@ function montarAtendimentos(csv: string): AtendimentoPlanilhaSac[] {
 
 function criarContadores(atendimentos: AtendimentoPlanilhaSac[]): Record<StatusAtendimentoPlanilha, number> {
   const contadores = Object.fromEntries(STATUS_ATENDIMENTO_PLANILHA.map((status) => [status, 0])) as Record<StatusAtendimentoPlanilha, number>;
-  for (const atendimento of atendimentos) contadores[atendimento.atendimento] += 1;
+  for (const atendimento of atendimentos) {
+    if (atendimento.atendimento !== null) contadores[atendimento.atendimento] += 1;
+  }
   return contadores;
 }
 
@@ -181,7 +185,7 @@ async function carregarCacheDoDisco(): Promise<void> {
   carregamentoCache = readFile(ARQUIVO_CACHE, 'utf-8')
     .then((conteudo) => {
       const salvo = JSON.parse(conteudo) as CacheDisco;
-      if (Array.isArray(salvo?.atendimentos) && salvo.atualizadoEm) cache = salvo;
+      if (salvo?.versao === 2 && Array.isArray(salvo.atendimentos) && salvo.atualizadoEm) cache = salvo;
     })
     .catch(() => undefined)
     .finally(() => {
@@ -208,6 +212,7 @@ async function consultarPlanilha(): Promise<CacheDisco> {
     const atendimentos = montarAtendimentos(await resposta.text());
     const agora = Date.now();
     const novo: CacheDisco = {
+      versao: 2,
       atendimentos,
       contadores: criarContadores(atendimentos),
       atualizadoEm: new Date(agora).toISOString(),

@@ -34,7 +34,7 @@ interface AtendimentoPlanilha {
   numeroPedido: string;
   statusPedido: string;
   prazoEntrega: string;
-  atendimento: StatusPlanilha;
+  atendimento: StatusPlanilha | null;
   responsavel?: string;
 }
 
@@ -49,7 +49,7 @@ interface SacListaPlanilhaProps {
   onAbrirPlanilha: () => void;
 }
 
-const CACHE_LOCAL = 'gferro:sac-planilha:v1';
+const CACHE_LOCAL = 'gferro:sac-planilha:v2';
 const ITENS_POR_PAGINA = 20;
 
 const CONFIG_KPIS = [
@@ -149,7 +149,7 @@ export const SacListaPlanilha: React.FC<SacListaPlanilhaProps> = ({ onAbrirPlani
         atendimento.numeroPedido,
         atendimento.statusPedido,
         atendimento.prazoEntrega,
-        atendimento.atendimento,
+        atendimento.atendimento || 'Não informado',
         atendimento.responsavel || '',
       ].some((valor) => valor.toLocaleLowerCase('pt-BR').includes(alvo));
     });
@@ -289,9 +289,15 @@ export const SacListaPlanilha: React.FC<SacListaPlanilhaProps> = ({ onAbrirPlani
                       <td className="whitespace-nowrap px-4 py-3 font-semibold text-neutral-700">{atendimento.prazoEntrega || '—'}</td>
                       <td className="px-4 py-3 text-neutral-600">{atendimento.responsavel || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-black ${CLASSES_STATUS[atendimento.atendimento]}`}>
-                          {atendimento.atendimento}
-                        </span>
+                        {atendimento.atendimento ? (
+                          <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-black ${CLASSES_STATUS[atendimento.atendimento]}`}>
+                            {atendimento.atendimento}
+                          </span>
+                        ) : (
+                          <span className="inline-flex whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold text-neutral-400">
+                            Não informado
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button type="button" onClick={onAbrirPlanilha} className="inline-flex items-center gap-1.5 font-bold text-yellow-700 hover:text-yellow-900">
