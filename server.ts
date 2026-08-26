@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
+import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getComparativoMensalVendas, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -236,6 +236,19 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao buscar resumo de vendas no Nomus:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
+    }
+  });
+
+  app.get('/api/vendas/comparativo-mensal', async (req, res) => {
+    try {
+      const mes = validarMesQuery(req.query.mes);
+      res.json(await getComparativoMensalVendas(mes));
+    } catch (error: any) {
+      console.error('Erro ao buscar comparativo mensal de vendas:', error);
+      res.status(error.status || 500).json({
+        error: error.status ? error.message : 'Erro ao buscar comparativo mensal de vendas',
+        details: error.message,
+      });
     }
   });
 

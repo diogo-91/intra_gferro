@@ -60,6 +60,20 @@ export interface ResumoVendas {
   atualizadoEm: string;
 }
 
+export interface ComparativoMensalVendasItem {
+  mes: string;
+  rotulo: string;
+  totalVendas: number;
+  totalPedidos: number;
+  vendedoresAtivos: number;
+  ticketMedio: number;
+  valorRecebido: number;
+  valorPendente: number;
+  totalValorParafusos: number;
+  totalFrete: number;
+  financeiroCarregando: boolean;
+}
+
 // ================== Produção (app irmão "GFERO - APONTAMENTO PRODUCAO") ==================
 
 export type StatusCardProducao = 'EM_PRODUCAO' | 'PARADO' | 'AGUARDANDO' | 'CONCLUIDO';

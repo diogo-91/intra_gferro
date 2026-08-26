@@ -191,6 +191,20 @@ export interface ResumoVendas {
   atualizadoEm: string;
 }
 
+export interface ComparativoMensalVendasItem {
+  mes: string;
+  rotulo: string;
+  totalVendas: number;
+  totalPedidos: number;
+  vendedoresAtivos: number;
+  ticketMedio: number;
+  valorRecebido: number;
+  valorPendente: number;
+  totalValorParafusos: number;
+  totalFrete: number;
+  financeiroCarregando: boolean;
+}
+
 function getConfig() {
   const baseUrl = (process.env.NOMUS_BASE_URL || '').replace(/\/+$/, '');
   const apiKey = process.env.NOMUS_API_KEY || '';
@@ -1080,6 +1094,43 @@ export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, m
   const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, false, intervalo);
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
   return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
+}
+
+export async function getComparativoMensalVendas(mesBase?: string): Promise<{ meses: ComparativoMensalVendasItem[]; atualizadoEm: string }> {
+  const hoje = new Date();
+  const base = mesBase && /^\d{4}-\d{2}$/.test(mesBase)
+    ? parseMesReferencia(mesBase)!
+    : new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const referencias = [
+    new Date(base.getFullYear(), base.getMonth() - 1, 1),
+    new Date(base.getFullYear(), base.getMonth(), 1),
+  ];
+  const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  const resumos = await Promise.all(
+    referencias.map(async (referencia) => {
+      const chaveMes = `${referencia.getFullYear()}-${String(referencia.getMonth() + 1).padStart(2, '0')}`;
+      const resumo = await getResumoVendas('mes', chaveMes);
+      return {
+        mes: chaveMes,
+        rotulo: `${nomesMeses[referencia.getMonth()]}/${String(referencia.getFullYear()).slice(-2)}`,
+        totalVendas: resumo.totalVendas,
+        totalPedidos: resumo.totalPedidos,
+        vendedoresAtivos: resumo.vendedoresAtivos,
+        ticketMedio: resumo.totalPedidos > 0 ? resumo.totalVendas / resumo.totalPedidos : 0,
+        valorRecebido: resumo.valorRecebidoPedidos,
+        valorPendente: resumo.valorPendentePedidos,
+        totalValorParafusos: resumo.totalValorParafusos,
+        totalFrete: resumo.totalFrete,
+        financeiroCarregando: resumo.financeiroPedidosCarregando,
+      } satisfies ComparativoMensalVendasItem;
+    })
+  );
+
+  const atualizadoEm = Math.max(...resumos.map((item) =>
+    cachePedidosPorPeriodo.get(`mes:${item.mes}`)?.atualizadoEm ?? 0
+  ));
+  return { meses: resumos, atualizadoEm: new Date(atualizadoEm || Date.now()).toISOString() };
 }
 
 /** Atualização rápida usada pela tela de ranking: não espera produtos, unidades nem financeiro. */

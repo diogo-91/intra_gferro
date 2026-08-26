@@ -6,6 +6,7 @@ import { RankingEmptyState } from './RankingEmptyState';
 import { RankingPodio } from './RankingPodio';
 import { RankingTable } from './RankingTable';
 import { VendasResumo } from './VendasResumo';
+import { ComparativoMensalVendas } from './ComparativoMensalVendas';
 import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
 import { formatCurrency, formatInteiro, formatNomeVendedor } from '../utils/format';
 
@@ -865,6 +866,8 @@ export const VendasDashboard: React.FC = () => {
         erro={resumoErro}
         exibirKpisParafusosFrete
       />
+
+      <ComparativoMensalVendas mesBase={dataFim ? dataFim.slice(0, 7) : mes ?? undefined} />
     </div>
   );
 };
