@@ -1006,6 +1006,10 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
       const inicio = Date.now();
       try {
         const resultado = await atualizarRankingVendas('mes');
+        // Também remonta o snapshot agregado usado pelos KPIs. Quando já há
+        // snapshot salvo, esta chamada devolve-o na hora e continua o cálculo
+        // novo em segundo plano.
+        await getResumoVendas('mes');
         const totalPedidos = resultado.ranking.reduce((soma, vendedor) => soma + vendedor.pedidos, 0);
         console.log(
           `[vendas] cache automático atualizado: ${totalPedidos} pedidos em ${((Date.now() - inicio) / 1000).toFixed(1)}s`
@@ -1017,6 +1021,13 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
         proximoCiclo.unref();
       }
     };
+
+    // Reabre imediatamente o último snapshot persistido em /app/data, antes
+    // mesmo do primeiro ciclo automático do Nomus. Assim o primeiro usuário
+    // após um restart também recebe os KPIs prontos.
+    void getResumoVendas('mes').catch((error) =>
+      console.error('[vendas] não foi possível pré-aquecer o resumo; o cache existente será preservado:', error)
+    );
 
     // Pequeno atraso para não disputar CPU/rede com a inicialização do app.
     const primeiroCiclo = setTimeout(atualizarVendasContinuamente, 10_000);

@@ -119,7 +119,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
   exibirDetalhesProdutos = true,
   exibirKpisParafusosFrete = false,
 }) => {
-  if (loading) {
+  if (loading && !resumo) {
     return (
       <div className="p-10 rounded-3xl bg-white border border-neutral-200 flex flex-col items-center justify-center gap-2 text-neutral-500 text-xs">
         <RefreshCw className="w-5 h-5 animate-spin text-yellow-600" aria-hidden="true" />
@@ -128,7 +128,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
     );
   }
 
-  if (erro) {
+  if (erro && !resumo) {
     return (
       <div className="p-10 rounded-3xl bg-white border border-neutral-200 flex flex-col items-center justify-center gap-2 text-center">
         <AlertTriangle className="w-5 h-5 text-red-600" aria-hidden="true" />

@@ -38,6 +38,50 @@ const salvarRankingLocal = (
   }
 };
 
+const chaveCacheResumoLocal = (
+  escopo: string,
+  periodo: Periodo,
+  mes: string | null,
+  dataInicio: string,
+  dataFim: string
+) => `gferro:resumo-vendas-v2:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+
+const carregarResumoLocal = (
+  escopo: string,
+  periodo: Periodo,
+  mes: string | null,
+  dataInicio: string,
+  dataFim: string
+): ResumoVendas | null => {
+  try {
+    const salvo = localStorage.getItem(chaveCacheResumoLocal(escopo, periodo, mes, dataInicio, dataFim));
+    if (!salvo) return null;
+    const resumo = JSON.parse(salvo) as ResumoVendas;
+    return resumo?.atualizadoEm && Array.isArray(resumo.produtos) ? resumo : null;
+  } catch {
+    return null;
+  }
+};
+
+const salvarResumoLocal = (
+  escopo: string,
+  periodo: Periodo,
+  mes: string | null,
+  dataInicio: string,
+  dataFim: string,
+  resumo: ResumoVendas
+) => {
+  try {
+    localStorage.setItem(
+      chaveCacheResumoLocal(escopo, periodo, mes, dataInicio, dataFim),
+      JSON.stringify(resumo)
+    );
+  } catch {
+    // O cache persistente do servidor continua disponível se o navegador
+    // estiver com o armazenamento local bloqueado ou cheio.
+  }
+};
+
 const formatCurrencyComCentavos = (valor: number) =>
   valor.toLocaleString('pt-BR', {
     style: 'currency',
@@ -131,7 +175,10 @@ export const VendasDashboard: React.FC = () => {
     if (view !== 'painel') return;
 
     let cancelado = false;
-    setResumoLoading(true);
+    const resumoCacheado = carregarResumoLocal('geral', periodo, mes, dataInicio, dataFim);
+    if (resumoCacheado) setResumo(resumoCacheado);
+    else setResumo(null);
+    setResumoLoading(!resumoCacheado);
     setResumoErro(null);
 
     const mesQuery = montarQueryPeriodo(periodo, mes, dataInicio, dataFim);
@@ -144,10 +191,11 @@ export const VendasDashboard: React.FC = () => {
       .then((data) => {
         if (cancelado) return;
         setResumo(data);
+        salvarResumoLocal('geral', periodo, mes, dataInicio, dataFim, data);
       })
       .catch((err) => {
         if (cancelado) return;
-        setResumoErro(err.message || 'Falha ao buscar dados do Nomus');
+        if (!resumoCacheado) setResumoErro(err.message || 'Falha ao buscar dados do Nomus');
       })
       .finally(() => {
         if (!cancelado) setResumoLoading(false);
@@ -162,7 +210,10 @@ export const VendasDashboard: React.FC = () => {
     if (view !== 'loja' || !lojaSelecionada) return;
 
     let cancelado = false;
-    setResumoLojaLoading(true);
+    const resumoCacheado = carregarResumoLocal(`loja:${lojaSelecionada}`, periodo, mes, dataInicio, dataFim);
+    if (resumoCacheado) setResumoLoja(resumoCacheado);
+    else setResumoLoja(null);
+    setResumoLojaLoading(!resumoCacheado);
     setResumoLojaErro(null);
 
     const mesQuery = montarQueryPeriodo(periodo, mes, dataInicio, dataFim);
@@ -175,10 +226,11 @@ export const VendasDashboard: React.FC = () => {
       .then((data) => {
         if (cancelado) return;
         setResumoLoja(data);
+        salvarResumoLocal(`loja:${lojaSelecionada}`, periodo, mes, dataInicio, dataFim, data);
       })
       .catch((err) => {
         if (cancelado) return;
-        setResumoLojaErro(err.message || 'Falha ao buscar dados do Nomus');
+        if (!resumoCacheado) setResumoLojaErro(err.message || 'Falha ao buscar dados do Nomus');
       })
       .finally(() => {
         if (!cancelado) setResumoLojaLoading(false);
@@ -257,6 +309,30 @@ export const VendasDashboard: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [view, periodo, mesQuery, dataInicio, dataFim]);
 
+  // Revalida o resumo silenciosamente. O cache local continua renderizado
+  // durante todo o processo; nenhuma atualização periódica volta a colocar o
+  // painel inteiro no estado "Consultando vendas no Nomus".
+  useEffect(() => {
+    if (view !== 'painel' && view !== 'loja') return;
+    const timer = window.setInterval(async () => {
+      try {
+        const escopo = view === 'loja' && lojaSelecionada ? `loja:${lojaSelecionada}` : 'geral';
+        const url = view === 'loja' && lojaSelecionada
+          ? `/api/vendas/lojas/${lojaSelecionada}/resumo?periodo=${periodo}${mesQuery}`
+          : `/api/vendas/resumo?periodo=${periodo}${mesQuery}`;
+        const resposta = await fetch(url);
+        const dados = await resposta.json();
+        if (!resposta.ok) return;
+        if (view === 'loja') setResumoLoja(dados as ResumoVendas);
+        else setResumo(dados as ResumoVendas);
+        salvarResumoLocal(escopo, periodo, mes, dataInicio, dataFim, dados as ResumoVendas);
+      } catch {
+        // Mantém o último resumo pronto e tenta novamente no próximo ciclo.
+      }
+    }, 20_000);
+    return () => window.clearInterval(timer);
+  }, [view, lojaSelecionada, periodo, mes, mesQuery, dataInicio, dataFim]);
+
   // O financeiro dos pedidos é atualizado separadamente porque a paginação
   // de contas a receber pode levar alguns minutos no Nomus. Enquanto isso,
   // mantém os dados de vendas visíveis e consulta silenciosamente até o novo
@@ -273,15 +349,20 @@ export const VendasDashboard: React.FC = () => {
         const resposta = await fetch(url);
         const dados = await resposta.json();
         if (!resposta.ok) return;
-        if (view === 'loja') setResumoLoja(dados as ResumoVendas);
-        else setResumo(dados as ResumoVendas);
+        if (view === 'loja' && lojaSelecionada) {
+          setResumoLoja(dados as ResumoVendas);
+          salvarResumoLocal(`loja:${lojaSelecionada}`, periodo, mes, dataInicio, dataFim, dados as ResumoVendas);
+        } else {
+          setResumo(dados as ResumoVendas);
+          salvarResumoLocal('geral', periodo, mes, dataInicio, dataFim, dados as ResumoVendas);
+        }
       } catch {
         // A tela continua com o último dado bom; a próxima interação tenta de novo.
       }
     }, 12_000);
 
     return () => window.clearTimeout(timer);
-  }, [view, resumo, resumoLoja, lojaSelecionada, periodo, mesQuery]);
+  }, [view, resumo, resumoLoja, lojaSelecionada, periodo, mes, mesQuery, dataInicio, dataFim]);
 
   const baixarPdf = () => {
     const a = document.createElement('a');
@@ -450,12 +531,14 @@ export const VendasDashboard: React.FC = () => {
       setAtualizadoEm(dados.atualizadoEm);
       salvarRankingLocal(periodo, mes, dataInicio, dataFim, dados);
       setResumo(dados.resumo);
+      salvarResumoLocal('geral', periodo, mes, dataInicio, dataFim, dados.resumo);
 
       if (view === 'loja' && lojaSelecionada) {
         const lojaResposta = await fetch(`/api/vendas/lojas/${lojaSelecionada}/resumo?periodo=${periodo}${mesQuery}`);
         const lojaDados = await lojaResposta.json();
         if (!lojaResposta.ok) throw new Error(lojaDados?.error || 'Falha ao atualizar os dados da loja');
         setResumoLoja(lojaDados);
+        salvarResumoLocal(`loja:${lojaSelecionada}`, periodo, mes, dataInicio, dataFim, lojaDados);
       }
     } catch (err: any) {
       const mensagem = err.message || 'Falha ao atualizar os dados do Nomus';

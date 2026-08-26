@@ -446,6 +446,7 @@ const ARQUIVO_CACHE_VENDEDORES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-vend
 const ARQUIVO_CACHE_UNIDADES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-unidades.json');
 const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-cache-pedidos.json');
 const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-cache-financeiro-pedidos.json');
+const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-cache-resumos.json');
 
 // "dia"/"semana"/"mes" (mês corrente) são períodos RELATIVOS a hoje — um cache
 // salvo ontem (ou na semana/mês passado) mostraria dado errado rotulado como
@@ -603,6 +604,42 @@ function persistirCacheFinanceiroPedidosNoDisco(mapa: Map<string, CacheFinanceir
 
 const cacheFinanceiroPedidosPorPeriodo = carregarCacheFinanceiroPedidosDoDisco();
 const cacheFinanceiroPedidosEmAndamento = new Map<string, Promise<CacheFinanceiroPedidos>>();
+
+interface CacheResumoVendas {
+  geradoEm: number;
+  resumo: ResumoVendas;
+}
+
+function carregarCacheResumosVendasDoDisco(): Map<string, CacheResumoVendas> {
+  try {
+    const objeto = JSON.parse(readFileSync(ARQUIVO_CACHE_RESUMOS_VENDAS, 'utf-8')) as Record<string, CacheResumoVendas>;
+    return new Map(Object.entries(objeto).filter(([, item]) => item?.resumo?.atualizadoEm));
+  } catch {
+    return new Map();
+  }
+}
+
+function persistirCacheResumosVendasNoDisco(mapa: Map<string, CacheResumoVendas>): void {
+  try {
+    mkdirSync(PASTA_CACHE_DISCO, { recursive: true });
+    writeFileSync(ARQUIVO_CACHE_RESUMOS_VENDAS, JSON.stringify(Object.fromEntries(mapa), null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[nomus] falha ao persistir os resumos de vendas:', err);
+  }
+}
+
+const cacheResumosVendas = carregarCacheResumosVendasDoDisco();
+const cacheResumosVendasEmAndamento = new Map<string, Promise<ResumoVendas>>();
+const CACHE_RESUMO_VENDAS_TTL_MS = 15 * 1000;
+
+function invalidarCacheResumosVendasDoPeriodo(chavePeriodo: string): void {
+  for (const chave of cacheResumosVendas.keys()) {
+    if (chave === `geral:${chavePeriodo}` || chave.endsWith(`:${chavePeriodo}`)) {
+      cacheResumosVendas.delete(chave);
+    }
+  }
+  persistirCacheResumosVendasNoDisco(cacheResumosVendas);
+}
 
 function chavePedidos(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): string {
   if (intervalo) return `intervalo:${intervalo.inicio}:${intervalo.fim}`;
@@ -1069,31 +1106,71 @@ async function montarResumoDePedidos(
   };
 }
 
+async function obterResumoVendasCacheado(
+  chave: string,
+  calcular: () => Promise<ResumoVendas>
+): Promise<ResumoVendas> {
+  const cacheado = cacheResumosVendas.get(chave);
+  if (cacheado && Date.now() - cacheado.geradoEm < CACHE_RESUMO_VENDAS_TTL_MS) {
+    return cacheado.resumo;
+  }
+
+  let emAndamento = cacheResumosVendasEmAndamento.get(chave);
+  if (!emAndamento) {
+    emAndamento = calcular()
+      .then((resumo) => {
+        cacheResumosVendas.set(chave, { geradoEm: Date.now(), resumo });
+        persistirCacheResumosVendasNoDisco(cacheResumosVendas);
+        return resumo;
+      })
+      .finally(() => cacheResumosVendasEmAndamento.delete(chave));
+    cacheResumosVendasEmAndamento.set(chave, emAndamento);
+  }
+
+  // Stale-while-revalidate: a resposta pronta nunca desaparece da tela.
+  // A consulta ao Nomus e a remontagem de produtos/financeiro continuam sem
+  // bloquear o usuário e substituem este cache quando terminarem.
+  if (cacheado) {
+    void emAndamento.catch((err) =>
+      console.error(`[nomus] falha ao atualizar resumo ${chave}; mantendo último cache:`, err)
+    );
+    return cacheado.resumo;
+  }
+
+  return emAndamento;
+}
+
 export async function getResumoVendas(periodo: Periodo, mes?: string, aguardarFinanceiro = false, intervalo?: IntervaloVendas): Promise<ResumoVendas> {
-  const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes, intervalo), getUnidadesMedida()]);
-  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, aguardarFinanceiro, intervalo);
-  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
-  return montarResumoDePedidos(pedidos, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
+  const chavePeriodo = chavePedidos(periodo, mes, intervalo);
+  return obterResumoVendasCacheado(`geral:${chavePeriodo}`, async () => {
+    const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes, intervalo), getUnidadesMedida()]);
+    const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, aguardarFinanceiro, intervalo);
+    const atualizadoEm = cachePedidosPorPeriodo.get(chavePeriodo)?.atualizadoEm ?? Date.now();
+    return montarResumoDePedidos(pedidos, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
+  });
 }
 
 // Mesmo resumo de getResumoVendas, mas só com os pedidos dos vendedores
 // vinculados a uma loja (ver src/data/vendedorLoja.ts) — pedido explícito
 // da GFERRO pra ver as vendas de cada unidade separadamente.
 export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, mes?: string, intervalo?: IntervaloVendas): Promise<ResumoVendas> {
-  const [pedidos, unidades, vendedores] = await Promise.all([
-    getPedidosDoPeriodo(periodo, mes, intervalo),
-    getUnidadesMedida(),
-    getVendedores(),
-  ]);
-  const mapaVendedor = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
-  const pedidosDaLoja = pedidos.filter((p) => {
-    if (p.idPessoaVendedor == null) return false;
-    const nome = mapaVendedor.get(p.idPessoaVendedor);
-    return nome != null && lojaDoVendedor(nome) === lojaId;
+  const chavePeriodo = chavePedidos(periodo, mes, intervalo);
+  return obterResumoVendasCacheado(`loja:${lojaId}:${chavePeriodo}`, async () => {
+    const [pedidos, unidades, vendedores] = await Promise.all([
+      getPedidosDoPeriodo(periodo, mes, intervalo),
+      getUnidadesMedida(),
+      getVendedores(),
+    ]);
+    const mapaVendedor = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
+    const pedidosDaLoja = pedidos.filter((p) => {
+      if (p.idPessoaVendedor == null) return false;
+      const nome = mapaVendedor.get(p.idPessoaVendedor);
+      return nome != null && lojaDoVendedor(nome) === lojaId;
+    });
+    const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, false, intervalo);
+    const atualizadoEm = cachePedidosPorPeriodo.get(chavePeriodo)?.atualizadoEm ?? Date.now();
+    return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
   });
-  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, false, intervalo);
-  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
-  return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
 }
 
 export async function getComparativoMensalVendas(mesBase?: string): Promise<{ meses: ComparativoMensalVendasItem[]; atualizadoEm: string }> {
@@ -1174,6 +1251,7 @@ export async function atualizarDadosVendas(periodo: Periodo, mes?: string, inter
 
   cachePedidosPorPeriodo.delete(chave);
   cacheFinanceiroPedidosPorPeriodo.delete(chave);
+  invalidarCacheResumosVendasDoPeriodo(chave);
   cacheVendedores = null;
   cacheUnidades = null;
 
