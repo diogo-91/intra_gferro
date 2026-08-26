@@ -101,6 +101,11 @@ function comFiltroEmpresa(query?: string): string {
 
 export type Periodo = 'dia' | 'semana' | 'mes';
 
+export interface IntervaloVendas {
+  inicio: string; // AAAA-MM-DD
+  fim: string; // AAAA-MM-DD
+}
+
 interface ItemPedido {
   idProduto?: number;
   quantidade?: string | number;
@@ -369,14 +374,19 @@ function parseMesReferencia(mes: string): Date | undefined {
 // limites usam ">"/"<" estritos um dia fora do intervalo pra incluir as bordas.
 // mesReferencia (só usado quando periodo === 'mes') seleciona um mês específico
 // no passado (ex.: Julho) em vez do mês corrente.
-function periodoParaQuery(periodo: Periodo, mesReferencia?: Date): string {
+function periodoParaQuery(periodo: Periodo, mesReferencia?: Date, intervalo?: IntervaloVendas): string {
   const hoje = new Date();
   const hojeInicioDoDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
 
   let inicioDoPeriodo: Date;
   let fimDoPeriodo = hojeInicioDoDia;
 
-  if (periodo === 'dia') {
+  if (intervalo) {
+    const [anoInicio, mesInicio, diaInicio] = intervalo.inicio.split('-').map(Number);
+    const [anoFim, mesFim, diaFim] = intervalo.fim.split('-').map(Number);
+    inicioDoPeriodo = new Date(anoInicio, mesInicio - 1, diaInicio);
+    fimDoPeriodo = new Date(anoFim, mesFim - 1, diaFim);
+  } else if (periodo === 'dia') {
     inicioDoPeriodo = hojeInicioDoDia;
   } else if (periodo === 'semana') {
     inicioDoPeriodo = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - hoje.getDay());
@@ -580,7 +590,8 @@ function persistirCacheFinanceiroPedidosNoDisco(mapa: Map<string, CacheFinanceir
 const cacheFinanceiroPedidosPorPeriodo = carregarCacheFinanceiroPedidosDoDisco();
 const cacheFinanceiroPedidosEmAndamento = new Map<string, Promise<CacheFinanceiroPedidos>>();
 
-function chavePedidos(periodo: Periodo, mes?: string): string {
+function chavePedidos(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): string {
+  if (intervalo) return `intervalo:${intervalo.inicio}:${intervalo.fim}`;
   if (periodo !== 'mes') return periodo;
 
   // O mês corrente chegava por dois caminhos diferentes:
@@ -722,8 +733,8 @@ function periodoEhFechado(chave: string): boolean {
   return chave.slice(4) < mesAtual;
 }
 
-async function getPedidosDoPeriodo(periodo: Periodo, mes?: string): Promise<Pedido[]> {
-  const chave = chavePedidos(periodo, mes);
+async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<Pedido[]> {
+  const chave = chavePedidos(periodo, mes, intervalo);
   const agora = Date.now();
   const cacheado = cachePedidosPorPeriodo.get(chave);
   if (cacheado && (periodoEhFechado(chave) || agora - cacheado.atualizadoEm < CACHE_TTL_MS)) {
@@ -737,7 +748,7 @@ async function getPedidosDoPeriodo(periodo: Periodo, mes?: string): Promise<Pedi
       throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
     }
     const mesReferencia = periodo === 'mes' && mes ? parseMesReferencia(mes) : undefined;
-    const query = periodoParaQuery(periodo, mesReferencia);
+    const query = periodoParaQuery(periodo, mesReferencia, intervalo);
     emAndamento = coletarTudo<Pedido>('pedidos', baseUrl, apiKey, query)
       .then((pedidos) => {
         const novo = { atualizadoEm: Date.now(), pedidos };
@@ -766,10 +777,11 @@ async function getFinanceiroDosPedidos(
   periodo: Periodo,
   mes: string | undefined,
   pedidos: Pedido[],
-  aguardarPrimeiraConsulta = false
+  aguardarPrimeiraConsulta = false,
+  intervalo?: IntervaloVendas
 ): Promise<{ contas: FinanceiroPedidoRaw[]; carregando: boolean }> {
   if (pedidos.length === 0) return { contas: [], carregando: false };
-  const chave = chavePedidos(periodo, mes);
+  const chave = chavePedidos(periodo, mes, intervalo);
   const agora = Date.now();
   const cacheado = cacheFinanceiroPedidosPorPeriodo.get(chave);
   if (cacheado && agora - cacheado.atualizadoEm < CACHE_TTL_MS) {
@@ -832,13 +844,14 @@ function calcularRecebimentoDosPedidos(pedidos: Pedido[], contas: FinanceiroPedi
 
 export async function getRankingVendedores(
   periodo: Periodo,
-  mes?: string
+  mes?: string,
+  intervalo?: IntervaloVendas
 ): Promise<{ ranking: VendedorRanking[]; atualizadoEm: string }> {
-  const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes)]);
+  const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes, intervalo)]);
   // O financeiro segue o mesmo padrão stale-while-revalidate: usa o último
   // cache disponível imediatamente e atualiza contas a receber em segundo
   // plano, sem segurar a renderização do ranking.
-  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos);
+  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, false, intervalo);
   const mapaVendedor = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
 
   const grupos = new Map<string, Pedido[]>();
@@ -907,7 +920,7 @@ export async function getRankingVendedores(
 
   const atualizadoEm = Math.max(
     cacheVendedores?.atualizadoEm ?? 0,
-    cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now()
+    cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now()
   );
 
   return { ranking, atualizadoEm: new Date(atualizadoEm).toISOString() };
@@ -916,10 +929,11 @@ export async function getRankingVendedores(
 export async function getPedidosDoVendedor(
   periodo: Periodo,
   nomeVendedor: string,
-  mes?: string
+  mes?: string,
+  intervalo?: IntervaloVendas
 ): Promise<{ pedidos: PedidoVendedorDetalhe[]; atualizadoEm: string }> {
-  const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes)]);
-  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos);
+  const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes, intervalo)]);
+  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, false, intervalo);
   const idsVendedor = new Set(
     vendedores
       .filter((vendedor) => (vendedor.nome || `Vendedor #${vendedor.id}`) === nomeVendedor)
@@ -964,7 +978,7 @@ export async function getPedidosDoVendedor(
     })
     .sort((a, b) => (dataEmissaoPedido(b.dataEmissao)?.getTime() ?? 0) - (dataEmissaoPedido(a.dataEmissao)?.getTime() ?? 0));
 
-  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
+  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
   return { pedidos: detalhes, atualizadoEm: new Date(atualizadoEm).toISOString() };
 }
 
@@ -1041,19 +1055,19 @@ async function montarResumoDePedidos(
   };
 }
 
-export async function getResumoVendas(periodo: Periodo, mes?: string, aguardarFinanceiro = false): Promise<ResumoVendas> {
-  const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes), getUnidadesMedida()]);
-  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, aguardarFinanceiro);
-  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
+export async function getResumoVendas(periodo: Periodo, mes?: string, aguardarFinanceiro = false, intervalo?: IntervaloVendas): Promise<ResumoVendas> {
+  const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes, intervalo), getUnidadesMedida()]);
+  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, aguardarFinanceiro, intervalo);
+  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
   return montarResumoDePedidos(pedidos, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
 }
 
 // Mesmo resumo de getResumoVendas, mas só com os pedidos dos vendedores
 // vinculados a uma loja (ver src/data/vendedorLoja.ts) — pedido explícito
 // da GFERRO pra ver as vendas de cada unidade separadamente.
-export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, mes?: string): Promise<ResumoVendas> {
+export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, mes?: string, intervalo?: IntervaloVendas): Promise<ResumoVendas> {
   const [pedidos, unidades, vendedores] = await Promise.all([
-    getPedidosDoPeriodo(periodo, mes),
+    getPedidosDoPeriodo(periodo, mes, intervalo),
     getUnidadesMedida(),
     getVendedores(),
   ]);
@@ -1063,17 +1077,18 @@ export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, m
     const nome = mapaVendedor.get(p.idPessoaVendedor);
     return nome != null && lojaDoVendedor(nome) === lojaId;
   });
-  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos);
-  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes))?.atualizadoEm ?? Date.now();
+  const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, false, intervalo);
+  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
   return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
 }
 
 /** Atualização rápida usada pela tela de ranking: não espera produtos, unidades nem financeiro. */
 export async function atualizarRankingVendas(
   periodo: Periodo,
-  mes?: string
+  mes?: string,
+  intervalo?: IntervaloVendas
 ): Promise<{ ranking: VendedorRanking[]; atualizadoEm: string }> {
-  const chave = chavePedidos(periodo, mes);
+  const chave = chavePedidos(periodo, mes, intervalo);
   const atualizacoesEmAndamento: Promise<unknown>[] = [];
   const pedidosEmAndamento = cachePedidosEmAndamento.get(chave);
   if (pedidosEmAndamento) atualizacoesEmAndamento.push(pedidosEmAndamento);
@@ -1082,7 +1097,7 @@ export async function atualizarRankingVendas(
 
   cachePedidosPorPeriodo.delete(chave);
   cacheVendedores = null;
-  return getRankingVendedores(periodo, mes);
+  return getRankingVendedores(periodo, mes, intervalo);
 }
 
 /**
@@ -1090,12 +1105,12 @@ export async function atualizarRankingVendas(
  * novamente os dados no Nomus. Diferentemente de recarregar a página, esta
  * operação ignora o TTL e também funciona para meses já encerrados.
  */
-export async function atualizarDadosVendas(periodo: Periodo, mes?: string): Promise<{
+export async function atualizarDadosVendas(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<{
   ranking: VendedorRanking[];
   resumo: ResumoVendas;
   atualizadoEm: string;
 }> {
-  const chave = chavePedidos(periodo, mes);
+  const chave = chavePedidos(periodo, mes, intervalo);
 
   // Se já houver uma consulta antiga em andamento, deixe-a terminar antes de
   // iniciar a atualização forçada para não reaproveitar aquela Promise.
@@ -1112,8 +1127,8 @@ export async function atualizarDadosVendas(periodo: Periodo, mes?: string): Prom
   cacheUnidades = null;
 
   const [{ ranking, atualizadoEm }, resumo] = await Promise.all([
-    getRankingVendedores(periodo, mes),
-    getResumoVendas(periodo, mes, true),
+    getRankingVendedores(periodo, mes, intervalo),
+    getResumoVendas(periodo, mes, true, intervalo),
   ]);
 
   return { ranking, resumo, atualizadoEm };

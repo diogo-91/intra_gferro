@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store, Building2, Wallet, Users, Package, Clock3, X, ShoppingBag } from 'lucide-react';
 import { VendedorRanking, ResumoVendas, PedidoVendedorDetalhe } from '../types';
-import { RankingFilters, Periodo, periodos, SeletorMesEspecifico } from './RankingFilters';
+import { RankingFilters, Periodo, periodos, SeletorMesEspecifico, SeletorIntervaloDatas } from './RankingFilters';
 import { RankingEmptyState } from './RankingEmptyState';
 import { RankingPodio } from './RankingPodio';
 import { RankingTable } from './RankingTable';
@@ -11,16 +11,26 @@ import { formatCurrency, formatInteiro, formatNomeVendedor } from '../utils/form
 
 type VendasView = 'painel' | 'ranking' | 'loja';
 
-const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null) =>
-  `gferro:ranking-v2:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}`;
+const montarQueryPeriodo = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) => {
+  const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
+  const intervaloQuery = dataInicio && dataFim
+    ? `&inicio=${encodeURIComponent(dataInicio)}&fim=${encodeURIComponent(dataFim)}`
+    : '';
+  return `${mesQuery}${intervaloQuery}`;
+};
+
+const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) =>
+  `gferro:ranking-v3:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const salvarRankingLocal = (
   periodo: Periodo,
   mes: string | null,
+  dataInicio: string,
+  dataFim: string,
   dados: { ranking: VendedorRanking[]; atualizadoEm: string }
 ) => {
   try {
-    localStorage.setItem(chaveCacheRankingLocal(periodo, mes), JSON.stringify(dados));
+    localStorage.setItem(chaveCacheRankingLocal(periodo, mes, dataInicio, dataFim), JSON.stringify(dados));
   } catch {
     // O cache do servidor continua sendo a fonte principal quando o navegador
     // bloqueia localStorage (modo privado/política corporativa).
@@ -40,6 +50,8 @@ export const VendasDashboard: React.FC = () => {
   const [periodo, setPeriodo] = useState<Periodo>('mes');
   // Só é usado quando periodo === 'mes'; null = mês corrente.
   const [mes, setMes] = useState<string | null>(null);
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
   const [busca, setBusca] = useState('');
   const [somenteComPedidos, setSomenteComPedidos] = useState(false);
   const [lojaSelecionada, setLojaSelecionada] = useState<string | null>(null);
@@ -70,7 +82,7 @@ export const VendasDashboard: React.FC = () => {
     let cancelado = false;
     let possuiCacheLocal = false;
     try {
-      const salvo = localStorage.getItem(chaveCacheRankingLocal(periodo, mes));
+      const salvo = localStorage.getItem(chaveCacheRankingLocal(periodo, mes, dataInicio, dataFim));
       if (salvo) {
         const cache = JSON.parse(salvo) as { ranking?: VendedorRanking[]; atualizadoEm?: string };
         if (Array.isArray(cache.ranking) && cache.atualizadoEm) {
@@ -86,7 +98,7 @@ export const VendasDashboard: React.FC = () => {
     setLoading(!possuiCacheLocal);
     setErro(null);
 
-    const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
+    const mesQuery = montarQueryPeriodo(periodo, mes, dataInicio, dataFim);
     fetch(`/api/vendas/ranking?periodo=${periodo}${mesQuery}`)
       .then(async (res) => {
         const data = await res.json();
@@ -97,7 +109,7 @@ export const VendasDashboard: React.FC = () => {
         if (cancelado) return;
         setRanking(data.ranking);
         setAtualizadoEm(data.atualizadoEm);
-        salvarRankingLocal(periodo, mes, data);
+        salvarRankingLocal(periodo, mes, dataInicio, dataFim, data);
       })
       .catch((err) => {
         if (cancelado) return;
@@ -112,7 +124,7 @@ export const VendasDashboard: React.FC = () => {
     return () => {
       cancelado = true;
     };
-  }, [view, periodo, mes]);
+  }, [view, periodo, mes, dataInicio, dataFim]);
 
   useEffect(() => {
     if (view !== 'painel') return;
@@ -121,7 +133,7 @@ export const VendasDashboard: React.FC = () => {
     setResumoLoading(true);
     setResumoErro(null);
 
-    const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
+    const mesQuery = montarQueryPeriodo(periodo, mes, dataInicio, dataFim);
     fetch(`/api/vendas/resumo?periodo=${periodo}${mesQuery}`)
       .then(async (res) => {
         const data = await res.json();
@@ -143,7 +155,7 @@ export const VendasDashboard: React.FC = () => {
     return () => {
       cancelado = true;
     };
-  }, [view, periodo, mes]);
+  }, [view, periodo, mes, dataInicio, dataFim]);
 
   useEffect(() => {
     if (view !== 'loja' || !lojaSelecionada) return;
@@ -152,7 +164,7 @@ export const VendasDashboard: React.FC = () => {
     setResumoLojaLoading(true);
     setResumoLojaErro(null);
 
-    const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
+    const mesQuery = montarQueryPeriodo(periodo, mes, dataInicio, dataFim);
     fetch(`/api/vendas/lojas/${lojaSelecionada}/resumo?periodo=${periodo}${mesQuery}`)
       .then(async (res) => {
         const data = await res.json();
@@ -174,7 +186,7 @@ export const VendasDashboard: React.FC = () => {
     return () => {
       cancelado = true;
     };
-  }, [view, lojaSelecionada, periodo, mes]);
+  }, [view, lojaSelecionada, periodo, mes, dataInicio, dataFim]);
 
   // No geral, a posição é corporativa. Dentro de uma loja, a posição é
   // recalculada somente entre os vendedores daquela unidade. Busca e checkbox
@@ -222,7 +234,7 @@ export const VendasDashboard: React.FC = () => {
 
   // Arquivo de verdade gerado no servidor (não é window.print()) — mesmo
   // período já carregado na tela.
-  const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
+  const mesQuery = montarQueryPeriodo(periodo, mes, dataInicio, dataFim);
 
   // O primeiro GET pode devolver o último cache enquanto o Nomus atualiza em
   // segundo plano. Esta consulta silenciosa reaplica o resultado novo sem
@@ -236,13 +248,13 @@ export const VendasDashboard: React.FC = () => {
         if (!resposta.ok) return;
         setRanking(dados.ranking);
         setAtualizadoEm(dados.atualizadoEm);
-        salvarRankingLocal(periodo, mes, dados);
+        salvarRankingLocal(periodo, mes, dataInicio, dataFim, dados);
       } catch {
         // Preserva o último ranking bom e tenta novamente no próximo ciclo.
       }
     }, 20_000);
     return () => window.clearInterval(timer);
-  }, [view, periodo, mesQuery]);
+  }, [view, periodo, mesQuery, dataInicio, dataFim]);
 
   // O financeiro dos pedidos é atualizado separadamente porque a paginação
   // de contas a receber pode levar alguns minutos no Nomus. Enquanto isso,
@@ -425,7 +437,7 @@ export const VendasDashboard: React.FC = () => {
         if (!resposta.ok) throw new Error(dados?.error || 'Falha ao atualizar o ranking no Nomus');
         setRanking(dados.ranking);
         setAtualizadoEm(dados.atualizadoEm);
-        salvarRankingLocal(periodo, mes, dados);
+        salvarRankingLocal(periodo, mes, dataInicio, dataFim, dados);
         return;
       }
 
@@ -435,7 +447,7 @@ export const VendasDashboard: React.FC = () => {
 
       setRanking(dados.ranking);
       setAtualizadoEm(dados.atualizadoEm);
-      salvarRankingLocal(periodo, mes, dados);
+      salvarRankingLocal(periodo, mes, dataInicio, dataFim, dados);
       setResumo(dados.resumo);
 
       if (view === 'loja' && lojaSelecionada) {
@@ -601,6 +613,10 @@ export const VendasDashboard: React.FC = () => {
             setBusca={setBusca}
             somenteComPedidos={somenteComPedidos}
             setSomenteComPedidos={setSomenteComPedidos}
+            dataInicio={dataInicio}
+            dataFim={dataFim}
+            setDataInicio={setDataInicio}
+            setDataFim={setDataFim}
           />
 
           {loading && (
@@ -676,7 +692,11 @@ export const VendasDashboard: React.FC = () => {
                   key={p.id}
                   type="button"
                   aria-pressed={selecionado}
-                  onClick={() => setPeriodo(p.id)}
+                  onClick={() => {
+                    setPeriodo(p.id);
+                    setDataInicio('');
+                    setDataFim('');
+                  }}
                   className={`px-3.5 py-1.5 rounded-full text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
                     selecionado ? 'bg-yellow-400 text-black font-bold' : 'text-neutral-500 font-medium hover:text-neutral-900'
                   }`}
@@ -689,6 +709,12 @@ export const VendasDashboard: React.FC = () => {
           </div>
 
           <SeletorMesEspecifico periodo={periodo} mes={mes} setMes={setMes} />
+          <SeletorIntervaloDatas
+            dataInicio={dataInicio}
+            dataFim={dataFim}
+            setDataInicio={setDataInicio}
+            setDataFim={setDataFim}
+          />
         </div>
 
         <VendasResumo
@@ -789,7 +815,11 @@ export const VendasDashboard: React.FC = () => {
                   key={p.id}
                   type="button"
                   aria-pressed={selecionado}
-                  onClick={() => setPeriodo(p.id)}
+                  onClick={() => {
+                    setPeriodo(p.id);
+                    setDataInicio('');
+                    setDataFim('');
+                  }}
                   className={`px-3.5 py-1.5 rounded-full text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
                     selecionado ? 'bg-yellow-400 text-black font-bold' : 'text-neutral-500 font-medium hover:text-neutral-900'
                   }`}
@@ -802,6 +832,12 @@ export const VendasDashboard: React.FC = () => {
           </div>
 
           <SeletorMesEspecifico periodo={periodo} mes={mes} setMes={setMes} />
+          <SeletorIntervaloDatas
+            dataInicio={dataInicio}
+            dataFim={dataFim}
+            setDataInicio={setDataInicio}
+            setDataFim={setDataFim}
+          />
         </div>
 
         <div className="flex items-center gap-3">
@@ -823,7 +859,12 @@ export const VendasDashboard: React.FC = () => {
         </div>
       </div>
 
-      <VendasResumo resumo={resumo} loading={resumoLoading} erro={resumoErro} />
+      <VendasResumo
+        resumo={resumo}
+        loading={resumoLoading}
+        erro={resumoErro}
+        exibirKpisParafusosFrete
+      />
     </div>
   );
 };

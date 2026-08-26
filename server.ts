@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, getDreFinanceira, Periodo } from './nomus';
+import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -50,7 +50,13 @@ const NOMES_MES_COMPLETO = [
 
 // Quando um mês específico é selecionado (periodo=mes&mes=AAAA-MM), o rótulo do
 // PDF mostra o mês escolhido (ex.: "Julho de 2026") em vez do genérico "Este mês".
-function rotuloPeriodo(periodo: Periodo, mes?: string): string {
+function rotuloPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): string {
+  if (intervalo) {
+    const paraBr = (data: string) => data.split('-').reverse().join('/');
+    return intervalo.inicio === intervalo.fim
+      ? paraBr(intervalo.inicio)
+      : `${paraBr(intervalo.inicio)} a ${paraBr(intervalo.fim)}`;
+  }
   if (periodo === 'mes' && mes) {
     const [anoStr, mesStr] = mes.split('-');
     const mesIndex = Number(mesStr) - 1;
@@ -74,6 +80,19 @@ function validarMesQuery(mes: unknown): string | undefined {
     throw Object.assign(new Error('mes inválido (use o formato AAAA-MM)'), { status: 400 });
   }
   return mes;
+}
+
+function validarIntervaloVendas(inicio: unknown, fim: unknown): IntervaloVendas | undefined {
+  if (inicio === undefined && fim === undefined) return undefined;
+  if (typeof inicio !== 'string' || typeof fim !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(inicio) || !/^\d{4}-\d{2}-\d{2}$/.test(fim)) {
+    throw Object.assign(new Error('intervalo inválido (informe início e fim no formato AAAA-MM-DD)'), { status: 400 });
+  }
+  const dataInicio = new Date(`${inicio}T00:00:00`);
+  const dataFim = new Date(`${fim}T00:00:00`);
+  if (Number.isNaN(dataInicio.getTime()) || Number.isNaN(dataFim.getTime()) || dataInicio > dataFim) {
+    throw Object.assign(new Error('intervalo inválido (a data inicial deve ser anterior ou igual à final)'), { status: 400 });
+  }
+  return { inicio, fim };
 }
 
 dotenv.config();
@@ -195,7 +214,8 @@ Contexto da GFERRO:
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
-      const resultado = await getRankingVendedores(periodo as Periodo, mes);
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      const resultado = await getRankingVendedores(periodo as Periodo, mes, intervalo);
       res.json(resultado);
     } catch (error: any) {
       console.error('Erro ao buscar ranking de vendedores no Nomus:', error);
@@ -210,7 +230,8 @@ Contexto da GFERRO:
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
-      const resultado = await getResumoVendas(periodo as Periodo, mes);
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      const resultado = await getResumoVendas(periodo as Periodo, mes, false, intervalo);
       res.json(resultado);
     } catch (error: any) {
       console.error('Erro ao buscar resumo de vendas no Nomus:', error);
@@ -227,7 +248,8 @@ Contexto da GFERRO:
       const nome = typeof req.query.nome === 'string' ? req.query.nome.trim() : '';
       if (!nome) return res.status(400).json({ error: 'Informe o vendedor.' });
       const mes = validarMesQuery(req.query.mes);
-      res.json(await getPedidosDoVendedor(periodo as Periodo, nome, mes));
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      res.json(await getPedidosDoVendedor(periodo as Periodo, nome, mes, intervalo));
     } catch (error: any) {
       console.error('Erro ao buscar pedidos do vendedor no Nomus:', error);
       res.status(error.status || 500).json({
@@ -244,7 +266,8 @@ Contexto da GFERRO:
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
-      res.json(await atualizarDadosVendas(periodo as Periodo, mes));
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      res.json(await atualizarDadosVendas(periodo as Periodo, mes, intervalo));
     } catch (error: any) {
       console.error('Erro ao forçar atualização das vendas no Nomus:', error);
       res.status(error.status || 500).json({
@@ -261,7 +284,8 @@ Contexto da GFERRO:
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
-      res.json(await atualizarRankingVendas(periodo as Periodo, mes));
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      res.json(await atualizarRankingVendas(periodo as Periodo, mes, intervalo));
     } catch (error: any) {
       console.error('Erro ao atualizar ranking de vendedores no Nomus:', error);
       res.status(error.status || 500).json({
@@ -282,7 +306,8 @@ Contexto da GFERRO:
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
-      const resultado = await getResumoVendasPorLoja(periodo as Periodo, lojaId, mes);
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      const resultado = await getResumoVendasPorLoja(periodo as Periodo, lojaId, mes, intervalo);
       res.json(resultado);
     } catch (error: any) {
       console.error('Erro ao buscar resumo de vendas por loja no Nomus:', error);
@@ -297,14 +322,15 @@ Contexto da GFERRO:
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
-      const { ranking, atualizadoEm } = await getRankingVendedores(periodo as Periodo, mes);
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      const { ranking, atualizadoEm } = await getRankingVendedores(periodo as Periodo, mes, intervalo);
 
       const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="ranking-vendedores-${mes || periodo}.pdf"`);
       doc.pipe(res);
       gerarPdfRankingVendedores(doc, {
-        periodoRotulo: rotuloPeriodo(periodo as Periodo, mes),
+        periodoRotulo: rotuloPeriodo(periodo as Periodo, mes, intervalo),
         // Mesma regra da tela: o ranking geral representa a empresa inteira,
         // inclusive vendedores ainda sem unidade cadastrada.
         ranking,
@@ -367,14 +393,15 @@ Contexto da GFERRO:
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
-      const resumo = await getResumoVendas(periodo as Periodo, mes);
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      const resumo = await getResumoVendas(periodo as Periodo, mes, false, intervalo);
 
       const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="painel-vendas-${mes || periodo}.pdf"`);
       doc.pipe(res);
       gerarPdfResumoVendas(doc, {
-        periodoRotulo: rotuloPeriodo(periodo as Periodo, mes),
+        periodoRotulo: rotuloPeriodo(periodo as Periodo, mes, intervalo),
         resumo,
         atualizadoEm: new Date(resumo.atualizadoEm).toLocaleString('pt-BR'),
       });

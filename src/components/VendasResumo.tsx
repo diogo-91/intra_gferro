@@ -147,42 +147,42 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 flex flex-col gap-1.5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-8">
+        <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-xs text-emerald-700/80 font-medium">
             <Wallet className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
             Total de Vendas
           </span>
-          <span className="text-xl font-black text-emerald-900 tabular-nums">{formatCurrency(resumo.totalVendas)}</span>
+          <span className="text-lg font-black text-emerald-900 tabular-nums">{formatCurrency(resumo.totalVendas)}</span>
         </div>
 
-        <div className="rounded-2xl bg-violet-50 border border-violet-100 p-4 flex flex-col gap-1.5">
+        <div className="rounded-xl bg-violet-50 border border-violet-100 p-3 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-xs text-violet-700/80 font-medium">
             <Package className="w-3.5 h-3.5 text-violet-600" aria-hidden="true" />
             Pedidos
           </span>
-          <span className="text-xl font-black text-violet-900 tabular-nums">{formatInteiro(resumo.totalPedidos)}</span>
+          <span className="text-lg font-black text-violet-900 tabular-nums">{formatInteiro(resumo.totalPedidos)}</span>
         </div>
 
-        <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4 flex flex-col gap-1.5">
+        <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-xs text-amber-700/80 font-medium">
             <Users className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
             Vendedores Ativos
           </span>
-          <span className="text-xl font-black text-amber-900 tabular-nums">{formatInteiro(resumo.vendedoresAtivos)}</span>
+          <span className="text-lg font-black text-amber-900 tabular-nums">{formatInteiro(resumo.vendedoresAtivos)}</span>
         </div>
 
-        <div className="rounded-2xl bg-rose-50 border border-rose-100 p-4 flex flex-col gap-1.5">
+        <div className="rounded-xl bg-rose-50 border border-rose-100 p-3 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-xs text-rose-700/80 font-medium">
             <Receipt className="w-3.5 h-3.5 text-rose-600" aria-hidden="true" />
             Ticket Médio
           </span>
-          <span className="text-xl font-black text-rose-900 tabular-nums" title="Total de vendas ÷ número de pedidos do período">
+          <span className="text-lg font-black text-rose-900 tabular-nums" title="Total de vendas ÷ número de pedidos do período">
             {formatCurrency(ticketMedio)}
           </span>
         </div>
 
-        <div className="rounded-2xl bg-teal-50 border border-teal-100 p-4 flex flex-col gap-1.5">
+        <div className="rounded-xl bg-teal-50 border border-teal-100 p-3 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-xs text-teal-700/80 font-medium">
             <CircleDollarSign className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
             Recebido dos Pedidos
@@ -190,7 +190,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
               <RefreshCw className="h-3 w-3 animate-spin" aria-label="Atualizando em segundo plano" />
             )}
           </span>
-          <span className="text-xl font-black text-teal-900 tabular-nums" title="Valor já recebido das contas vinculadas aos pedidos do período">
+          <span className="text-lg font-black text-teal-900 tabular-nums" title="Valor já recebido das contas vinculadas aos pedidos do período">
             {formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
           </span>
           {resumo.financeiroPedidosCarregando && (
@@ -198,7 +198,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
           )}
         </div>
 
-        <div className="rounded-2xl bg-orange-50 border border-orange-100 p-4 flex flex-col gap-1.5">
+        <div className="rounded-xl bg-orange-50 border border-orange-100 p-3 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-xs text-orange-700/80 font-medium">
             <Hourglass className="w-3.5 h-3.5 text-orange-600" aria-hidden="true" />
             Falta Receber
@@ -206,7 +206,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
               <RefreshCw className="h-3 w-3 animate-spin" aria-label="Atualizando em segundo plano" />
             )}
           </span>
-          <span className="text-xl font-black text-orange-900 tabular-nums" title="Total dos pedidos menos os valores já recebidos">
+          <span className="text-lg font-black text-orange-900 tabular-nums" title="Total dos pedidos menos os valores já recebidos">
             {formatCurrency(resumo.valorPendentePedidos ?? resumo.totalVendas)}
           </span>
           {resumo.financeiroPedidosCarregando && (
@@ -216,22 +216,22 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
 
         {exibirKpisParafusosFrete && (
           <>
-            <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col gap-1.5">
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex flex-col gap-1">
               <span className="flex items-center gap-1.5 text-xs text-amber-700/80 font-medium">
                 <Nut className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
                 Total em Parafusos
               </span>
-              <span className="text-xl font-black text-amber-900 tabular-nums">
+              <span className="text-lg font-black text-amber-900 tabular-nums">
                 {formatCurrency(resumo.totalValorParafusos ?? 0)}
               </span>
             </div>
 
-            <div className="rounded-2xl bg-cyan-50 border border-cyan-200 p-4 flex flex-col gap-1.5">
+            <div className="rounded-xl bg-cyan-50 border border-cyan-200 p-3 flex flex-col gap-1">
               <span className="flex items-center gap-1.5 text-xs text-cyan-700/80 font-medium">
                 <Truck className="w-3.5 h-3.5 text-cyan-600" aria-hidden="true" />
                 Total Fretes e Outros
               </span>
-              <span className="text-xl font-black text-cyan-900 tabular-nums">
+              <span className="text-lg font-black text-cyan-900 tabular-nums">
                 {formatCurrency(resumo.totalFrete ?? 0)}
               </span>
             </div>
@@ -239,12 +239,12 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
         )}
 
         {metaVendas !== undefined && (
-          <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-4 flex flex-col gap-1.5">
+          <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-3 flex flex-col gap-1">
             <span className="flex items-center gap-1.5 text-xs text-yellow-800/80 font-medium">
               <Target className="w-3.5 h-3.5 text-yellow-600" aria-hidden="true" />
               Meta Mensal
             </span>
-            <span className="text-xl font-black text-yellow-900 tabular-nums">{formatCurrency(metaVendas)}</span>
+            <span className="text-lg font-black text-yellow-900 tabular-nums">{formatCurrency(metaVendas)}</span>
             {exibirProgressoMeta && (
               <>
                 <div className="h-1.5 rounded-full bg-yellow-100 overflow-hidden" aria-hidden="true">

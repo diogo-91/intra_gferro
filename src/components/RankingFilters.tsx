@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown, CalendarDays, X } from 'lucide-react';
 
 export type Periodo = 'dia' | 'semana' | 'mes';
 
@@ -61,6 +61,68 @@ export const SeletorMesEspecifico: React.FC<SeletorMesEspecificoProps> = ({ peri
   );
 };
 
+interface SeletorIntervaloDatasProps {
+  dataInicio: string;
+  dataFim: string;
+  setDataInicio: (data: string) => void;
+  setDataFim: (data: string) => void;
+}
+
+export const SeletorIntervaloDatas: React.FC<SeletorIntervaloDatasProps> = ({
+  dataInicio,
+  dataFim,
+  setDataInicio,
+  setDataFim,
+}) => {
+  const ativo = !!dataInicio && !!dataFim;
+  return (
+    <div className={`flex flex-wrap items-center gap-1.5 rounded-xl border bg-white p-1 shadow-sm ${ativo ? 'border-yellow-400' : 'border-neutral-200'}`}>
+      <CalendarDays className="ml-1.5 h-3.5 w-3.5 text-yellow-600" aria-hidden="true" />
+      <label className="flex items-center gap-1 text-[10px] font-bold text-neutral-500">
+        De
+        <input
+          type="date"
+          value={dataInicio}
+          onChange={(event) => {
+            const valor = event.target.value;
+            setDataInicio(valor);
+            if (valor && (!dataFim || dataFim < valor)) setDataFim(valor);
+          }}
+          className="rounded-lg border-0 bg-neutral-50 px-2 py-1.5 text-[11px] font-bold text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+        />
+      </label>
+      <label className="flex items-center gap-1 text-[10px] font-bold text-neutral-500">
+        Até
+        <input
+          type="date"
+          value={dataFim}
+          min={dataInicio || undefined}
+          onChange={(event) => {
+            const valor = event.target.value;
+            setDataFim(valor);
+            if (valor && (!dataInicio || dataInicio > valor)) setDataInicio(valor);
+          }}
+          className="rounded-lg border-0 bg-neutral-50 px-2 py-1.5 text-[11px] font-bold text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+        />
+      </label>
+      {(dataInicio || dataFim) && (
+        <button
+          type="button"
+          onClick={() => {
+            setDataInicio('');
+            setDataFim('');
+          }}
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+          aria-label="Limpar intervalo personalizado"
+          title="Limpar intervalo"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+};
+
 interface RankingFiltersProps {
   periodo: Periodo;
   setPeriodo: (periodo: Periodo) => void;
@@ -70,6 +132,10 @@ interface RankingFiltersProps {
   setBusca: (busca: string) => void;
   somenteComPedidos: boolean;
   setSomenteComPedidos: (valor: boolean) => void;
+  dataInicio: string;
+  dataFim: string;
+  setDataInicio: (data: string) => void;
+  setDataFim: (data: string) => void;
 }
 
 export const RankingFilters: React.FC<RankingFiltersProps> = ({
@@ -81,6 +147,10 @@ export const RankingFilters: React.FC<RankingFiltersProps> = ({
   setBusca,
   somenteComPedidos,
   setSomenteComPedidos,
+  dataInicio,
+  dataFim,
+  setDataInicio,
+  setDataFim,
 }) => {
   return (
     <div className="flex flex-col gap-3 border-b border-neutral-100 bg-neutral-50/60 p-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
@@ -97,7 +167,11 @@ export const RankingFilters: React.FC<RankingFiltersProps> = ({
                 key={p.id}
                 type="button"
                 aria-pressed={selecionado}
-                onClick={() => setPeriodo(p.id)}
+                onClick={() => {
+                  setPeriodo(p.id);
+                  setDataInicio('');
+                  setDataFim('');
+                }}
                 className={`relative rounded-lg px-3.5 py-1.5 text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 motion-reduce:transition-none ${
                   selecionado
                     ? 'bg-yellow-400 text-black font-bold'
@@ -112,6 +186,12 @@ export const RankingFilters: React.FC<RankingFiltersProps> = ({
         </div>
 
         <SeletorMesEspecifico periodo={periodo} mes={mes} setMes={setMes} />
+        <SeletorIntervaloDatas
+          dataInicio={dataInicio}
+          dataFim={dataFim}
+          setDataInicio={setDataInicio}
+          setDataFim={setDataFim}
+        />
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
