@@ -647,6 +647,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
       <GestaoMetasMensais
         podeEditar={podeEditarGestao}
         onVoltar={() => setView('painel')}
+        exibirDistribuicao={false}
       />
     );
   }

@@ -65,9 +65,14 @@ const nomeLoja = (nome: string) => `LOJA ${nome.split('—').at(-1)?.trim().toLo
 interface GestaoMetasMensaisProps {
   podeEditar?: boolean;
   onVoltar?: () => void;
+  exibirDistribuicao?: boolean;
 }
 
-export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({ podeEditar = false, onVoltar }) => {
+export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({
+  podeEditar = false,
+  onVoltar,
+  exibirDistribuicao = true,
+}) => {
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth());
@@ -358,7 +363,7 @@ export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({ podeEdit
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      {exibirDistribuicao && <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-neutral-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2"><BarChart3 className="h-5 w-5 text-yellow-500" /><div><h2 className="font-black">Distribuição da meta mensal</h2><p className="text-[10px] text-neutral-400">Defina a meta por unidade; a tabela semanal acima será recalculada automaticamente</p></div></div>
@@ -388,7 +393,7 @@ export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({ podeEdit
             <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-3 text-[10px] text-neutral-300"><Building2 className="h-4 w-4 text-yellow-400" />{lojas.length} unidades no planejamento de {MESES[mes]}</div>
           </div>
         </div>
-      </section>
+      </section>}
     </div>
   );
 };
