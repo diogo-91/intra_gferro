@@ -23,6 +23,7 @@ import type { ContaReceber, ContaPagar, ContaConcluida, DreConta, DreFinanceira,
 import { aplicarReprogramacoes } from './reprogramacoes';
 import { CLASSIFICACOES_FINANCEIRAS, GRUPOS_CLASSIFICACAO_FINANCEIRA, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
 import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
+import { obterMetasMensais } from './metasVendas';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
 
@@ -848,10 +849,11 @@ export async function getGestaoMetasMensais(mes: string): Promise<{
     vendedor.id,
     vendedor.nome || `Vendedor #${vendedor.id}`,
   ]));
+  const metasConfiguradas = obterMetasMensais(mes);
   const lojas = new Map(LOJAS.map((loja) => [loja.id, {
     id: loja.id,
     nome: loja.nome,
-    meta: loja.metaVendas ?? 0,
+    meta: metasConfiguradas[loja.id] ?? loja.metaVendas ?? 0,
     totalRealizado: 0,
     realizadoPorDia: {} as Record<string, number>,
   }]));

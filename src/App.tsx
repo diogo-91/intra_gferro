@@ -311,7 +311,7 @@ export default function App() {
 
           {activeTab === 'producao' && <Producao />}
 
-          {activeTab === 'gestao' && <GestaoMetasMensais />}
+          {activeTab === 'gestao' && <GestaoMetasMensais podeEditar={!!sessao?.administrador} />}
 
           {activeTab === 'usuarios' && sessao?.administrador && <GestaoUsuarios />}
           </>}

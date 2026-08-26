@@ -17,6 +17,7 @@ import { gerarPdfPlanejamentoProducao } from './pdfPlanejamentoProducao';
 import { COMPOSICAO_MATERIA_PRIMA } from './src/data/composicaoMateriaPrima';
 import { salvarReprogramacao, removerReprogramacao, TipoConta } from './reprogramacoes';
 import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './funcionarios';
+import { salvarMetasMensais } from './metasVendas';
 import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
 import * as sac from './sac';
 import * as lojasFotos from './lojasFotos';
@@ -263,6 +264,17 @@ Contexto da GFERRO:
         error: error.status ? error.message : 'Erro ao buscar metas mensais de gestão',
         details: error.message,
       });
+    }
+  });
+
+  app.put('/api/vendas/gestao-metas', exigirAdministrador, async (req, res) => {
+    try {
+      const mes = validarMesQuery(req.body?.mes);
+      if (!mes) return res.status(400).json({ error: 'Informe o mês no formato AAAA-MM.' });
+      const metas = salvarMetasMensais(mes, req.body?.metas || {});
+      res.json({ mes, metas, salvoEm: new Date().toISOString() });
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Não foi possível salvar as metas mensais.' });
     }
   });
 

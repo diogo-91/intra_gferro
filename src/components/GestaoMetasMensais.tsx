@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Building2, CalendarDays, RefreshCw, Target, TrendingUp } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BarChart3, Building2, CalendarDays, Check, RefreshCw, Save, Target, TrendingUp } from 'lucide-react';
 import { LOJAS } from '../data/vendedorLoja';
 
 interface MetaLojaMensal {
@@ -62,13 +62,17 @@ function semanasDoMes(ano: number, mes: number): SemanaMes[] {
 const chaveMes = (ano: number, mes: number) => `${ano}-${String(mes + 1).padStart(2, '0')}`;
 const nomeLoja = (nome: string) => `LOJA ${nome.split('—').at(-1)?.trim().toLocaleUpperCase('pt-BR') || nome.toLocaleUpperCase('pt-BR')}`;
 
-export const GestaoMetasMensais: React.FC = () => {
+export const GestaoMetasMensais: React.FC<{ podeEditar?: boolean }> = ({ podeEditar = false }) => {
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth());
   const [dados, setDados] = useState<RespostaMetasMensais | null>(null);
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [metasEditadas, setMetasEditadas] = useState<Record<string, number>>({});
+  const [salvandoMetas, setSalvandoMetas] = useState(false);
+  const [metasSalvas, setMetasSalvas] = useState(false);
+  const metasAlteradasRef = useRef(false);
 
   const referencia = chaveMes(ano, mes);
   const chaveCache = `gferro:gestao-metas:${referencia}`;
@@ -78,6 +82,9 @@ export const GestaoMetasMensais: React.FC = () => {
   useEffect(() => {
     let cancelado = false;
     let cacheEncontrado = false;
+    metasAlteradasRef.current = false;
+    setMetasSalvas(false);
+    setMetasEditadas(Object.fromEntries(LOJAS.map((loja) => [loja.id, loja.metaVendas ?? 0])));
     setErro(null);
     try {
       const salvo = localStorage.getItem(chaveCache);
@@ -85,6 +92,7 @@ export const GestaoMetasMensais: React.FC = () => {
         const cache = JSON.parse(salvo) as RespostaMetasMensais;
         if (cache?.mes === referencia && Array.isArray(cache.lojas)) {
           setDados(cache);
+          setMetasEditadas(Object.fromEntries(cache.lojas.map((loja) => [loja.id, loja.meta])));
           cacheEncontrado = true;
         }
       }
@@ -101,6 +109,9 @@ export const GestaoMetasMensais: React.FC = () => {
         if (!resposta.ok) throw new Error(corpo?.error || 'Não foi possível consultar as metas mensais.');
         if (cancelado) return;
         setDados(corpo as RespostaMetasMensais);
+        if (!metasAlteradasRef.current) {
+          setMetasEditadas(Object.fromEntries((corpo.lojas as MetaLojaMensal[]).map((loja) => [loja.id, loja.meta])));
+        }
         setErro(null);
         localStorage.setItem(chaveCache, JSON.stringify(corpo));
       } catch (error: any) {
@@ -120,14 +131,51 @@ export const GestaoMetasMensais: React.FC = () => {
 
   const lojas: MetaLojaMensal[] = LOJAS.map((loja) => {
     const carregada = dados?.lojas.find((item) => item.id === loja.id);
-    return carregada ?? {
+    return {
       id: loja.id,
-      nome: loja.nome,
-      meta: loja.metaVendas ?? 0,
-      totalRealizado: 0,
-      realizadoPorDia: {},
+      nome: carregada?.nome ?? loja.nome,
+      meta: metasEditadas[loja.id] ?? carregada?.meta ?? loja.metaVendas ?? 0,
+      totalRealizado: carregada?.totalRealizado ?? 0,
+      realizadoPorDia: carregada?.realizadoPorDia ?? {},
     };
   });
+
+  const alterarMeta = (lojaId: string, valor: number) => {
+    metasAlteradasRef.current = true;
+    setMetasSalvas(false);
+    setMetasEditadas((anteriores) => ({ ...anteriores, [lojaId]: Math.max(0, valor || 0) }));
+  };
+
+  const salvarDistribuicao = async () => {
+    setSalvandoMetas(true);
+    setErro(null);
+    try {
+      const resposta = await fetch('/api/vendas/gestao-metas', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mes: referencia, metas: metasEditadas }),
+      });
+      const corpo = await resposta.json();
+      if (!resposta.ok) throw new Error(corpo?.error || 'Não foi possível salvar as metas.');
+      const metasSalvasServidor = corpo.metas as Record<string, number>;
+      setMetasEditadas(metasSalvasServidor);
+      metasAlteradasRef.current = false;
+      setMetasSalvas(true);
+      setDados((atual) => {
+        if (!atual) return atual;
+        const atualizado = {
+          ...atual,
+          lojas: atual.lojas.map((loja) => ({ ...loja, meta: metasSalvasServidor[loja.id] ?? loja.meta })),
+        };
+        localStorage.setItem(chaveCache, JSON.stringify(atualizado));
+        return atualizado;
+      });
+    } catch (error: any) {
+      setErro(error.message || 'Não foi possível salvar as metas.');
+    } finally {
+      setSalvandoMetas(false);
+    }
+  };
 
   const realizadoNaSemana = (loja: MetaLojaMensal, semana: SemanaMes) => {
     let total = 0;
@@ -215,7 +263,7 @@ export const GestaoMetasMensais: React.FC = () => {
           </div>
         </div>
 
-        {erro && !dados && <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-xs font-semibold text-red-700">{erro}</div>}
+        {erro && <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-xs font-semibold text-red-700">{erro}</div>}
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1500px] border-collapse text-xs">
@@ -297,11 +345,19 @@ export const GestaoMetasMensais: React.FC = () => {
 
       <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-neutral-200 px-5 py-4"><BarChart3 className="h-5 w-5 text-yellow-500" /><div><h2 className="font-black">Distribuição da meta mensal</h2><p className="text-[10px] text-neutral-400">Resultado consolidado diretamente das semanas da tabela acima</p></div></div>
+          <div className="flex flex-col gap-3 border-b border-neutral-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2"><BarChart3 className="h-5 w-5 text-yellow-500" /><div><h2 className="font-black">Distribuição da meta mensal</h2><p className="text-[10px] text-neutral-400">Defina a meta por unidade; a tabela semanal acima será recalculada automaticamente</p></div></div>
+            {podeEditar && (
+              <button type="button" onClick={salvarDistribuicao} disabled={salvandoMetas} className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-4 py-2 text-xs font-black text-white transition-colors hover:bg-yellow-400 hover:text-black disabled:opacity-50">
+                {metasSalvas ? <Check className="h-4 w-4 text-emerald-400" /> : salvandoMetas ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-yellow-400" />}
+                {metasSalvas ? 'Metas salvas' : salvandoMetas ? 'Salvando...' : 'Salvar distribuição'}
+              </button>
+            )}
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-xs">
               <thead className="bg-neutral-50 text-[9px] uppercase tracking-wider text-neutral-500"><tr><th className="px-5 py-3 text-left">Unidade</th><th className="px-4 py-3 text-right">Meta mensal</th><th className="px-4 py-3 text-right">% representa</th><th className="px-4 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">Atual %</th></tr></thead>
-              <tbody className="divide-y divide-neutral-100">{lojas.map((loja) => { const realizadoLoja = realizadoDaLoja(loja); return <tr key={loja.id}><td className="px-5 py-3 font-bold">{nomeLoja(loja.nome)}</td><td className="px-4 py-3 text-right tabular-nums">{moeda(loja.meta)}</td><td className="px-4 py-3 text-right tabular-nums">{metaTotal ? percentual(loja.meta / metaTotal * 100) : '—'}</td><td className="px-4 py-3 text-right font-bold tabular-nums text-emerald-700">{dados ? moeda(realizadoLoja) : '—'}</td><td className="px-5 py-3 text-right font-black tabular-nums">{dados && loja.meta ? percentual(realizadoLoja / loja.meta * 100) : '—'}</td></tr>; })}</tbody>
+              <tbody className="divide-y divide-neutral-100">{lojas.map((loja) => { const realizadoLoja = realizadoDaLoja(loja); return <tr key={loja.id}><td className="px-5 py-3 font-bold">{nomeLoja(loja.nome)}</td><td className="px-4 py-2 text-right tabular-nums">{podeEditar ? <label className="ml-auto flex w-40 items-center overflow-hidden rounded-lg border border-yellow-300 bg-yellow-50 focus-within:ring-2 focus-within:ring-yellow-400"><span className="pl-2 text-[10px] font-bold text-yellow-700">R$</span><input type="number" min="0" step="1000" value={loja.meta} onChange={(evento) => alterarMeta(loja.id, Number(evento.target.value))} className="min-w-0 flex-1 bg-transparent px-2 py-2 text-right font-black outline-none" aria-label={`Meta mensal de ${nomeLoja(loja.nome)}`} /></label> : moeda(loja.meta)}</td><td className="px-4 py-3 text-right tabular-nums">{metaTotal ? percentual(loja.meta / metaTotal * 100) : '—'}</td><td className="px-4 py-3 text-right font-bold tabular-nums text-emerald-700">{dados ? moeda(realizadoLoja) : '—'}</td><td className="px-5 py-3 text-right font-black tabular-nums">{dados && loja.meta ? percentual(realizadoLoja / loja.meta * 100) : '—'}</td></tr>; })}</tbody>
               <tfoot className="bg-yellow-400 font-black text-black"><tr><td className="px-5 py-3">TOTAL</td><td className="px-4 py-3 text-right">{moeda(metaTotal)}</td><td className="px-4 py-3 text-right">100,0%</td><td className="px-4 py-3 text-right">{dados ? moeda(realizadoTotal) : '—'}</td><td className="px-5 py-3 text-right">{dados && metaTotal ? percentual(realizadoTotal / metaTotal * 100) : '—'}</td></tr></tfoot>
             </table>
           </div>
