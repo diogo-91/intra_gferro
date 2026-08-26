@@ -139,7 +139,17 @@ export const GestaoMetasMensais: React.FC = () => {
   };
 
   const metaTotal = lojas.reduce((total, loja) => total + loja.meta, 0);
-  const realizadoTotal = lojas.reduce((total, loja) => total + loja.totalRealizado, 0);
+  // Fonte única para toda a parte inferior: soma exatamente as mesmas
+  // células semanais exibidas no quadro superior. Assim não existe risco de
+  // o resumo mensal divergir por usar outro campo ou outra consulta.
+  const realizadoMensalPorLoja = Object.fromEntries(
+    lojas.map((loja) => [
+      loja.id,
+      semanas.reduce((total, semana) => total + realizadoNaSemana(loja, semana), 0),
+    ])
+  ) as Record<string, number>;
+  const realizadoDaLoja = (loja: MetaLojaMensal) => realizadoMensalPorLoja[loja.id] ?? 0;
+  const realizadoTotal = lojas.reduce((total, loja) => total + realizadoDaLoja(loja), 0);
 
   return (
     <div className="space-y-5 pb-8">
@@ -238,7 +248,8 @@ export const GestaoMetasMensais: React.FC = () => {
             </thead>
             <tbody>
               {lojas.map((loja, indice) => {
-                const crescimento = loja.meta > 0 ? ((loja.totalRealizado / loja.meta) - 1) * 100 : 0;
+                const realizadoLoja = realizadoDaLoja(loja);
+                const crescimento = loja.meta > 0 ? ((realizadoLoja / loja.meta) - 1) * 100 : 0;
                 return (
                   <tr key={loja.id} className="border-b border-neutral-200 odd:bg-white even:bg-neutral-50/70 hover:bg-yellow-50/60">
                     <td className="border-r border-neutral-200 px-2 py-3 text-center"><span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-yellow-400 font-black text-black">{indice + 1}</span></td>
@@ -249,7 +260,7 @@ export const GestaoMetasMensais: React.FC = () => {
                         <td className="border-r border-neutral-300 px-3 py-3 text-right font-black tabular-nums text-emerald-700">{dados ? numero(realizadoNaSemana(loja, semana)) : '—'}</td>
                       </React.Fragment>
                     ))}
-                    <td className="bg-yellow-50/70 px-3 py-3 text-right font-black tabular-nums text-emerald-700">{dados ? numero(loja.totalRealizado) : '—'}</td>
+                    <td className="bg-yellow-50/70 px-3 py-3 text-right font-black tabular-nums text-emerald-700">{dados ? numero(realizadoLoja) : '—'}</td>
                     <td className="bg-yellow-50/70 px-3 py-3 text-right font-black tabular-nums">{numero(loja.meta)}</td>
                     <td className={`bg-yellow-50/70 px-3 py-3 text-right font-black tabular-nums ${crescimento >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{dados ? percentual(crescimento) : '—'}</td>
                   </tr>
@@ -286,11 +297,11 @@ export const GestaoMetasMensais: React.FC = () => {
 
       <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-neutral-200 px-5 py-4"><BarChart3 className="h-5 w-5 text-yellow-500" /><div><h2 className="font-black">Distribuição da meta mensal</h2><p className="text-[10px] text-neutral-400">Participação de cada unidade no objetivo corporativo</p></div></div>
+          <div className="flex items-center gap-2 border-b border-neutral-200 px-5 py-4"><BarChart3 className="h-5 w-5 text-yellow-500" /><div><h2 className="font-black">Distribuição da meta mensal</h2><p className="text-[10px] text-neutral-400">Resultado consolidado diretamente das semanas da tabela acima</p></div></div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-xs">
               <thead className="bg-neutral-50 text-[9px] uppercase tracking-wider text-neutral-500"><tr><th className="px-5 py-3 text-left">Unidade</th><th className="px-4 py-3 text-right">Meta mensal</th><th className="px-4 py-3 text-right">% representa</th><th className="px-4 py-3 text-right">Realizado</th><th className="px-5 py-3 text-right">Atual %</th></tr></thead>
-              <tbody className="divide-y divide-neutral-100">{lojas.map((loja) => <tr key={loja.id}><td className="px-5 py-3 font-bold">{nomeLoja(loja.nome)}</td><td className="px-4 py-3 text-right tabular-nums">{moeda(loja.meta)}</td><td className="px-4 py-3 text-right tabular-nums">{metaTotal ? percentual(loja.meta / metaTotal * 100) : '—'}</td><td className="px-4 py-3 text-right font-bold tabular-nums text-emerald-700">{dados ? moeda(loja.totalRealizado) : '—'}</td><td className="px-5 py-3 text-right font-black tabular-nums">{dados && loja.meta ? percentual(loja.totalRealizado / loja.meta * 100) : '—'}</td></tr>)}</tbody>
+              <tbody className="divide-y divide-neutral-100">{lojas.map((loja) => { const realizadoLoja = realizadoDaLoja(loja); return <tr key={loja.id}><td className="px-5 py-3 font-bold">{nomeLoja(loja.nome)}</td><td className="px-4 py-3 text-right tabular-nums">{moeda(loja.meta)}</td><td className="px-4 py-3 text-right tabular-nums">{metaTotal ? percentual(loja.meta / metaTotal * 100) : '—'}</td><td className="px-4 py-3 text-right font-bold tabular-nums text-emerald-700">{dados ? moeda(realizadoLoja) : '—'}</td><td className="px-5 py-3 text-right font-black tabular-nums">{dados && loja.meta ? percentual(realizadoLoja / loja.meta * 100) : '—'}</td></tr>; })}</tbody>
               <tfoot className="bg-yellow-400 font-black text-black"><tr><td className="px-5 py-3">TOTAL</td><td className="px-4 py-3 text-right">{moeda(metaTotal)}</td><td className="px-4 py-3 text-right">100,0%</td><td className="px-4 py-3 text-right">{dados ? moeda(realizadoTotal) : '—'}</td><td className="px-5 py-3 text-right">{dados && metaTotal ? percentual(realizadoTotal / metaTotal * 100) : '—'}</td></tr></tfoot>
             </table>
           </div>
