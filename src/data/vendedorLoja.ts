@@ -4,7 +4,8 @@
 // mão aqui. Confirmado com o usuário: "JAMES" = Jaymes Janolla e
 // "ANDRESSA" = Andreza Soares Ribeiro de Andrade (grafias diferentes do
 // Nomus). Virgínia ainda não aparece no cadastro de vendedores retornado
-// pela API; o vínculo fica preparado e passa a valer quando ela for cadastrada.
+// pela API; alguns vínculos por primeiro nome ficam preparados e passam a
+// valer quando o vendedor for cadastrado com seu nome completo.
 
 export interface Loja {
   id: string;
@@ -18,6 +19,7 @@ export const LOJAS: Loja[] = [
   { id: 'lucas', nome: 'Unidade 2 — Lucas', metaVendas: 700000 },
   { id: 'paulo', nome: 'Unidade 3 — Paulo', metaVendas: 750000 },
   { id: 'correa', nome: 'Unidade 4 — Vera' },
+  { id: 'tatui', nome: 'Unidade 5 — Tatuí' },
 ];
 
 // Nome do vendedor exatamente como vem do Nomus -> id da loja.
@@ -41,6 +43,18 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'Telma Carlos Gomes de Camargo': 'correa',
   'Vanessa Pereira Bezerra': 'correa',
   'Virgínia': 'correa',
+
+  'Bruno Felipe Santos Bezerra': 'tatui',
+};
+
+// Vendedores informados pela GFERRO que ainda não aparecem na API do Nomus.
+// O prefixo permite reconhecer automaticamente "Nome + sobrenomes" quando o
+// cadastro for criado, sem exigir uma nova publicação da intranet.
+const VENDEDOR_LOJA_POR_PRIMEIRO_NOME: Record<string, string> = {
+  'JEFFERSON': 'tatui',
+  'RODRIGO': 'tatui',
+  'SABRINA': 'tatui',
+  'ROSEMEIRE': 'tatui',
 };
 
 function normalizar(texto: string): string {
@@ -56,5 +70,10 @@ const VENDEDOR_LOJA_NORMALIZADO: Record<string, string> = Object.fromEntries(
 );
 
 export function lojaDoVendedor(nome: string): string | undefined {
-  return VENDEDOR_LOJA_NORMALIZADO[normalizar(nome)];
+  const nomeNormalizado = normalizar(nome);
+  const vinculoExato = VENDEDOR_LOJA_NORMALIZADO[nomeNormalizado];
+  if (vinculoExato) return vinculoExato;
+
+  const primeiroNome = nomeNormalizado.split(/\s+/)[0];
+  return VENDEDOR_LOJA_POR_PRIMEIRO_NOME[primeiroNome];
 }
