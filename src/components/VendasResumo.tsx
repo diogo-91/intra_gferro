@@ -147,46 +147,53 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
   const percentualRecebido = resumo.totalVendas > 0
     ? ((resumo.valorRecebidoPedidos ?? 0) / resumo.totalVendas) * 100
     : 0;
+  const kpisCompactos = metaVendas !== undefined;
+  const classeGridKpis = kpisCompactos
+    ? 'grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-9'
+    : 'grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-8';
+  const classeCardKpi = kpisCompactos ? 'p-2.5 min-w-0' : 'p-3';
+  const classeRotuloKpi = kpisCompactos ? 'text-[10px] leading-tight' : 'text-xs';
+  const classeValorKpi = kpisCompactos ? 'text-base leading-tight' : 'text-lg';
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-8">
-        <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 flex flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-xs text-emerald-700/80 font-medium">
+      <div className={classeGridKpis}>
+        <div className={`rounded-xl bg-emerald-50 border border-emerald-100 flex flex-col gap-1 ${classeCardKpi}`}>
+          <span className={`flex items-center gap-1.5 text-emerald-700/80 font-medium ${classeRotuloKpi}`}>
             <Wallet className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
             Total de Vendas
           </span>
-          <span className="text-lg font-black text-emerald-900 tabular-nums">{formatCurrency(resumo.totalVendas)}</span>
+          <span className={`font-black text-emerald-900 tabular-nums ${classeValorKpi}`}>{formatCurrency(resumo.totalVendas)}</span>
         </div>
 
-        <div className="rounded-xl bg-violet-50 border border-violet-100 p-3 flex flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-xs text-violet-700/80 font-medium">
+        <div className={`rounded-xl bg-violet-50 border border-violet-100 flex flex-col gap-1 ${classeCardKpi}`}>
+          <span className={`flex items-center gap-1.5 text-violet-700/80 font-medium ${classeRotuloKpi}`}>
             <Package className="w-3.5 h-3.5 text-violet-600" aria-hidden="true" />
             Pedidos
           </span>
-          <span className="text-lg font-black text-violet-900 tabular-nums">{formatInteiro(resumo.totalPedidos)}</span>
+          <span className={`font-black text-violet-900 tabular-nums ${classeValorKpi}`}>{formatInteiro(resumo.totalPedidos)}</span>
         </div>
 
-        <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 flex flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-xs text-amber-700/80 font-medium">
+        <div className={`rounded-xl bg-amber-50 border border-amber-100 flex flex-col gap-1 ${classeCardKpi}`}>
+          <span className={`flex items-center gap-1.5 text-amber-700/80 font-medium ${classeRotuloKpi}`}>
             <Users className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
             Vendedores Ativos
           </span>
-          <span className="text-lg font-black text-amber-900 tabular-nums">{formatInteiro(resumo.vendedoresAtivos)}</span>
+          <span className={`font-black text-amber-900 tabular-nums ${classeValorKpi}`}>{formatInteiro(resumo.vendedoresAtivos)}</span>
         </div>
 
-        <div className="rounded-xl bg-rose-50 border border-rose-100 p-3 flex flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-xs text-rose-700/80 font-medium">
+        <div className={`rounded-xl bg-rose-50 border border-rose-100 flex flex-col gap-1 ${classeCardKpi}`}>
+          <span className={`flex items-center gap-1.5 text-rose-700/80 font-medium ${classeRotuloKpi}`}>
             <Receipt className="w-3.5 h-3.5 text-rose-600" aria-hidden="true" />
             Ticket Médio
           </span>
-          <span className="text-lg font-black text-rose-900 tabular-nums" title="Total de vendas ÷ número de pedidos do período">
+          <span className={`font-black text-rose-900 tabular-nums ${classeValorKpi}`} title="Total de vendas ÷ número de pedidos do período">
             {formatCurrency(ticketMedio)}
           </span>
         </div>
 
-        <div className="rounded-xl bg-teal-50 border border-teal-100 p-3 flex flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-xs text-teal-700/80 font-medium">
+        <div className={`rounded-xl bg-teal-50 border border-teal-100 flex flex-col gap-1 ${classeCardKpi}`}>
+          <span className={`flex items-center gap-1.5 text-teal-700/80 font-medium ${classeRotuloKpi}`}>
             <CircleDollarSign className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
             Percentual Recebido
             {resumo.financeiroPedidosCarregando && (
@@ -197,7 +204,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
             className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
             title="Valor e percentual já recebidos sobre o total vendido no período"
           >
-            <span className="text-lg font-black text-teal-900 tabular-nums">
+            <span className={`font-black text-teal-900 tabular-nums ${classeValorKpi}`}>
               {formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
             </span>
             <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[11px] font-black text-teal-700 tabular-nums">
@@ -209,15 +216,15 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
           )}
         </div>
 
-        <div className="rounded-xl bg-orange-50 border border-orange-100 p-3 flex flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-xs text-orange-700/80 font-medium">
+        <div className={`rounded-xl bg-orange-50 border border-orange-100 flex flex-col gap-1 ${classeCardKpi}`}>
+          <span className={`flex items-center gap-1.5 text-orange-700/80 font-medium ${classeRotuloKpi}`}>
             <Hourglass className="w-3.5 h-3.5 text-orange-600" aria-hidden="true" />
             Falta Receber
             {resumo.financeiroPedidosCarregando && (
               <RefreshCw className="h-3 w-3 animate-spin" aria-label="Atualizando em segundo plano" />
             )}
           </span>
-          <span className="text-lg font-black text-orange-900 tabular-nums" title="Total dos pedidos menos os valores já recebidos">
+          <span className={`font-black text-orange-900 tabular-nums ${classeValorKpi}`} title="Total dos pedidos menos os valores já recebidos">
             {formatCurrency(resumo.valorPendentePedidos ?? resumo.totalVendas)}
           </span>
           {resumo.financeiroPedidosCarregando && (
@@ -227,22 +234,22 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
 
         {exibirKpisParafusosFrete && (
           <>
-            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex flex-col gap-1">
-              <span className="flex items-center gap-1.5 text-xs text-amber-700/80 font-medium">
+            <div className={`rounded-xl bg-amber-50 border border-amber-200 flex flex-col gap-1 ${classeCardKpi}`}>
+              <span className={`flex items-center gap-1.5 text-amber-700/80 font-medium ${classeRotuloKpi}`}>
                 <Nut className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
                 Total em Parafusos
               </span>
-              <span className="text-lg font-black text-amber-900 tabular-nums">
+              <span className={`font-black text-amber-900 tabular-nums ${classeValorKpi}`}>
                 {formatCurrency(resumo.totalValorParafusos ?? 0)}
               </span>
             </div>
 
-            <div className="rounded-xl bg-cyan-50 border border-cyan-200 p-3 flex flex-col gap-1">
-              <span className="flex items-center gap-1.5 text-xs text-cyan-700/80 font-medium">
+            <div className={`rounded-xl bg-cyan-50 border border-cyan-200 flex flex-col gap-1 ${classeCardKpi}`}>
+              <span className={`flex items-center gap-1.5 text-cyan-700/80 font-medium ${classeRotuloKpi}`}>
                 <Truck className="w-3.5 h-3.5 text-cyan-600" aria-hidden="true" />
                 Total Fretes e Outros
               </span>
-              <span className="text-lg font-black text-cyan-900 tabular-nums">
+              <span className={`font-black text-cyan-900 tabular-nums ${classeValorKpi}`}>
                 {formatCurrency(resumo.totalFrete ?? 0)}
               </span>
             </div>
@@ -250,12 +257,12 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
         )}
 
         {metaVendas !== undefined && (
-          <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-3 flex flex-col gap-1">
-            <span className="flex items-center gap-1.5 text-xs text-yellow-800/80 font-medium">
+          <div className={`rounded-xl bg-yellow-50 border border-yellow-200 flex flex-col gap-1 ${classeCardKpi}`}>
+            <span className={`flex items-center gap-1.5 text-yellow-800/80 font-medium ${classeRotuloKpi}`}>
               <Target className="w-3.5 h-3.5 text-yellow-600" aria-hidden="true" />
               Meta Mensal
             </span>
-            <span className="text-lg font-black text-yellow-900 tabular-nums">{formatCurrency(metaVendas)}</span>
+            <span className={`font-black text-yellow-900 tabular-nums ${classeValorKpi}`}>{formatCurrency(metaVendas)}</span>
             {exibirProgressoMeta && (
               <>
                 <div className="h-1.5 rounded-full bg-yellow-100 overflow-hidden" aria-hidden="true">
