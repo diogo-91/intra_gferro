@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Building2, CalendarDays, Check, RefreshCw, Save, Target, TrendingUp } from 'lucide-react';
+import { ArrowLeft, BarChart3, Building2, CalendarDays, Check, RefreshCw, Save, Target, TrendingUp } from 'lucide-react';
 import { LOJAS } from '../data/vendedorLoja';
 
 interface MetaLojaMensal {
@@ -62,7 +62,12 @@ function semanasDoMes(ano: number, mes: number): SemanaMes[] {
 const chaveMes = (ano: number, mes: number) => `${ano}-${String(mes + 1).padStart(2, '0')}`;
 const nomeLoja = (nome: string) => `LOJA ${nome.split('—').at(-1)?.trim().toLocaleUpperCase('pt-BR') || nome.toLocaleUpperCase('pt-BR')}`;
 
-export const GestaoMetasMensais: React.FC<{ podeEditar?: boolean }> = ({ podeEditar = false }) => {
+interface GestaoMetasMensaisProps {
+  podeEditar?: boolean;
+  onVoltar?: () => void;
+}
+
+export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({ podeEditar = false, onVoltar }) => {
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth());
@@ -203,6 +208,16 @@ export const GestaoMetasMensais: React.FC<{ podeEditar?: boolean }> = ({ podeEdi
     <div className="space-y-5 pb-8">
       <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
+          {onVoltar && (
+            <button
+              type="button"
+              onClick={onVoltar}
+              className="mb-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500 transition-colors hover:text-neutral-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              Voltar ao Painel de Vendas
+            </button>
+          )}
           <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Dashboard • Gestão</span>
           <h1 className="mt-1 flex items-center gap-2 text-2xl font-black text-neutral-950 sm:text-3xl">
             <Target className="h-7 w-7 text-yellow-500" aria-hidden="true" />

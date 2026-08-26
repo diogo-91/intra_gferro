@@ -7,10 +7,15 @@ import { RankingPodio } from './RankingPodio';
 import { RankingTable } from './RankingTable';
 import { VendasResumo } from './VendasResumo';
 import { ComparativoMensalVendas } from './ComparativoMensalVendas';
+import { GestaoMetasMensais } from './GestaoMetasMensais';
 import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
 import { formatCurrency, formatInteiro, formatNomeVendedor } from '../utils/format';
 
-type VendasView = 'painel' | 'ranking' | 'loja';
+type VendasView = 'painel' | 'ranking' | 'loja' | 'gestao';
+
+interface VendasDashboardProps {
+  podeEditarGestao?: boolean;
+}
 
 const montarQueryPeriodo = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) => {
   const mesQuery = periodo === 'mes' && mes ? `&mes=${mes}` : '';
@@ -138,7 +143,7 @@ const formatCurrencyComCentavos = (valor: number) =>
     maximumFractionDigits: 2,
   });
 
-export const VendasDashboard: React.FC = () => {
+export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGestao = false }) => {
   const [view, setView] = useState<VendasView>('painel');
   const [periodo, setPeriodo] = useState<Periodo>('mes');
   // Só é usado quando periodo === 'mes'; null = mês corrente.
@@ -637,6 +642,15 @@ export const VendasDashboard: React.FC = () => {
     </button>
   );
 
+  if (view === 'gestao') {
+    return (
+      <GestaoMetasMensais
+        podeEditar={podeEditarGestao}
+        onVoltar={() => setView('painel')}
+      />
+    );
+  }
+
   if (view === 'ranking') {
     return (
       <div className="space-y-5">
@@ -932,15 +946,25 @@ export const VendasDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Menuzinho interno */}
-        <button
-          type="button"
-          onClick={() => setView('ranking')}
-          className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full bg-yellow-400 text-black font-extrabold text-xs hover:bg-yellow-300 shadow-lg shadow-yellow-400/20 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-        >
-          <Trophy className="w-4 h-4" aria-hidden="true" />
-          <span>Ranking de Vendedores</span>
-        </button>
+        {/* Navegação interna do Dashboard de Vendas */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setView('gestao')}
+            className="flex items-center gap-2 rounded-full border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-xs font-extrabold text-yellow-900 shadow-sm transition-all hover:bg-yellow-100 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+          >
+            <Building2 className="h-4 w-4" aria-hidden="true" />
+            <span>Gestão</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('ranking')}
+            className="flex items-center gap-2 rounded-full bg-yellow-400 px-4 py-2.5 text-xs font-extrabold text-black shadow-lg shadow-yellow-400/20 transition-all hover:bg-yellow-300 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          >
+            <Trophy className="w-4 h-4" aria-hidden="true" />
+            <span>Ranking de Vendedores</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">

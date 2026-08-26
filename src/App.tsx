@@ -305,7 +305,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'vendas' && <VendasDashboard />}
+          {activeTab === 'vendas' && <VendasDashboard podeEditarGestao={!!sessao?.administrador} />}
 
           {activeTab === 'financeiro' && <ProgramacaoFinanceira />}
 
