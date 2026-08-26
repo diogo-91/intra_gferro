@@ -753,24 +753,33 @@ function persistirCacheProdutosNoDisco(mapa: Map<number, Produto | null>): void 
 // ao Nomus por produto distinto do período (dezenas), cada uma sujeita a 429
 // com esperas de 30-50s — no pior caso, minutos só pra montar "Vendas por Produto".
 const cacheProdutoPorId = carregarCacheProdutosDoDisco();
+const cacheProdutoEmAndamento = new Map<number, Promise<Produto | null>>();
 
 async function getProdutoPorId(id: number): Promise<Produto | null> {
   if (cacheProdutoPorId.has(id)) return cacheProdutoPorId.get(id) ?? null;
+
+  const consultaExistente = cacheProdutoEmAndamento.get(id);
+  if (consultaExistente) return consultaExistente;
 
   const { baseUrl, apiKey } = getConfig();
   if (!baseUrl || !apiKey) {
     throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
   }
 
-  try {
-    const produto = await fetchComRetry(`${baseUrl}/produtos/${id}`, apiKey);
-    cacheProdutoPorId.set(id, produto);
-    persistirCacheProdutosNoDisco(cacheProdutoPorId);
-    return produto;
-  } catch {
-    cacheProdutoPorId.set(id, null);
-    return null;
-  }
+  const consulta = fetchComRetry(`${baseUrl}/produtos/${id}`, apiKey)
+    .then((produto) => {
+      cacheProdutoPorId.set(id, produto);
+      persistirCacheProdutosNoDisco(cacheProdutoPorId);
+      return produto as Produto;
+    })
+    .catch(() => {
+      cacheProdutoPorId.set(id, null);
+      return null;
+    })
+    .finally(() => cacheProdutoEmAndamento.delete(id));
+
+  cacheProdutoEmAndamento.set(id, consulta);
+  return consulta;
 }
 
 // Um mês específico ("mes:AAAA-MM") só é "fechado" quando já não é mais o mês
@@ -1294,6 +1303,7 @@ export async function atualizarRankingVendas(
 export async function atualizarDadosVendas(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<{
   ranking: VendedorRanking[];
   resumo: ResumoVendas;
+  resumosLojas: Record<string, ResumoVendas>;
   atualizadoEm: string;
 }> {
   const chave = chavePedidos(periodo, mes, intervalo);
@@ -1318,7 +1328,17 @@ export async function atualizarDadosVendas(periodo: Periodo, mes?: string, inter
     getResumoVendas(periodo, mes, true, intervalo),
   ]);
 
-  return { ranking, resumo, atualizadoEm };
+  // A atualização forçada invalida todos os snapshots do período. Recria
+  // também os resumos de TODAS as unidades antes de concluir, evitando que
+  // apenas as lojas já abertas no navegador tenham cache disponível.
+  const resumosLojas = Object.fromEntries(await Promise.all(
+    LOJAS.map(async (loja) => [
+      loja.id,
+      await getResumoVendasPorLoja(periodo, loja.id, mes, intervalo),
+    ] as const)
+  ));
+
+  return { ranking, resumo, resumosLojas, atualizadoEm };
 }
 
 // ================== Financeiro (Contas a Pagar/Receber) ==================

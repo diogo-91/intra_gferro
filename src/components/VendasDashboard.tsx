@@ -82,6 +82,54 @@ const salvarResumoLocal = (
   }
 };
 
+const chaveCachePedidosVendedorLocal = (
+  nome: string,
+  periodo: Periodo,
+  mes: string | null,
+  dataInicio: string,
+  dataFim: string
+) => `gferro:pedidos-vendedor-v1:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+
+interface CachePedidosVendedorLocal {
+  pedidos: PedidoVendedorDetalhe[];
+  atualizadoEm: string;
+}
+
+const carregarPedidosVendedorLocal = (
+  nome: string,
+  periodo: Periodo,
+  mes: string | null,
+  dataInicio: string,
+  dataFim: string
+): CachePedidosVendedorLocal | null => {
+  try {
+    const salvo = localStorage.getItem(chaveCachePedidosVendedorLocal(nome, periodo, mes, dataInicio, dataFim));
+    if (!salvo) return null;
+    const cache = JSON.parse(salvo) as CachePedidosVendedorLocal;
+    return Array.isArray(cache?.pedidos) && cache.atualizadoEm ? cache : null;
+  } catch {
+    return null;
+  }
+};
+
+const salvarPedidosVendedorLocal = (
+  nome: string,
+  periodo: Periodo,
+  mes: string | null,
+  dataInicio: string,
+  dataFim: string,
+  cache: CachePedidosVendedorLocal
+) => {
+  try {
+    localStorage.setItem(
+      chaveCachePedidosVendedorLocal(nome, periodo, mes, dataInicio, dataFim),
+      JSON.stringify(cache)
+    );
+  } catch {
+    // O servidor continua usando os caches persistentes de pedidos e produtos.
+  }
+};
+
 const formatCurrencyComCentavos = (valor: number) =>
   valor.toLocaleString('pt-BR', {
     style: 'currency',
@@ -241,6 +289,26 @@ export const VendasDashboard: React.FC = () => {
     };
   }, [view, lojaSelecionada, periodo, mes, dataInicio, dataFim]);
 
+  // Preenche silenciosamente o cache local das cinco unidades assim que o
+  // painel é aberto. Clicar em qualquer loja passa a mostrar imediatamente o
+  // último snapshot, enquanto as próximas consultas apenas o revalidam.
+  useEffect(() => {
+    if (view !== 'painel') return;
+    let cancelado = false;
+    const queryPeriodo = montarQueryPeriodo(periodo, mes, dataInicio, dataFim);
+
+    void Promise.allSettled(LOJAS.map(async (loja) => {
+      const resposta = await fetch(`/api/vendas/lojas/${loja.id}/resumo?periodo=${periodo}${queryPeriodo}`);
+      const dados = await resposta.json();
+      if (!resposta.ok || cancelado) return;
+      salvarResumoLocal(`loja:${loja.id}`, periodo, mes, dataInicio, dataFim, dados as ResumoVendas);
+    }));
+
+    return () => {
+      cancelado = true;
+    };
+  }, [view, periodo, mes, dataInicio, dataFim]);
+
   // No geral, a posição é corporativa. Dentro de uma loja, a posição é
   // recalculada somente entre os vendedores daquela unidade. Busca e checkbox
   // são aplicados depois, para nunca fabricar posições ao filtrar a tabela.
@@ -378,10 +446,11 @@ export const VendasDashboard: React.FC = () => {
 
   const abrirPedidosVendedor = async (nome: string) => {
     setVendedorModal(nome);
-    setPedidosVendedor([]);
+    const cacheLocal = carregarPedidosVendedorLocal(nome, periodo, mes, dataInicio, dataFim);
+    setPedidosVendedor(cacheLocal?.pedidos ?? []);
     setPedidosVendedorErro(null);
-    setPedidosVendedorAtualizadoEm(null);
-    setPedidosVendedorLoading(true);
+    setPedidosVendedorAtualizadoEm(cacheLocal?.atualizadoEm ?? null);
+    setPedidosVendedorLoading(!cacheLocal);
     try {
       const resposta = await fetch(
         `/api/vendas/vendedores/pedidos?periodo=${periodo}${mesQuery}&nome=${encodeURIComponent(nome)}`
@@ -390,8 +459,9 @@ export const VendasDashboard: React.FC = () => {
       if (!resposta.ok) throw new Error(dados?.error || 'Falha ao buscar os pedidos do vendedor');
       setPedidosVendedor(dados.pedidos as PedidoVendedorDetalhe[]);
       setPedidosVendedorAtualizadoEm(dados.atualizadoEm);
+      salvarPedidosVendedorLocal(nome, periodo, mes, dataInicio, dataFim, dados as CachePedidosVendedorLocal);
     } catch (err: any) {
-      setPedidosVendedorErro(err.message || 'Falha ao buscar os pedidos do vendedor');
+      if (!cacheLocal) setPedidosVendedorErro(err.message || 'Falha ao buscar os pedidos do vendedor');
     } finally {
       setPedidosVendedorLoading(false);
     }
@@ -533,10 +603,15 @@ export const VendasDashboard: React.FC = () => {
       setResumo(dados.resumo);
       salvarResumoLocal('geral', periodo, mes, dataInicio, dataFim, dados.resumo);
 
+      if (dados.resumosLojas && typeof dados.resumosLojas === 'object') {
+        for (const [lojaId, resumoDaLoja] of Object.entries(dados.resumosLojas)) {
+          salvarResumoLocal(`loja:${lojaId}`, periodo, mes, dataInicio, dataFim, resumoDaLoja as ResumoVendas);
+        }
+      }
+
       if (view === 'loja' && lojaSelecionada) {
-        const lojaResposta = await fetch(`/api/vendas/lojas/${lojaSelecionada}/resumo?periodo=${periodo}${mesQuery}`);
-        const lojaDados = await lojaResposta.json();
-        if (!lojaResposta.ok) throw new Error(lojaDados?.error || 'Falha ao atualizar os dados da loja');
+        const lojaDados = dados.resumosLojas?.[lojaSelecionada];
+        if (!lojaDados) throw new Error('A atualização não retornou os dados da loja');
         setResumoLoja(lojaDados);
         salvarResumoLocal(`loja:${lojaSelecionada}`, periodo, mes, dataInicio, dataFim, lojaDados);
       }

@@ -1032,10 +1032,13 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
       const inicio = Date.now();
       try {
         const resultado = await atualizarRankingVendas('mes');
-        // Também remonta o snapshot agregado usado pelos KPIs. Quando já há
-        // snapshot salvo, esta chamada devolve-o na hora e continua o cálculo
-        // novo em segundo plano.
-        await getResumoVendas('mes');
+        // Mantém prontos em /app/data o painel geral e TODAS as lojas. Assim
+        // nenhuma unidade depende de já ter sido aberta por um usuário para
+        // possuir um snapshot persistente.
+        await Promise.all([
+          getResumoVendas('mes'),
+          ...LOJAS.map((loja) => getResumoVendasPorLoja('mes', loja.id)),
+        ]);
         const totalPedidos = resultado.ranking.reduce((soma, vendedor) => soma + vendedor.pedidos, 0);
         console.log(
           `[vendas] cache automático atualizado: ${totalPedidos} pedidos em ${((Date.now() - inicio) / 1000).toFixed(1)}s`
@@ -1051,9 +1054,15 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
     // Reabre imediatamente o último snapshot persistido em /app/data, antes
     // mesmo do primeiro ciclo automático do Nomus. Assim o primeiro usuário
     // após um restart também recebe os KPIs prontos.
-    void getResumoVendas('mes').catch((error) =>
-      console.error('[vendas] não foi possível pré-aquecer o resumo; o cache existente será preservado:', error)
-    );
+    void Promise.allSettled([
+      getResumoVendas('mes'),
+      ...LOJAS.map((loja) => getResumoVendasPorLoja('mes', loja.id)),
+    ]).then((resultados) => {
+      const falhas = resultados.filter((resultado) => resultado.status === 'rejected');
+      if (falhas.length > 0) {
+        console.error(`[vendas] ${falhas.length} snapshot(s) não puderam ser pré-aquecidos; os caches existentes foram preservados.`);
+      }
+    });
 
     // Pequeno atraso para não disputar CPU/rede com a inicialização do app.
     const primeiroCiclo = setTimeout(atualizarVendasContinuamente, 10_000);
