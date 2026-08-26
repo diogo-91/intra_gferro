@@ -1240,6 +1240,64 @@ export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, m
   });
 }
 
+/**
+ * Refaz e persiste o resumo geral e os resumos de todas as unidades usando o
+ * cache mais novo de pedidos. O snapshot anterior permanece disponível para
+ * os usuários enquanto o novo é montado, mas esta função só conclui depois
+ * que produtos, quantidades, valores e preços médios foram recalculados.
+ */
+export async function atualizarResumosVendas(
+  periodo: Periodo,
+  mes?: string,
+  intervalo?: IntervaloVendas
+): Promise<{ resumo: ResumoVendas; resumosLojas: Record<string, ResumoVendas> }> {
+  const chavePeriodo = chavePedidos(periodo, mes, intervalo);
+  const chavesResumo = [
+    `geral:${chavePeriodo}`,
+    ...LOJAS.map((loja) => `loja:${loja.id}:${chavePeriodo}`),
+  ];
+
+  // Se uma remontagem anterior ainda estiver rodando, deixe-a terminar antes
+  // de iniciar a obrigatória com o conjunto novo de pedidos.
+  await Promise.allSettled(
+    chavesResumo
+      .map((chave) => cacheResumosVendasEmAndamento.get(chave))
+      .filter((promessa): promessa is Promise<ResumoVendas> => promessa !== undefined)
+  );
+
+  // Expira logicamente sem apagar: obterResumoVendasCacheado continua
+  // devolvendo esse último dado pronto para qualquer requisição concorrente.
+  for (const chave of chavesResumo) {
+    const cacheado = cacheResumosVendas.get(chave);
+    if (cacheado) cacheado.geradoEm = 0;
+  }
+
+  await Promise.all([
+    getResumoVendas(periodo, mes, false, intervalo),
+    ...LOJAS.map((loja) => getResumoVendasPorLoja(periodo, loja.id, mes, intervalo)),
+  ]);
+
+  // As chamadas acima devolvem o snapshot antigo imediatamente e iniciam a
+  // remontagem. Aqui aguardamos essas Promises para garantir a persistência
+  // dos dados de produto antes de encerrar o ciclo automático.
+  await Promise.all(
+    chavesResumo
+      .map((chave) => cacheResumosVendasEmAndamento.get(chave))
+      .filter((promessa): promessa is Promise<ResumoVendas> => promessa !== undefined)
+  );
+
+  const resumo = cacheResumosVendas.get(`geral:${chavePeriodo}`)?.resumo;
+  if (!resumo) throw new Error(`Resumo geral não foi gerado para ${chavePeriodo}`);
+
+  const resumosLojas = Object.fromEntries(LOJAS.map((loja) => {
+    const resumoLoja = cacheResumosVendas.get(`loja:${loja.id}:${chavePeriodo}`)?.resumo;
+    if (!resumoLoja) throw new Error(`Resumo da loja ${loja.id} não foi gerado para ${chavePeriodo}`);
+    return [loja.id, resumoLoja] as const;
+  }));
+
+  return { resumo, resumosLojas };
+}
+
 export async function getComparativoMensalVendas(mesBase?: string): Promise<{ meses: ComparativoMensalVendasItem[]; atualizadoEm: string }> {
   const hoje = new Date();
   const base = mesBase && /^\d{4}-\d{2}$/.test(mesBase)

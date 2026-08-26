@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { atualizarDadosVendas, atualizarRankingVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getComparativoMensalVendas, getGestaoMetasMensais, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
+import { atualizarDadosVendas, atualizarRankingVendas, atualizarResumosVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getComparativoMensalVendas, getGestaoMetasMensais, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -1032,13 +1032,10 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
       const inicio = Date.now();
       try {
         const resultado = await atualizarRankingVendas('mes');
-        // Mantém prontos em /app/data o painel geral e TODAS as lojas. Assim
-        // nenhuma unidade depende de já ter sido aberta por um usuário para
-        // possuir um snapshot persistente.
-        await Promise.all([
-          getResumoVendas('mes'),
-          ...LOJAS.map((loja) => getResumoVendasPorLoja('mes', loja.id)),
-        ]);
+        // Recalcula e persiste também produtos, quantidades e preços médios do
+        // painel geral e de todas as unidades. O snapshot anterior continua
+        // disponível enquanto esta etapa roda em segundo plano.
+        await atualizarResumosVendas('mes');
         const totalPedidos = resultado.ranking.reduce((soma, vendedor) => soma + vendedor.pedidos, 0);
         console.log(
           `[vendas] cache automático atualizado: ${totalPedidos} pedidos em ${((Date.now() - inicio) / 1000).toFixed(1)}s`
