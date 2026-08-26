@@ -20,6 +20,7 @@ import { listarFuncionarios, cadastrarFuncionario, removerFuncionario } from './
 import { salvarMetasMensais } from './metasVendas';
 import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
 import * as sac from './sac';
+import { obterDadosPlanilhaSac, atualizarDadosPlanilhaSac, iniciarAtualizacaoAutomaticaPlanilhaSac } from './sacPlanilha';
 import * as lojasFotos from './lojasFotos';
 import { LOJAS } from './src/data/vendedorLoja';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo } from './auth';
@@ -820,6 +821,20 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
   });
 
   app.get(
+    '/api/sac/planilha',
+    rotaSac(async (_req, res) => {
+      res.json(await obterDadosPlanilhaSac());
+    })
+  );
+
+  app.post(
+    '/api/sac/planilha/atualizar',
+    rotaSac(async (_req, res) => {
+      res.json(await atualizarDadosPlanilhaSac());
+    })
+  );
+
+  app.get(
     '/api/sac/atendimentos',
     rotaSac(async (_req, res) => {
       res.json(await sac.listarAtendimentos());
@@ -1023,6 +1038,10 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor GFERRO Intranet rodando em http://0.0.0.0:${PORT}`);
+
+    // A planilha é a fonte única da visão principal do SAC. Mantém um último
+    // snapshot em /app/data e consulta o Google silenciosamente a cada minuto.
+    iniciarAtualizacaoAutomaticaPlanilhaSac();
 
     // Mantém o mês corrente de Vendas aquecido mesmo quando ninguém está com
     // o dashboard aberto. O ciclo é agendado somente depois que a consulta
