@@ -1,7 +1,7 @@
 import type { TabType } from './types';
 import { LOJAS, type LojaId } from './data/vendedorLoja';
 
-export type SubmoduloId = 'vendas:geral' | `vendas:loja:${LojaId}`;
+export type SubmoduloId = 'vendas:geral' | 'vendas:gestao' | 'vendas:ranking' | `vendas:loja:${LojaId}`;
 
 export interface Submodulo {
   id: SubmoduloId;
@@ -9,7 +9,9 @@ export interface Submodulo {
 }
 
 export const SUBMODULOS_VENDAS: readonly Submodulo[] = [
-  { id: 'vendas:geral', nome: 'Visão geral — todas as lojas' },
+  { id: 'vendas:geral', nome: 'Painel de Vendas — visão geral' },
+  { id: 'vendas:gestao', nome: 'Gestão' },
+  { id: 'vendas:ranking', nome: 'Ranking de Vendedores' },
   ...LOJAS.map((loja) => ({ id: `vendas:loja:${loja.id}` as SubmoduloId, nome: loja.nome })),
 ];
 

@@ -148,12 +148,15 @@ const formatCurrencyComCentavos = (valor: number) =>
 
 export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGestao = false, submodulos = [] }) => {
   const podeVerGeral = podeEditarGestao || submodulos.includes('vendas:geral');
+  const podeVerGestao = podeEditarGestao || submodulos.includes('vendas:gestao');
+  const podeVerRanking = podeEditarGestao || submodulos.includes('vendas:ranking');
   const lojasPermitidas = useMemo(
     () => podeEditarGestao ? [...LOJAS] : LOJAS.filter((loja) => submodulos.includes(submoduloLojaVendas(loja.id))),
     [podeEditarGestao, submodulos]
   );
   const lojaInicial = lojasPermitidas[0]?.id ?? null;
-  const [view, setView] = useState<VendasView>(podeVerGeral ? 'painel' : 'loja');
+  const viewInicial: VendasView = podeVerGeral ? 'painel' : lojaInicial ? 'loja' : podeVerRanking ? 'ranking' : 'gestao';
+  const [view, setView] = useState<VendasView>(viewInicial);
   const [periodo, setPeriodo] = useState<Periodo>('mes');
   // Só é usado quando periodo === 'mes'; null = mês corrente.
   const [mes, setMes] = useState<string | null>(null);
@@ -162,7 +165,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
   const [busca, setBusca] = useState('');
   const [somenteComPedidos, setSomenteComPedidos] = useState(false);
   const [lojaSelecionada, setLojaSelecionada] = useState<string | null>(lojaInicial);
-  const [rankingSelecionado, setRankingSelecionado] = useState<string>(podeVerGeral ? 'geral' : lojaInicial ?? 'geral');
+  const [rankingSelecionado, setRankingSelecionado] = useState<string>(podeVerRanking ? 'geral' : lojaInicial ?? 'geral');
 
   const [ranking, setRanking] = useState<VendedorRanking[]>([]);
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
@@ -183,7 +186,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
   const [pedidosVendedorErro, setPedidosVendedorErro] = useState<string | null>(null);
   const [pedidosVendedorAtualizadoEm, setPedidosVendedorAtualizadoEm] = useState<string | null>(null);
 
-  const filtrarRankingPermitido = (itens: VendedorRanking[]) => podeVerGeral
+  const filtrarRankingPermitido = (itens: VendedorRanking[]) => podeVerRanking
     ? itens
     : itens.filter((vendedor) => {
       const lojaId = lojaDoVendedor(vendedor.nome);
@@ -660,21 +663,21 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     </button>
   );
 
-  if (!podeVerGeral && lojasPermitidas.length === 0) {
+  if (!podeVerGeral && !podeVerGestao && !podeVerRanking && lojasPermitidas.length === 0) {
     return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900"><strong>Acesso de vendas incompleto.</strong><p className="mt-1">Peça ao administrador para liberar ao menos uma loja dentro do Dashboard de Vendas.</p></div>;
   }
 
-  if (view === 'gestao' && podeVerGeral) {
+  if (view === 'gestao' && podeVerGestao) {
     return (
       <GestaoMetasMensais
         podeEditar={podeEditarGestao}
-        onVoltar={() => setView('painel')}
+        onVoltar={podeVerGeral ? () => setView('painel') : lojaInicial ? () => setView('loja') : undefined}
         exibirDistribuicao={false}
       />
     );
   }
 
-  if (view === 'ranking') {
+  if (view === 'ranking' && podeVerRanking) {
     return (
       <div className="space-y-5">
         <header className="border-b border-neutral-200 pb-5">
@@ -723,7 +726,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
             </div>
 
             <nav className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-neutral-100 p-1.5" aria-label="Selecionar ranking geral ou por loja">
-          {podeVerGeral && <button
+          {podeVerRanking && <button
             type="button"
             aria-pressed={rankingSelecionado === 'geral'}
             onClick={() => setRankingSelecionado('geral')}
@@ -736,7 +739,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
             <Building2 className="w-3.5 h-3.5" aria-hidden="true" />
             Ranking Geral
           </button>}
-          {lojasPermitidas.map((loja) => {
+          {(podeVerRanking ? LOJAS : lojasPermitidas).map((loja) => {
             const selecionada = rankingSelecionado === loja.id;
             return (
               <button
@@ -865,7 +868,9 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
             </h1>
             <p className="text-neutral-500 text-sm mt-1">Vendas do período — só os pedidos dos vendedores desta unidade.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {podeVerGestao && <button type="button" onClick={() => setView('gestao')} className="inline-flex items-center gap-2 rounded-full border border-yellow-300 bg-yellow-50 px-4 py-2 text-xs font-bold text-yellow-900"><Building2 className="h-4 w-4"/>Gestão</button>}
+            {podeVerRanking && <button type="button" onClick={() => setView('ranking')} className="inline-flex items-center gap-2 rounded-full bg-yellow-400 px-4 py-2 text-xs font-bold text-black"><Trophy className="h-4 w-4"/>Ranking de Vendedores</button>}
             {resumoLoja && !resumoLojaLoading && (
               <span className="text-neutral-500 text-[11px] shrink-0 sm:text-right">
                 Atualizado em {new Date(resumoLoja.atualizadoEm).toLocaleString('pt-BR')}
@@ -971,7 +976,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
 
         {/* Navegação interna do Dashboard de Vendas */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {podeVerGeral && <button
+          {podeVerGestao && <button
             type="button"
             onClick={() => setView('gestao')}
             className="flex items-center gap-2 rounded-full border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-xs font-extrabold text-yellow-900 shadow-sm transition-all hover:bg-yellow-100 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
@@ -979,14 +984,14 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
             <Building2 className="h-4 w-4" aria-hidden="true" />
             <span>Gestão</span>
           </button>}
-          <button
+          {podeVerRanking && <button
             type="button"
             onClick={() => setView('ranking')}
             className="flex items-center gap-2 rounded-full bg-yellow-400 px-4 py-2.5 text-xs font-extrabold text-black shadow-lg shadow-yellow-400/20 transition-all hover:bg-yellow-300 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             <Trophy className="w-4 h-4" aria-hidden="true" />
             <span>Ranking de Vendedores</span>
-          </button>
+          </button>}
         </div>
       </div>
 

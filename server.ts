@@ -34,6 +34,14 @@ function podeVerVendasGerais(sessao: SessaoAutenticada) {
   return sessao.administrador || sessao.submodulos.includes('vendas:geral');
 }
 
+function podeVerGestaoVendas(sessao: SessaoAutenticada) {
+  return sessao.administrador || sessao.submodulos.includes('vendas:gestao');
+}
+
+function podeVerRankingVendas(sessao: SessaoAutenticada) {
+  return sessao.administrador || sessao.submodulos.includes('vendas:ranking');
+}
+
 function podeVerLoja(sessao: SessaoAutenticada, lojaId: string): lojaId is LojaId {
   const loja = LOJAS.find((item) => item.id === lojaId);
   return !!loja && (sessao.administrador || sessao.submodulos.includes(submoduloLojaVendas(loja.id)));
@@ -51,8 +59,20 @@ function exigirVendasGerais(sessao: SessaoAutenticada) {
   }
 }
 
+function exigirGestaoVendas(sessao: SessaoAutenticada) {
+  if (!podeVerGestaoVendas(sessao)) {
+    throw Object.assign(new Error('Você não possui acesso à Gestão de Vendas.'), { status: 403 });
+  }
+}
+
+function exigirRankingVendas(sessao: SessaoAutenticada) {
+  if (!podeVerRankingVendas(sessao)) {
+    throw Object.assign(new Error('Você não possui acesso ao Ranking de Vendedores.'), { status: 403 });
+  }
+}
+
 function filtrarRankingPorSessao<T extends { nome: string }>(sessao: SessaoAutenticada, ranking: T[]): T[] {
-  if (podeVerVendasGerais(sessao)) return ranking;
+  if (podeVerRankingVendas(sessao)) return ranking;
   return ranking.filter((vendedor) => {
     const lojaId = lojaDoVendedor(vendedor.nome);
     return !!lojaId && podeVerLoja(sessao, lojaId);
@@ -362,7 +382,7 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/gestao-metas', async (req, res) => {
     try {
-      exigirVendasGerais(await obterSessaoVendas(req));
+      exigirGestaoVendas(await obterSessaoVendas(req));
       const mes = validarMesQuery(req.query.mes);
       if (!mes) return res.status(400).json({ error: 'Informe o mês no formato AAAA-MM.' });
       res.json(await getGestaoMetasMensais(mes));
@@ -421,7 +441,9 @@ Contexto da GFERRO:
       const mes = validarMesQuery(req.query.mes);
       const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
       const resultado = await atualizarDadosVendas(periodo as Periodo, mes, intervalo);
-      if (podeVerVendasGerais(sessao)) return res.json(resultado);
+      if (podeVerVendasGerais(sessao)) {
+        return res.json({ ...resultado, ranking: filtrarRankingPorSessao(sessao, resultado.ranking) });
+      }
       const resumosLojas = Object.fromEntries(
         Object.entries(resultado.resumosLojas).filter(([lojaId]) => podeVerLoja(sessao, lojaId))
       );
@@ -442,6 +464,7 @@ Contexto da GFERRO:
   app.post('/api/vendas/ranking/atualizar', async (req, res) => {
     try {
       const sessao = await obterSessaoVendas(req);
+      exigirRankingVendas(sessao);
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
@@ -486,6 +509,7 @@ Contexto da GFERRO:
   app.get('/api/vendas/ranking/pdf', async (req, res) => {
     try {
       const sessao = await obterSessaoVendas(req);
+      exigirRankingVendas(sessao);
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
