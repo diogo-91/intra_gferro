@@ -175,7 +175,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#0A0A0A] text-white font-sans selection:bg-yellow-400 selection:text-black">
+    <div className="h-[100dvh] overflow-hidden bg-[#0A0A0A] text-white font-sans selection:bg-yellow-400 selection:text-black">
       
       {/* Top Header */}
       <Header
@@ -194,7 +194,7 @@ export default function App() {
       />
 
       {/* Main Layout Grid */}
-      <div className="flex h-full min-h-0 pt-20 overflow-hidden">
+      <div className="flex h-full min-h-0 pt-16 sm:pt-20 overflow-hidden">
         {/* Left Sidebar */}
         <Sidebar
           activeTab={activeTab}
@@ -211,7 +211,7 @@ export default function App() {
 
         {/* Content View Container */}
         <main
-          className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden lg:ml-64 p-4 sm:p-6 lg:p-8 bg-white text-neutral-900 selection:bg-yellow-400 selection:text-black"
+          className="flex-1 min-w-0 h-full overscroll-y-contain overflow-y-auto overflow-x-hidden lg:ml-64 p-3 sm:p-6 lg:p-8 bg-white text-neutral-900 selection:bg-yellow-400 selection:text-black"
         >
           {!acessoAbaAtiva && (
             <div className="min-h-[60vh] flex items-center justify-center">

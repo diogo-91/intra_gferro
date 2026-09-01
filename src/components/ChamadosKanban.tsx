@@ -59,15 +59,15 @@ export const ChamadosKanban: React.FC<Props> = ({
   mostrarDepartamento = false,
   mostrarSolicitante = false,
 }) => (
-  <div className="grid gap-4 xl:grid-cols-3 items-start">
+  <div className="grid min-w-0 gap-3 sm:gap-4 lg:grid-cols-3 items-start">
     {etapas.map((etapa) => {
       const itens = chamados.filter(etapa.aceita);
       const Icon = etapa.icon;
 
       return (
-        <section key={etapa.id} className="overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-100/70 shadow-sm">
+        <section key={etapa.id} className="min-w-0 overflow-hidden rounded-2xl sm:rounded-3xl border border-neutral-200 bg-neutral-100/70 shadow-sm">
           <div className={`h-1.5 ${etapa.faixa}`} />
-          <header className="flex items-center gap-3 px-4 py-4">
+          <header className="flex items-center gap-3 px-3.5 py-3.5 sm:px-4 sm:py-4">
             <div className={`rounded-xl p-2 ${etapa.icone}`}>
               <Icon className="h-4 w-4" />
             </div>
@@ -80,7 +80,7 @@ export const ChamadosKanban: React.FC<Props> = ({
             </span>
           </header>
 
-          <div className="space-y-3 px-3 pb-3">
+          <div className="space-y-3 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
             {itens.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-neutral-300 bg-white/60 px-4 py-10 text-center">
                 <p className="text-xs font-bold text-neutral-400">Nenhum chamado nesta etapa</p>
@@ -90,7 +90,7 @@ export const ChamadosKanban: React.FC<Props> = ({
                 key={chamado.id}
                 type="button"
                 onClick={() => onSelect(chamado)}
-                className="group w-full rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-yellow-400 hover:shadow-md"
+                className="group w-full min-h-11 rounded-2xl border border-neutral-200 bg-white p-3.5 sm:p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-yellow-400 hover:shadow-md active:scale-[0.99]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <span className="font-mono text-[11px] font-black text-yellow-700">{chamado.protocolo}</span>
@@ -110,7 +110,7 @@ export const ChamadosKanban: React.FC<Props> = ({
                       <span className="truncate">{chamado.solicitanteNome}</span>
                     </p>
                   )}
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
                     <span className="flex items-center gap-1.5">
                       <MessageCircleMore className="h-3.5 w-3.5" />
                       {chamado.interacoes.length} atualizaç{chamado.interacoes.length === 1 ? 'ão' : 'ões'}

@@ -120,12 +120,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-20 bottom-0 left-0 z-40 w-64 bg-[#111111] border-r border-white/10 flex flex-col justify-between transition-transform duration-300 ease-in-out ${
+        className={`fixed top-16 sm:top-20 bottom-0 left-0 z-40 w-[min(18rem,calc(100vw-3rem))] lg:w-64 bg-[#111111] border-r border-white/10 flex flex-col justify-between transition-transform duration-300 ease-in-out ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Navigation Items */}
-        <div className="p-4 space-y-1.5 overflow-y-auto sidebar-scroll">
+        <div className="p-3 sm:p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-1.5 overflow-y-auto overscroll-contain sidebar-scroll">
           <div className="px-3 py-2 text-xs font-bold uppercase tracking-widest text-neutral-500">
             Menu Intranet
           </div>

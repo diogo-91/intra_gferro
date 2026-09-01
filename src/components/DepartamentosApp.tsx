@@ -43,12 +43,12 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
     const intervalo = window.setInterval(atualizarContagem, 30000);
     return () => { ativo = false; window.clearInterval(intervalo); };
   }, [selectedDepartment.id, refreshKey]);
-  const navegacao = <div className="flex gap-2 p-1 bg-neutral-100 rounded-2xl w-fit">
-    <button onClick={()=>setVisao('area')} className={`px-4 py-2 rounded-xl text-xs font-black flex gap-2 items-center ${visao==='area'?'bg-white shadow-sm':'text-neutral-500'}`}><LayoutDashboard className="w-4 h-4"/>Visão da área</button>
-    <button onClick={()=>setVisao('chamados')} className={`relative px-4 py-2 rounded-xl text-xs font-black flex gap-2 items-center ${visao==='chamados'?'bg-yellow-400 shadow-sm':'text-neutral-500'}`}><TicketCheck className="w-4 h-4"/>Chamados do departamento{novosChamados>0&&<span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-black text-white ring-2 ring-white">{novosChamados>99?'99+':novosChamados}</span>}</button>
+  const navegacao = <div className="grid w-full grid-cols-2 gap-1.5 rounded-2xl bg-neutral-100 p-1 sm:flex sm:w-fit sm:gap-2">
+    <button onClick={()=>setVisao('area')} className={`min-h-11 min-w-0 justify-center px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black flex gap-1.5 sm:gap-2 items-center ${visao==='area'?'bg-white shadow-sm':'text-neutral-500'}`}><LayoutDashboard className="w-4 h-4 shrink-0"/><span className="truncate">Visão da área</span></button>
+    <button onClick={()=>setVisao('chamados')} className={`relative min-h-11 min-w-0 justify-center px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black flex gap-1.5 sm:gap-2 items-center ${visao==='chamados'?'bg-yellow-400 shadow-sm':'text-neutral-500'}`}><TicketCheck className="w-4 h-4 shrink-0"/><span className="truncate">Chamados do departamento</span>{novosChamados>0&&<span className="absolute -right-1 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-black text-white ring-2 ring-white">{novosChamados>99?'99+':novosChamados}</span>}</button>
   </div>;
 
-  if (visao === 'chamados') return <div className="space-y-5 pb-12">{navegacao}<div><h1 className="text-2xl font-black">Atendimento · {selectedDepartment.name}</h1><p className="text-xs text-neutral-500 mt-1">Fila completa de solicitações encaminhadas a este departamento.</p></div><ChamadosDepartamento department={selectedDepartment} refreshKey={refreshKey} onNewCountChange={setNovosChamados}/></div>;
+  if (visao === 'chamados') return <div className="space-y-4 sm:space-y-5 pb-8 sm:pb-12">{navegacao}<div><h1 className="text-xl sm:text-2xl font-black break-words">Atendimento · {selectedDepartment.name}</h1><p className="text-xs text-neutral-500 mt-1">Fila completa de solicitações encaminhadas a este departamento.</p></div><ChamadosDepartamento department={selectedDepartment} refreshKey={refreshKey} onNewCountChange={setNovosChamados}/></div>;
 
   // O módulo RH tem sua própria página completa (cabeçalho, KPIs e cadastro
   // de funcionários) — não faz sentido empilhar o banner genérico de setor

@@ -48,18 +48,18 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 bg-[#0A0A0A]/95 backdrop-blur-md border-b border-white/10 text-white shadow-xl">
-      <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20 gap-2 sm:gap-4">
+      <div className="w-full px-2.5 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 sm:h-20 gap-1.5 sm:gap-4">
 
           {/* Left: Mobile Toggle & Brand Logo */}
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-4 min-w-0">
             <button
               id="header-mobile-menu-toggle"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2.5 rounded-xl text-neutral-400 hover:text-yellow-400 hover:bg-white/5 transition-colors shrink-0"
+              className="lg:hidden min-h-11 min-w-11 p-2 rounded-xl text-neutral-400 hover:text-yellow-400 hover:bg-white/5 transition-colors shrink-0"
               aria-label="Abrir Menu"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 mx-auto" /> : <Menu className="w-5 h-5 mx-auto" />}
             </button>
 
             {/* GFERRO Brand Logo */}
@@ -67,10 +67,10 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setActiveTab('informativos')}
               className="flex items-center gap-2 sm:gap-3 cursor-pointer group select-none min-w-0"
             >
-              <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center font-black text-black text-xl shadow-lg shadow-yellow-400/20 group-hover:scale-105 transition-transform shrink-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-yellow-400 rounded-lg flex items-center justify-center font-black text-black text-sm sm:text-xl shadow-lg shadow-yellow-400/20 group-hover:scale-105 transition-transform shrink-0">
                 GF
               </div>
-              <div className="flex flex-col min-w-0">
+              <div className="hidden min-[430px]:flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-2xl tracking-tighter text-white group-hover:text-yellow-400 transition-colors">
                     GFERRO
@@ -110,12 +110,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Right Action Controls */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
 
             {podeAbrirChamado && <button
               id="header-new-chamado-btn"
               onClick={onOpenNewChamado}
-              className="flex items-center gap-2 px-2.5 sm:px-4 py-2 rounded-full bg-yellow-400 text-black font-bold text-xs sm:text-sm hover:bg-yellow-300 shadow-lg shadow-yellow-400/20 active:scale-95 transition-all"
+              className="flex min-h-11 min-w-11 items-center justify-center gap-2 px-2.5 sm:px-4 py-2 rounded-full bg-yellow-400 text-black font-bold text-xs sm:text-sm hover:bg-yellow-300 shadow-lg shadow-yellow-400/20 active:scale-95 transition-all"
               title="Abrir Chamado"
             >
               <LifeBuoy className="w-4 h-4 text-black" />
@@ -130,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
                   setShowNotifications(!showNotifications);
                   if (unreadCount > 0) onMarkNotificationsRead();
                 }}
-                className="p-2.5 rounded-full bg-neutral-900 border border-white/10 hover:border-yellow-400 text-neutral-400 hover:text-yellow-400 transition-colors relative"
+                className="min-h-11 min-w-11 p-2 rounded-full bg-neutral-900 border border-white/10 hover:border-yellow-400 text-neutral-400 hover:text-yellow-400 transition-colors relative"
                 aria-label="Notificações"
               >
                 <Bell className="w-5 h-5" />
@@ -143,7 +143,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* Notifications Dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-3 w-80 bg-[#111111] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                <div className="fixed left-3 right-3 top-16 mt-2 bg-[#111111] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80">
                   <div className="p-4 bg-[#0A0A0A] border-b border-white/10 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Bell className="w-4 h-4 text-yellow-400" />
@@ -183,11 +183,11 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* User Profile Chip */}
-            <div className="relative border-l border-white/10 pl-3">
+            <div className="relative border-l border-white/10 pl-1.5 sm:pl-3">
               <button
                 id="header-user-menu-toggle"
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-3 p-1 rounded-full hover:bg-white/5 transition-colors group"
+                className="flex min-h-11 min-w-11 items-center justify-center gap-3 p-1 rounded-full hover:bg-white/5 transition-colors group"
               >
                 <div className="text-right hidden xl:block">
                   <p className="text-sm font-bold text-white group-hover:text-yellow-400 transition-colors leading-none">
@@ -197,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
                     {user.role}
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-neutral-800 border-2 border-yellow-400 overflow-hidden shrink-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-neutral-800 border-2 border-yellow-400 overflow-hidden shrink-0">
                   <img
                     src={user.avatar}
                     alt={user.name}
@@ -208,7 +208,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* User Dropdown */}
               {showUserMenu && (
-                <div className="absolute right-0 mt-3 w-64 bg-[#111111] border border-white/10 rounded-2xl shadow-2xl p-4 z-50">
+                <div className="fixed left-3 right-3 top-16 mt-2 bg-[#111111] border border-white/10 rounded-2xl shadow-2xl p-4 z-50 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-64">
                   <div className="flex items-center gap-3 pb-3 border-b border-white/10">
                     <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400" />
                     <div className="flex flex-col min-w-0">

@@ -19,3 +19,32 @@
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.28);
 }
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+  overscroll-behavior: none;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+@media (max-width: 767px) {
+  .sidebar-scroll button {
+    min-height: 44px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
