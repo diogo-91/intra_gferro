@@ -1,35 +1,225 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import {
+  CalendarDays,
+  Clock3,
+  FileText,
+  Headphones,
+  Loader2,
+  LockKeyhole,
+  Pause,
+  Play,
+  Send,
+  Square,
+  UserRound,
+  X,
+} from 'lucide-react';
 import { Chamado } from '../types';
-import { X, Send, Lock, Loader2, UserRound, MapPin, Monitor, CalendarDays, CheckCircle2 } from 'lucide-react';
 
-interface Props { chamado: Chamado; podeAtender: boolean; onClose: () => void; onUpdated: (chamado: Chamado) => void; }
-const data = (valor?: string) => valor ? new Date(valor).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+interface Props {
+  chamado: Chamado;
+  podeAtender: boolean;
+  onClose: () => void;
+  onUpdated: (chamado: Chamado) => void;
+}
 
-export const ChamadoDetalhe: React.FC<Props> = ({ chamado, podeAtender, onClose, onUpdated }) => {
-  const [responsavel, setResponsavel] = useState(chamado.responsavel || ''); const [prazo, setPrazo] = useState(chamado.prazo?.slice(0,16) || '');
-  const [prioridade, setPrioridade] = useState(chamado.prioridade); const [solucao, setSolucao] = useState(chamado.solucao || '');
-  const [conteudo, setConteudo] = useState(''); const [interna, setInterna] = useState(false); const [ocupado, setOcupado] = useState(false); const [erro, setErro] = useState('');
-  useEffect(()=>{ setResponsavel(chamado.responsavel || ''); setPrazo(chamado.prazo?.slice(0,16) || ''); setPrioridade(chamado.prioridade); setSolucao(chamado.solucao || ''); },[chamado.id]);
-  const requisicao = async (url: string, method: string, body: any) => { setOcupado(true); setErro(''); try { const res = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const dados=await res.json(); if(!res.ok) throw new Error(dados.error||'Não foi possível concluir a ação.'); onUpdated(dados); return true; } catch(error:any){setErro(error.message); return false;} finally{setOcupado(false);} };
-  const atualizar = (patch: any) => requisicao(`/api/chamados/${chamado.id}`,'PATCH',patch);
-  const enviar = async (e: React.FormEvent) => { e.preventDefault(); if(!conteudo.trim()) return; if(await requisicao(`/api/chamados/${chamado.id}/interacoes`,'POST',{conteudo,tipo:interna?'nota_interna':'mensagem'})) setConteudo(''); };
-  const status = async (novo: Chamado['status']) => { if((novo==='Resolvido'||novo==='Encerrado')&&!solucao.trim()){setErro('Registre a solução antes de resolver ou encerrar.');return;} await atualizar({status:novo,solucao}); };
-  const input='w-full min-h-11 rounded-xl border border-neutral-200 px-3 py-2 text-base sm:text-sm outline-none focus:border-yellow-400';
-  return <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-0 sm:p-6 flex justify-end"><div className="bg-neutral-50 w-full max-w-4xl h-[100dvh] sm:h-full rounded-none sm:rounded-[2rem] shadow-2xl overflow-y-auto overscroll-contain">
-    <div className="sticky top-0 z-10 bg-white border-b px-4 sm:px-7 py-4 sm:py-5 flex items-start gap-3 sm:gap-4 sm:rounded-t-[2rem]"><div className="flex-1 min-w-0"><div className="flex flex-wrap gap-1.5 sm:gap-2 items-center"><span className="font-mono text-xs font-black text-yellow-700">{chamado.protocolo}</span><span className="px-2 py-1 bg-neutral-100 rounded-full text-[10px] font-black uppercase">{chamado.status}</span><span className="px-2 py-1 bg-red-50 text-red-700 rounded-full text-[10px] font-bold">{chamado.prioridade}</span></div><h2 className="font-black text-base sm:text-lg leading-snug text-neutral-900 mt-2 break-words">{chamado.assunto}</h2><p className="text-xs text-neutral-500 mt-1">{chamado.departamentoNome} · {chamado.categoria}</p></div><button onClick={onClose} className="min-h-11 min-w-11 p-2 rounded-full hover:bg-neutral-100 shrink-0" aria-label="Fechar"><X className="w-5 h-5 mx-auto"/></button></div>
-    <div className="p-3 sm:p-7 pb-[max(1rem,env(safe-area-inset-bottom))] grid lg:grid-cols-[minmax(0,1fr)_310px] gap-4 sm:gap-6">
-      <div className="space-y-5"><section className="bg-white border rounded-2xl p-5"><h3 className="text-xs font-black uppercase text-neutral-500 mb-3">Solicitação</h3><p className="text-sm leading-6 whitespace-pre-wrap">{chamado.descricao}</p>{chamado.impacto&&<div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-xl"><strong className="text-xs">Impacto informado</strong><p className="text-xs mt-1">{chamado.impacto}</p></div>}</section>
-        <section className="bg-white border rounded-2xl p-5"><h3 className="text-xs font-black uppercase text-neutral-500 mb-4">Histórico e comunicação</h3><div className="space-y-3">{chamado.interacoes.map((item)=><div key={item.id} className={`rounded-xl p-3 border ${item.tipo==='nota_interna'?'bg-violet-50 border-violet-200':item.tipo==='evento'?'bg-neutral-50 border-neutral-100':'bg-white border-neutral-200'}`}><div className="flex justify-between gap-3 text-[10px] text-neutral-500"><strong className="text-neutral-800 flex items-center gap-1">{item.tipo==='nota_interna'&&<Lock className="w-3 h-3"/>}{item.autorNome}</strong><span>{data(item.criadoEm)}</span></div><p className="text-xs mt-1.5 whitespace-pre-wrap">{item.conteudo}</p></div>)}</div>
-          <form onSubmit={enviar} className="mt-4 border-t pt-4"><textarea className={input} rows={3} value={conteudo} onChange={(e)=>setConteudo(e.target.value)} placeholder="Escreva uma atualização ou resposta..."/>{podeAtender&&<label className="mt-2 flex items-start gap-2 text-xs font-semibold text-neutral-600"><input type="checkbox" checked={interna} onChange={(e)=>setInterna(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0"/> Nota interna (o solicitante não visualiza)</label>}<button disabled={ocupado||!conteudo.trim()} className="mt-3 min-h-11 w-full sm:w-auto justify-center bg-neutral-900 text-white rounded-full px-4 py-2 text-xs font-bold flex gap-2 items-center disabled:opacity-50"><Send className="w-3.5 h-3.5"/>Registrar interação</button></form>
-        </section>
-      </div>
-      <aside className="space-y-4"><section className="bg-white border rounded-2xl p-5 space-y-3"><h3 className="text-xs font-black uppercase text-neutral-500">Informações</h3><Info icon={UserRound} label="Solicitante" value={`${chamado.solicitanteNome}\n${chamado.solicitanteEmail}`}/><Info icon={MapPin} label="Local" value={chamado.local}/><Info icon={Monitor} label="Patrimônio" value={chamado.patrimonio}/><Info icon={CalendarDays} label="Data desejada" value={chamado.dataDesejada ? new Date(`${chamado.dataDesejada}T12:00:00`).toLocaleDateString('pt-BR') : undefined}/><div className="text-[11px] text-neutral-500 pt-2 border-t">Aberto em {data(chamado.criadoEm)}<br/>Atualizado em {data(chamado.atualizadoEm)}</div></section>
-        {podeAtender&&<section className="bg-white border rounded-2xl p-5 space-y-3"><h3 className="text-xs font-black uppercase text-neutral-500">Atendimento</h3><label className="block text-xs font-bold">Responsável<input className={`${input} mt-1`} value={responsavel} onChange={(e)=>setResponsavel(e.target.value)} placeholder="Nome do atendente"/></label><label className="block text-xs font-bold">Prazo<input type="datetime-local" className={`${input} mt-1`} value={prazo} onChange={(e)=>setPrazo(e.target.value)}/></label><label className="block text-xs font-bold">Prioridade<select className={`${input} mt-1`} value={prioridade} onChange={(e)=>setPrioridade(e.target.value as any)}>{['Baixa','Média','Alta','Urgente'].map((p)=><option key={p}>{p}</option>)}</select></label><label className="block text-xs font-bold">Solução / conclusão<textarea rows={4} className={`${input} mt-1`} value={solucao} onChange={(e)=>setSolucao(e.target.value)} placeholder="Diagnóstico, ações executadas e resultado"/></label><button disabled={ocupado} onClick={()=>atualizar({responsavel,prazo,prioridade,solucao})} className="w-full rounded-xl bg-neutral-100 py-2.5 text-xs font-black">Salvar informações</button><div className="grid grid-cols-2 gap-2 pt-2">{chamado.status==='Aberto'&&<Acao onClick={()=>status('Em atendimento')}>Iniciar</Acao>}{!['Encerrado','Cancelado'].includes(chamado.status)&&<Acao onClick={()=>status('Aguardando solicitante')}>Aguardar</Acao>}{!['Resolvido','Encerrado','Cancelado'].includes(chamado.status)&&<Acao onClick={()=>status('Resolvido')}>Resolver</Acao>}{chamado.status==='Resolvido'&&<Acao onClick={()=>status('Encerrado')}>Encerrar</Acao>}{['Encerrado','Resolvido','Cancelado'].includes(chamado.status)&&<Acao onClick={()=>status('Em atendimento')}>Reabrir</Acao>}{!['Encerrado','Cancelado'].includes(chamado.status)&&<button onClick={()=>status('Cancelado')} className="rounded-xl border border-red-200 text-red-700 py-2 text-xs font-bold">Cancelar</button>}</div></section>}
-        {chamado.solucao&&<section className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5"><h3 className="text-xs font-black text-emerald-800 flex gap-2"><CheckCircle2 className="w-4 h-4"/>Solução registrada</h3><p className="text-xs mt-2 whitespace-pre-wrap text-emerald-900">{chamado.solucao}</p></section>}{erro&&<div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">{erro}</div>}{ocupado&&<div className="flex justify-center"><Loader2 className="animate-spin text-yellow-600"/></div>}
-      </aside>
-    </div>
-  </div></div>;
+const formatarData = (valor?: string) => valor
+  ? new Date(valor).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  : 'Não definido';
+
+const iniciais = (nome: string) => nome
+  .trim()
+  .split(/\s+/)
+  .slice(0, 2)
+  .map((parte) => parte[0]?.toUpperCase())
+  .join('') || 'GF';
+
+const statusStyle: Record<Chamado['status'], string> = {
+  Aberto: 'bg-amber-50 text-amber-800',
+  'Em atendimento': 'bg-sky-50 text-sky-700',
+  'Aguardando solicitante': 'bg-violet-50 text-violet-700',
+  Resolvido: 'bg-emerald-50 text-emerald-700',
+  Encerrado: 'bg-neutral-100 text-neutral-700',
+  Cancelado: 'bg-red-50 text-red-700',
 };
 
-const Info=({icon:Icon,label,value}:{icon:any;label:string;value?:string})=>value?<div className="flex min-w-0 gap-2"><Icon className="w-4 h-4 text-yellow-600 shrink-0 mt-0.5"/><div className="min-w-0"><p className="text-[10px] uppercase font-bold text-neutral-400">{label}</p><p className="text-xs whitespace-pre-line break-words">{value}</p></div></div>:null;
-const Acao=({children,onClick}:{children:React.ReactNode;onClick:()=>void})=><button onClick={onClick} className="min-h-11 rounded-xl bg-yellow-400 text-black py-2 text-xs font-black">{children}</button>;
+const prioridadeStyle: Record<Chamado['prioridade'], string> = {
+  Baixa: 'bg-neutral-100 text-neutral-700',
+  Média: 'bg-amber-50 text-amber-800',
+  Alta: 'bg-orange-50 text-orange-700',
+  Urgente: 'bg-red-50 text-red-700',
+};
+
+export const ChamadoDetalhe: React.FC<Props> = ({ chamado, podeAtender, onClose, onUpdated }) => {
+  const [conteudo, setConteudo] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState('');
+
+  const requisicao = async (url: string, method: string, body: unknown) => {
+    setOcupado(true);
+    setErro('');
+    try {
+      const resposta = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const dados = await resposta.json();
+      if (!resposta.ok) throw new Error(dados.error || 'Não foi possível concluir a ação.');
+      onUpdated(dados);
+      return true;
+    } catch (error: any) {
+      setErro(error.message);
+      return false;
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const alterarStatus = (status: Chamado['status']) =>
+    requisicao(`/api/chamados/${chamado.id}`, 'PATCH', { status });
+
+  const enviarAtualizacao = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!conteudo.trim()) return;
+    const enviado = await requisicao(`/api/chamados/${chamado.id}/interacoes`, 'POST', {
+      conteudo,
+      tipo: podeAtender ? 'nota_interna' : 'mensagem',
+    });
+    if (enviado) setConteudo('');
+  };
+
+  const concluido = ['Resolvido', 'Encerrado', 'Cancelado'].includes(chamado.status);
+  const emAtendimento = chamado.status === 'Em atendimento';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 p-0 backdrop-blur-md sm:items-center sm:p-5">
+      <div className="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[92vh] sm:rounded-[1.75rem]">
+        <header className="flex shrink-0 items-start gap-3 border-b border-neutral-200 bg-white px-4 py-5 sm:px-8 sm:py-7">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs font-medium text-neutral-800 sm:text-sm">{chamado.protocolo}</span>
+              <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${statusStyle[chamado.status]}`}>
+                {chamado.status}
+              </span>
+              <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${prioridadeStyle[chamado.prioridade]}`}>
+                {chamado.prioridade}
+              </span>
+            </div>
+            <h2 className="mt-4 break-words text-xl font-black leading-tight text-neutral-950 sm:text-3xl">{chamado.assunto}</h2>
+            <p className="mt-2 text-sm text-neutral-500">{chamado.departamentoNome} • {chamado.categoria}</p>
+          </div>
+          <button type="button" onClick={onClose} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-neutral-900 transition hover:bg-neutral-100" aria-label="Fechar detalhes do chamado">
+            <X className="h-6 w-6" />
+          </button>
+        </header>
+
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain bg-neutral-50/60 p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <main className="min-w-0 space-y-4 sm:space-y-5">
+            <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-6">
+              <TituloSecao icon={FileText}>Solicitação</TituloSecao>
+              <p className="mt-6 whitespace-pre-wrap break-words text-sm leading-7 text-neutral-800 sm:text-base">{chamado.descricao}</p>
+            </section>
+
+            <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-6">
+              <TituloSecao icon={Clock3}>Histórico</TituloSecao>
+              <div className="relative mt-6 space-y-3 before:absolute before:bottom-2 before:left-[14px] before:top-2 before:w-px before:bg-neutral-200">
+                {chamado.interacoes.map((item) => (
+                  <div key={item.id} className="relative flex min-w-0 gap-3 pl-8">
+                    <span className="absolute left-[9px] top-5 z-[1] h-3 w-3 rounded-full border-2 border-white bg-yellow-400" />
+                    <div className={`flex min-w-0 flex-1 gap-3 rounded-2xl p-3 sm:items-center sm:p-4 ${item.tipo === 'nota_interna' ? 'bg-amber-50/70' : 'bg-neutral-50'}`}>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-100 text-xs font-black text-neutral-900">{iniciais(item.autorNome)}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <strong className="truncate text-xs text-neutral-900 sm:text-sm">{item.autorNome}</strong>
+                          <span className="shrink-0 text-[10px] text-neutral-500 sm:text-xs">{formatarData(item.criadoEm)}</span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-neutral-700 sm:text-sm">{item.conteudo}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={enviarAtualizacao} className="mt-6 border-t border-neutral-200 pt-5">
+                <label className="text-xs font-medium text-neutral-600">Escreva uma atualização ou resposta...</label>
+                <textarea rows={5} value={conteudo} onChange={(event) => setConteudo(event.target.value)} className="mt-3 w-full resize-y rounded-2xl border border-neutral-200 p-4 text-base text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-yellow-400 sm:text-sm" placeholder="Digite sua atualização aqui..." />
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="flex items-center gap-2 text-[11px] text-neutral-500">
+                    <LockKeyhole className="h-4 w-4 shrink-0" />
+                    {podeAtender ? 'Visível apenas para a equipe interna' : 'Visível para a equipe responsável'}
+                  </p>
+                  <button disabled={ocupado || !conteudo.trim()} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 px-5 py-2.5 text-xs font-black text-white disabled:opacity-40 sm:w-auto">
+                    {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Enviar atualização
+                  </button>
+                </div>
+              </form>
+            </section>
+          </main>
+
+          <aside className="min-w-0 space-y-4 sm:space-y-5">
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5">
+              <TituloSecao icon={UserRound}>Solicitante</TituloSecao>
+              <div className="mt-6 min-w-0">
+                <p className="break-words text-sm font-black text-neutral-900">{chamado.solicitanteNome}</p>
+                <p className="mt-1 break-all text-xs text-neutral-600">{chamado.solicitanteEmail}</p>
+              </div>
+              <div className="mt-6 border-t border-neutral-200 pt-5">
+                <p className="text-xs text-neutral-500">Aberto em</p>
+                <p className="mt-1 text-sm font-medium text-neutral-800">{formatarData(chamado.criadoEm)}</p>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5">
+              <TituloSecao icon={Headphones}>Atendimento</TituloSecao>
+              <div className="mt-6 divide-y divide-neutral-200">
+                <InfoAtendimento label="Responsável" icon={UserRound} valor={chamado.responsavel || 'Não atribuído'} />
+                <InfoAtendimento label="Prazo" icon={CalendarDays} valor={chamado.prazo ? formatarData(chamado.prazo) : 'Não definido'} />
+                <div className="py-4 first:pt-0 last:pb-0">
+                  <p className="text-xs text-neutral-500">Prioridade</p>
+                  <span className={`mt-2 inline-flex rounded-lg px-3 py-1.5 text-[10px] font-black uppercase ${prioridadeStyle[chamado.prioridade]}`}>{chamado.prioridade}</span>
+                </div>
+              </div>
+            </section>
+
+            {podeAtender && (
+              <div className="space-y-3">
+                <button type="button" disabled={ocupado || emAtendimento} onClick={() => alterarStatus('Em atendimento')} className="flex min-h-14 w-full items-center justify-center gap-3 rounded-xl bg-yellow-400 px-5 py-3 text-sm font-black text-black shadow-lg shadow-yellow-400/20 transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-60">
+                  {ocupado ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5 fill-black" />}
+                  {concluido ? 'Reabrir atendimento' : emAtendimento ? 'Atendimento iniciado' : 'Iniciar atendimento'}
+                </button>
+                <button type="button" disabled={ocupado || !emAtendimento} onClick={() => alterarStatus('Aguardando solicitante')} className="flex min-h-14 w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-black text-neutral-900 transition hover:border-yellow-400 disabled:cursor-not-allowed disabled:opacity-40">
+                  <Pause className="h-5 w-5 fill-black" />
+                  Pausar
+                </button>
+                <button type="button" disabled={ocupado || concluido} onClick={() => alterarStatus('Encerrado')} className="flex min-h-14 w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-black text-neutral-900 transition hover:border-yellow-400 disabled:cursor-not-allowed disabled:opacity-40">
+                  <Square className="h-4 w-4 fill-black" />
+                  Finalizar
+                </button>
+              </div>
+            )}
+
+            {erro && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">{erro}</div>}
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TituloSecao = ({ icon: Icon, children }: { icon: React.FC<{ className?: string }>; children: React.ReactNode }) => (
+  <h3 className="flex items-center gap-3 text-base font-black text-neutral-900">
+    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-yellow-50 text-yellow-500"><Icon className="h-5 w-5" /></span>
+    {children}
+  </h3>
+);
+
+const InfoAtendimento = ({ label, icon: Icon, valor }: { label: string; icon: React.FC<{ className?: string }>; valor: string }) => (
+  <div className="py-4 first:pt-0 last:pb-0">
+    <p className="text-xs text-neutral-500">{label}</p>
+    <p className="mt-2 flex min-w-0 items-center gap-2 text-sm text-neutral-700">
+      <Icon className="h-4 w-4 shrink-0 text-neutral-500" />
+      <span className="break-words">{valor}</span>
+    </p>
+  </div>
+);

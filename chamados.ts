@@ -123,6 +123,10 @@ export async function atualizarChamado(id: string, patch: any, autor: { nome: st
   }
   if (patch.status && ['Aberto', 'Em atendimento', 'Aguardando solicitante', 'Resolvido', 'Encerrado', 'Cancelado'].includes(patch.status) && patch.status !== atual.status) {
     novo.status = patch.status; alteracoes.push(`Status alterado de ${atual.status} para ${patch.status}`);
+    if (patch.status === 'Em atendimento' && !atual.responsavel && !texto(patch.responsavel, 120)) {
+      novo.responsavel = autor.nome;
+      alteracoes.push(`Responsável definido como ${autor.nome}`);
+    }
   }
   for (const [campo, rotulo, limite] of [
     ['responsavel', 'Responsável', 120], ['prazo', 'Prazo', 40], ['solucao', 'Solução', 5000],
