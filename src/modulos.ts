@@ -4,7 +4,7 @@ export const MODULOS = [
   { id: 'informativos', nome: 'Informativos Internos' },
   { id: 'comunicados', nome: 'Comunicados & Feed' },
   { id: 'documentos', nome: 'Documentos & NRs' },
-  { id: 'servicos', nome: 'Serviços & Chamados' },
+  { id: 'servicos', nome: 'Meus Chamados' },
   { id: 'pessoas', nome: 'Diretório de Pessoas / RH' },
   { id: 'chat', nome: 'Chat Interno' },
   { id: 'departamentos', nome: 'Departamentos & Áreas' },

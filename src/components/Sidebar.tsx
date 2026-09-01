@@ -70,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'informativos', label: 'Informativos Internos', icon: Megaphone },
     { id: 'comunicados', label: 'Comunicados & Feed', icon: Newspaper },
     { id: 'documentos', label: 'Documentos & NRs', icon: FileText },
-    { id: 'servicos', label: 'Serviços & Chamados', icon: LifeBuoy },
+    { id: 'servicos', label: 'Meus Chamados', icon: LifeBuoy },
     { id: 'pessoas', label: 'Diretório de Pessoas', icon: Users },
     { id: 'chat', label: 'Chat Interno GFERRO', icon: MessageSquare },
     { id: 'ia-assistente', label: 'Ideias e Sugestões', icon: Lightbulb },
