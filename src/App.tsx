@@ -287,7 +287,6 @@ export default function App() {
               departments={departments}
               colaboradores={colaboradores}
               selectedDeptId={selectedDeptId}
-              onOpenNewChamado={() => setIsNewChamadoOpen(true)}
               refreshKey={chamadosVersion}
             />
           )}

@@ -11,7 +11,6 @@ interface DepartamentosAppProps {
   departments: Department[];
   colaboradores: Colaborador[];
   selectedDeptId: string;
-  onOpenNewChamado: () => void;
   refreshKey: number;
 }
 
@@ -20,18 +19,36 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
   departments,
   colaboradores,
   selectedDeptId,
-  onOpenNewChamado,
   refreshKey,
 }) => {
   const selectedDepartment = departments.find((d) => d.id === selectedDeptId) || departments[0];
   const [visao, setVisao] = useState<'area' | 'chamados'>('area');
+  const [novosChamados, setNovosChamados] = useState(0);
   useEffect(() => setVisao('area'), [selectedDeptId]);
+  useEffect(() => {
+    let ativo = true;
+    const atualizarContagem = async () => {
+      try {
+        const resposta = await fetch(`/api/chamados?escopo=departamento&departamentoId=${encodeURIComponent(selectedDepartment.id)}`);
+        const chamados = await resposta.json();
+        if (ativo && resposta.ok && Array.isArray(chamados)) {
+          setNovosChamados(chamados.filter((chamado) => chamado.status === 'Aberto').length);
+        }
+      } catch {
+        // Mantém a última contagem durante falhas temporárias de conexão.
+      }
+    };
+    setNovosChamados(0);
+    atualizarContagem();
+    const intervalo = window.setInterval(atualizarContagem, 30000);
+    return () => { ativo = false; window.clearInterval(intervalo); };
+  }, [selectedDepartment.id, refreshKey]);
   const navegacao = <div className="flex gap-2 p-1 bg-neutral-100 rounded-2xl w-fit">
     <button onClick={()=>setVisao('area')} className={`px-4 py-2 rounded-xl text-xs font-black flex gap-2 items-center ${visao==='area'?'bg-white shadow-sm':'text-neutral-500'}`}><LayoutDashboard className="w-4 h-4"/>Visão da área</button>
-    <button onClick={()=>setVisao('chamados')} className={`px-4 py-2 rounded-xl text-xs font-black flex gap-2 items-center ${visao==='chamados'?'bg-yellow-400 shadow-sm':'text-neutral-500'}`}><TicketCheck className="w-4 h-4"/>Chamados do departamento</button>
+    <button onClick={()=>setVisao('chamados')} className={`relative px-4 py-2 rounded-xl text-xs font-black flex gap-2 items-center ${visao==='chamados'?'bg-yellow-400 shadow-sm':'text-neutral-500'}`}><TicketCheck className="w-4 h-4"/>Chamados do departamento{novosChamados>0&&<span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-black text-white ring-2 ring-white">{novosChamados>99?'99+':novosChamados}</span>}</button>
   </div>;
 
-  if (visao === 'chamados') return <div className="space-y-5 pb-12">{navegacao}<div><h1 className="text-2xl font-black">Atendimento · {selectedDepartment.name}</h1><p className="text-xs text-neutral-500 mt-1">Fila completa de solicitações encaminhadas a este departamento.</p></div><ChamadosDepartamento department={selectedDepartment} refreshKey={refreshKey} onOpenNewChamado={onOpenNewChamado}/></div>;
+  if (visao === 'chamados') return <div className="space-y-5 pb-12">{navegacao}<div><h1 className="text-2xl font-black">Atendimento · {selectedDepartment.name}</h1><p className="text-xs text-neutral-500 mt-1">Fila completa de solicitações encaminhadas a este departamento.</p></div><ChamadosDepartamento department={selectedDepartment} refreshKey={refreshKey} onNewCountChange={setNovosChamados}/></div>;
 
   // O módulo RH tem sua própria página completa (cabeçalho, KPIs e cadastro
   // de funcionários) — não faz sentido empilhar o banner genérico de setor
