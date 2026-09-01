@@ -330,17 +330,38 @@ export interface Documento {
 
 export interface Chamado {
   id: string;
-  protocol: string;
-  type: 'EPI / Segurança' | 'RH / Holerite' | 'Suporte TI' | 'Manutenção Predial' | 'Reembolso' | 'Férias';
-  subject: string;
-  description: string;
-  priority: 'Baixa' | 'Média' | 'Alta' | 'Urgente';
-  status: 'Aberto' | 'Em Atendimento' | 'Concluído' | 'Cancelado';
-  createdAt: string;
-  updatedAt: string;
-  requesterName: string;
-  requesterDepartment: string;
-  assignedTo?: string;
+  protocolo: string;
+  departamentoId: string;
+  departamentoNome: string;
+  categoria: string;
+  assunto: string;
+  descricao: string;
+  prioridade: 'Baixa' | 'Média' | 'Alta' | 'Urgente';
+  status: 'Aberto' | 'Em atendimento' | 'Aguardando solicitante' | 'Resolvido' | 'Encerrado' | 'Cancelado';
+  solicitanteNome: string;
+  solicitanteEmail: string;
+  solicitanteDepartamento: string;
+  contato?: string;
+  local?: string;
+  patrimonio?: string;
+  impacto?: string;
+  dataDesejada?: string;
+  responsavel?: string;
+  prazo?: string;
+  solucao?: string;
+  encerradoEm?: string;
+  criadoEm: string;
+  atualizadoEm: string;
+  interacoes: ChamadoInteracao[];
+}
+
+export interface ChamadoInteracao {
+  id: string;
+  tipo: 'mensagem' | 'nota_interna' | 'evento';
+  conteudo: string;
+  autorNome: string;
+  autorEmail: string;
+  criadoEm: string;
 }
 
 export interface Colaborador {

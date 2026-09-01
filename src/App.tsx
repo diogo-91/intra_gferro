@@ -3,7 +3,6 @@ import {
   currentUser, 
   initialComunicados, 
   initialDocumentos, 
-  initialChamados, 
   colaboradoresList, 
   initialChannels,
   initialChatMessages,
@@ -13,7 +12,6 @@ import {
 import {
   TabType,
   Comunicado,
-  Chamado,
   ChatChannel,
   ChatMessage,
   Department,
@@ -83,7 +81,7 @@ export default function App() {
   // App Data State
   const [comunicados, setComunicados] = useState<Comunicado[]>(initialComunicados);
   const [documentos] = useState(initialDocumentos);
-  const [chamados, setChamados] = useState<Chamado[]>(initialChamados);
+  const [chamadosVersion, setChamadosVersion] = useState(0);
   const [colaboradores] = useState(colaboradoresList);
   const [chatChannels] = useState<ChatChannel[]>(initialChannels);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
@@ -149,18 +147,6 @@ export default function App() {
       comments: [],
     };
     setComunicados((prev) => [created, ...prev]);
-  };
-
-  const handleAddChamado = (newTicket: Omit<Chamado, 'id' | 'protocol' | 'status' | 'createdAt' | 'updatedAt'>) => {
-    const created: Chamado = {
-      ...newTicket,
-      id: `ch-${Date.now()}`,
-      protocol: `GF-2026-${Math.floor(100 + Math.random() * 900)}`,
-      status: 'Aberto',
-      createdAt: `${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
-      updatedAt: `${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
-    };
-    setChamados((prev) => [created, ...prev]);
   };
 
   const handleSendMessage = (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => {
@@ -275,9 +261,9 @@ export default function App() {
 
           {activeTab === 'servicos' && (
             <ServicosRH
-              chamados={chamados}
               user={usuarioAtual}
               onOpenNewChamado={() => setIsNewChamadoOpen(true)}
+              refreshKey={chamadosVersion}
             />
           )}
 
@@ -302,6 +288,7 @@ export default function App() {
               colaboradores={colaboradores}
               selectedDeptId={selectedDeptId}
               onOpenNewChamado={() => setIsNewChamadoOpen(true)}
+              refreshKey={chamadosVersion}
             />
           )}
 
@@ -338,7 +325,9 @@ export default function App() {
         user={usuarioAtual}
         isOpen={isNewChamadoOpen}
         onClose={() => setIsNewChamadoOpen(false)}
-        onAddChamado={handleAddChamado}
+        departments={departments}
+        initialDepartmentId={activeTab === 'departamentos' ? selectedDeptId : undefined}
+        onCreated={() => setChamadosVersion((valor) => valor + 1)}
       />
 
     </div>

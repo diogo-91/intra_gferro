@@ -1,9 +1,10 @@
-import React from 'react';
-import { Layers, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Layers, CheckCircle2, LayoutDashboard, TicketCheck } from 'lucide-react';
 import { Department, Colaborador, User } from '../types';
 import { CadastroFuncionariosRH } from './CadastroFuncionariosRH';
 import { SacApp } from './SacApp';
 import { PlanejamentoProducaoPCP } from './PlanejamentoProducaoPCP';
+import { ChamadosDepartamento } from './ChamadosDepartamento';
 
 interface DepartamentosAppProps {
   user: User;
@@ -11,6 +12,7 @@ interface DepartamentosAppProps {
   colaboradores: Colaborador[];
   selectedDeptId: string;
   onOpenNewChamado: () => void;
+  refreshKey: number;
 }
 
 export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
@@ -19,26 +21,37 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
   colaboradores,
   selectedDeptId,
   onOpenNewChamado,
+  refreshKey,
 }) => {
   const selectedDepartment = departments.find((d) => d.id === selectedDeptId) || departments[0];
+  const [visao, setVisao] = useState<'area' | 'chamados'>('area');
+  useEffect(() => setVisao('area'), [selectedDeptId]);
+  const navegacao = <div className="flex gap-2 p-1 bg-neutral-100 rounded-2xl w-fit">
+    <button onClick={()=>setVisao('area')} className={`px-4 py-2 rounded-xl text-xs font-black flex gap-2 items-center ${visao==='area'?'bg-white shadow-sm':'text-neutral-500'}`}><LayoutDashboard className="w-4 h-4"/>Visão da área</button>
+    <button onClick={()=>setVisao('chamados')} className={`px-4 py-2 rounded-xl text-xs font-black flex gap-2 items-center ${visao==='chamados'?'bg-yellow-400 shadow-sm':'text-neutral-500'}`}><TicketCheck className="w-4 h-4"/>Chamados do departamento</button>
+  </div>;
+
+  if (visao === 'chamados') return <div className="space-y-5 pb-12">{navegacao}<div><h1 className="text-2xl font-black">Atendimento · {selectedDepartment.name}</h1><p className="text-xs text-neutral-500 mt-1">Fila completa de solicitações encaminhadas a este departamento.</p></div><ChamadosDepartamento department={selectedDepartment} refreshKey={refreshKey} onOpenNewChamado={onOpenNewChamado}/></div>;
 
   // O módulo RH tem sua própria página completa (cabeçalho, KPIs e cadastro
   // de funcionários) — não faz sentido empilhar o banner genérico de setor
   // em cima disso.
   if (selectedDepartment.id === 'dep-rh') {
-    return <CadastroFuncionariosRH setores={departments.map((d) => d.name)} />;
+    return <div className="space-y-5 pb-12">{navegacao}<CadastroFuncionariosRH setores={departments.map((d) => d.name)} /></div>;
   }
 
   if (selectedDepartment.id === 'dep-sac') {
-    return <SacApp user={user} />;
+    return <div className="space-y-5 pb-12">{navegacao}<SacApp user={user} /></div>;
   }
 
   if (selectedDepartment.id === 'dep-pcp') {
-    return <PlanejamentoProducaoPCP />;
+    return <div className="space-y-5 pb-12">{navegacao}<PlanejamentoProducaoPCP /></div>;
   }
 
   return (
     <div className="space-y-6 pb-12">
+
+      {navegacao}
 
       {/* Active Department Header Banner */}
       <div className="p-6 rounded-[2rem] bg-white border border-yellow-400/30 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">

@@ -23,8 +23,9 @@ import * as sac from './sac';
 import { obterDadosPlanilhaSac, atualizarDadosPlanilhaSac, iniciarAtualizacaoAutomaticaPlanilhaSac } from './sacPlanilha';
 import * as lojasFotos from './lojasFotos';
 import { LOJAS } from './src/data/vendedorLoja';
-import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo } from './auth';
+import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, obterSessao } from './auth';
 import { cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
+import * as chamados from './chamados';
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
   if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
@@ -150,6 +151,65 @@ async function startServer() {
     }
   });
   app.use('/api', exigirPermissaoDeModulo);
+
+  const autorChamado = async (req: express.Request) => {
+    const sessao = await obterSessao(req);
+    if (!sessao) throw Object.assign(new Error('Não autenticado.'), { status: 401 });
+    return { sessao, autor: { nome: sessao.nome || sessao.email.split('@')[0], email: sessao.email } };
+  };
+  const podeAtenderChamado = (sessao: Awaited<ReturnType<typeof obterSessao>>) =>
+    !!sessao && (sessao.administrador || sessao.modulos.includes('departamentos'));
+  const chamadoPublico = (item: chamados.Chamado, atendente: boolean) => atendente
+    ? item
+    : { ...item, interacoes: item.interacoes.filter((interacao) => interacao.tipo !== 'nota_interna') };
+
+  app.get('/api/chamados', async (req, res) => {
+    try {
+      const { sessao } = await autorChamado(req);
+      const todos = await chamados.listarChamados();
+      const atendimento = req.query.escopo === 'departamento';
+      if (atendimento && !podeAtenderChamado(sessao)) return res.status(403).json({ error: 'Sem permissão para atender chamados.' });
+      const filtrados = atendimento
+        ? todos.filter((item) => !req.query.departamentoId || item.departamentoId === req.query.departamentoId)
+        : todos.filter((item) => item.solicitanteEmail === sessao.email);
+      res.json(filtrados.map((item) => chamadoPublico(item, atendimento)));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message || 'Erro ao listar chamados.' }); }
+  });
+  app.get('/api/chamados/:id', async (req, res) => {
+    try {
+      const { sessao } = await autorChamado(req);
+      const item = (await chamados.listarChamados()).find((chamado) => chamado.id === req.params.id);
+      if (!item) return res.status(404).json({ error: 'Chamado não encontrado.' });
+      const atendente = podeAtenderChamado(sessao);
+      if (!atendente && item.solicitanteEmail !== sessao.email) return res.status(403).json({ error: 'Sem acesso a este chamado.' });
+      res.json(chamadoPublico(item, atendente));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message || 'Erro ao consultar chamado.' }); }
+  });
+  app.post('/api/chamados', async (req, res) => {
+    try {
+      const { sessao, autor } = await autorChamado(req);
+      if (!sessao.administrador && !sessao.modulos.some((m) => m === 'servicos' || m === 'departamentos')) return res.status(403).json({ error: 'Sem permissão para abrir chamados.' });
+      res.status(201).json(await chamados.criarChamado(req.body, autor));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message || 'Erro ao abrir chamado.' }); }
+  });
+  app.patch('/api/chamados/:id', async (req, res) => {
+    try {
+      const { sessao, autor } = await autorChamado(req);
+      if (!podeAtenderChamado(sessao)) return res.status(403).json({ error: 'Sem permissão para atender chamados.' });
+      res.json(await chamados.atualizarChamado(req.params.id, req.body, autor));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message || 'Erro ao atualizar chamado.' }); }
+  });
+  app.post('/api/chamados/:id/interacoes', async (req, res) => {
+    try {
+      const { sessao, autor } = await autorChamado(req);
+      const item = (await chamados.listarChamados()).find((chamado) => chamado.id === req.params.id);
+      if (!item) return res.status(404).json({ error: 'Chamado não encontrado.' });
+      const atendente = podeAtenderChamado(sessao);
+      if (!atendente && item.solicitanteEmail !== sessao.email) return res.status(403).json({ error: 'Sem acesso a este chamado.' });
+      if (req.body?.tipo === 'nota_interna' && !atendente) return res.status(403).json({ error: 'Notas internas são restritas ao atendimento.' });
+      res.json(chamadoPublico(await chamados.adicionarInteracao(req.params.id, req.body, autor), atendente));
+    } catch (error: any) { res.status(error.status || 500).json({ error: error.message || 'Erro ao registrar interação.' }); }
+  });
 
   // Anexos do SAC — servidos como arquivo estático, mas atrás do mesmo login
   // da intranet (não é rota /api, então o middleware acima não cobre).
