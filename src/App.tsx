@@ -180,9 +180,7 @@ export default function App() {
       {/* Top Header */}
       <Header
         user={usuarioAtual}
-        onOpenNewComunicado={() => setIsNewComunicadoOpen(true)}
         onOpenNewChamado={() => setIsNewChamadoOpen(true)}
-        onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
         notifications={notifications}
         onMarkNotificationsRead={handleMarkNotificationsRead}
         activeTab={activeTab}
@@ -192,8 +190,7 @@ export default function App() {
         mobileMenuOpen={mobileMenuOpen}
         setMobileMenuOpen={setMobileMenuOpen}
         onLogout={handleLogout}
-        podeCriarComunicado={!!sessao && (sessao.administrador || sessao.modulos.includes('comunicados'))}
-        podeAbrirChamado={!!sessao && (sessao.administrador || sessao.modulos.includes('servicos'))}
+        podeAbrirChamado={!!sessao && (sessao.administrador || sessao.modulos.some((modulo) => modulo === 'servicos' || modulo === 'departamentos'))}
       />
 
       {/* Main Layout Grid */}

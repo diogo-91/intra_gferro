@@ -2,9 +2,6 @@ import React, { useState } from 'react';
 import { 
   Search, 
   Bell, 
-  Plus, 
-  Sparkles, 
-  Lightbulb,
   HardHat, 
   Menu, 
   X, 
@@ -18,9 +15,7 @@ import { User, NotificationItem, TabType } from '../types';
 
 interface HeaderProps {
   user: User;
-  onOpenNewComunicado: () => void;
   onOpenNewChamado: () => void;
-  onOpenAIAssistant: () => void;
   notifications: NotificationItem[];
   onMarkNotificationsRead: () => void;
   activeTab: TabType;
@@ -30,15 +25,12 @@ interface HeaderProps {
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
   onLogout: () => void;
-  podeCriarComunicado: boolean;
   podeAbrirChamado: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   user,
-  onOpenNewComunicado,
   onOpenNewChamado,
-  onOpenAIAssistant,
   notifications,
   onMarkNotificationsRead,
   setActiveTab,
@@ -47,7 +39,6 @@ export const Header: React.FC<HeaderProps> = ({
   mobileMenuOpen,
   setMobileMenuOpen,
   onLogout,
-  podeCriarComunicado,
   podeAbrirChamado,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -121,38 +112,15 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Right Action Controls */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
 
-            {/* Ideias e Sugestões Button */}
-            <button
-              id="header-ai-assistant-btn"
-              onClick={onOpenAIAssistant}
+            {podeAbrirChamado && <button
+              id="header-new-chamado-btn"
+              onClick={onOpenNewChamado}
               className="flex items-center gap-2 px-2.5 sm:px-4 py-2 rounded-full bg-yellow-400 text-black font-bold text-xs sm:text-sm hover:bg-yellow-300 shadow-lg shadow-yellow-400/20 active:scale-95 transition-all"
+              title="Abrir Chamado"
             >
-              <Lightbulb className="w-4 h-4 text-black fill-black" />
-              <span className="hidden sm:inline">Ideias e Sugestões</span>
-            </button>
-
-            {/* Quick Create Buttons */}
-            {(podeCriarComunicado || podeAbrirChamado) && <div className="hidden sm:flex items-center gap-2 border-l border-white/10 pl-3">
-              {podeCriarComunicado && <button
-                id="header-new-comunicado-btn"
-                onClick={onOpenNewComunicado}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 border border-white/10 hover:border-yellow-400 hover:text-yellow-400 text-neutral-300 text-xs font-semibold transition-all"
-                title="Publicar Comunicado"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Comunicado</span>
-              </button>}
-
-              {podeAbrirChamado && <button
-                id="header-new-chamado-btn"
-                onClick={onOpenNewChamado}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 border border-white/10 hover:border-yellow-400 hover:text-yellow-400 text-neutral-300 text-xs font-semibold transition-all"
-                title="Abrir Chamado RH/TI/EPI"
-              >
-                <LifeBuoy className="w-3.5 h-3.5 text-yellow-400" />
-                <span>Chamado</span>
-              </button>}
-            </div>}
+              <LifeBuoy className="w-4 h-4 text-black" />
+              <span className="hidden sm:inline">Abrir Chamado</span>
+            </button>}
 
             {/* Notifications Popover Toggle */}
             <div className="relative">
