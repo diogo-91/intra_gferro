@@ -193,16 +193,9 @@ export const Header: React.FC<HeaderProps> = ({
                   <p className="text-sm font-bold text-white group-hover:text-yellow-400 transition-colors leading-none">
                     {user.name}
                   </p>
-                  <p className="text-xs text-neutral-500 leading-tight mt-0.5">
-                    {user.role}
-                  </p>
                 </div>
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-neutral-800 border-2 border-yellow-400 overflow-hidden shrink-0">
-                  <img
-                    src={user.avatar}
-                    alt={user.name}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="flex w-8 h-8 sm:w-10 sm:h-10 items-center justify-center rounded-full bg-neutral-800 border-2 border-yellow-400 shrink-0" aria-hidden="true">
+                  <UserIcon className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400" />
                 </div>
               </button>
 
@@ -210,47 +203,18 @@ export const Header: React.FC<HeaderProps> = ({
               {showUserMenu && (
                 <div className="fixed left-3 right-3 top-16 mt-2 bg-[#111111] border border-white/10 rounded-2xl shadow-2xl p-4 z-50 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-64">
                   <div className="flex items-center gap-3 pb-3 border-b border-white/10">
-                    <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold text-white truncate">{user.name}</span>
-                      <span className="text-[10px] text-neutral-400 truncate">{user.department}</span>
-                      <span className="text-[10px] font-mono text-yellow-400 mt-0.5">Ramal: {user.ramal}</span>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-yellow-400 bg-neutral-800" aria-hidden="true">
+                      <UserIcon className="h-5 w-5 text-yellow-400" />
                     </div>
+                    <span className="min-w-0 truncate text-xs font-bold text-white">{user.name}</span>
                   </div>
-
-                  <div className="py-2 text-xs space-y-1.5 border-b border-white/10 text-neutral-300">
-                    <div className="flex items-center justify-between text-[11px] text-neutral-400">
-                      <span>Turno:</span>
-                      <span className="font-semibold text-neutral-200">{user.shift}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-neutral-400">
-                      <span>Admissão:</span>
-                      <span className="font-semibold text-neutral-200">{user.hireDate}</span>
-                    </div>
-                    {user.isCipaMember && (
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-yellow-400 bg-yellow-400/10 p-2 rounded-xl border border-yellow-400/20 mt-1">
-                        <HardHat className="w-3.5 h-3.5 text-yellow-400" />
-                        <span>Membro Integrante CIPA</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setActiveTab('pessoas');
-                      setShowUserMenu(false);
-                    }}
-                    className="w-full mt-3 py-2 text-center text-xs font-bold text-yellow-400 hover:bg-yellow-400/10 rounded-xl transition-colors border border-yellow-400/20"
-                  >
-                    Ver meu perfil completo
-                  </button>
 
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
                       onLogout();
                     }}
-                    className="w-full mt-2 py-2 flex items-center justify-center gap-1.5 text-center text-xs font-bold text-neutral-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-colors border border-white/10"
+                    className="w-full mt-3 py-2 flex items-center justify-center gap-1.5 text-center text-xs font-bold text-neutral-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-colors border border-white/10"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     Sair
