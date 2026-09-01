@@ -14,13 +14,15 @@ export interface Loja {
   metaVendas?: number;
 }
 
-export const LOJAS: Loja[] = [
+export const LOJAS = [
   { id: 'petter', nome: 'Unidade 1 — Petter', metaVendas: 650000 },
   { id: 'lucas', nome: 'Unidade 2 — Lucas', metaVendas: 700000 },
   { id: 'paulo', nome: 'Unidade 3 — Paulo', metaVendas: 750000 },
   { id: 'correa', nome: 'Unidade 4 — Vera', metaVendas: 250000 },
   { id: 'tatui', nome: 'Unidade 5 — Tatuí', metaVendas: 250000 },
-];
+] as const satisfies readonly Loja[];
+
+export type LojaId = (typeof LOJAS)[number]['id'];
 
 // Nome do vendedor exatamente como vem do Nomus -> id da loja.
 const VENDEDOR_LOJA: Record<string, string> = {

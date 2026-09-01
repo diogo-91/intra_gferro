@@ -859,7 +859,7 @@ export async function getGestaoMetasMensais(mes: string): Promise<{
     vendedor.nome || `Vendedor #${vendedor.id}`,
   ]));
   const metasConfiguradas = obterMetasMensais(mes);
-  const lojas = new Map(LOJAS.map((loja) => [loja.id, {
+  const lojas = new Map<string, GestaoMetaLojaMensal>(LOJAS.map((loja) => [loja.id, {
     id: loja.id,
     nome: loja.nome,
     meta: metasConfiguradas[loja.id] ?? loja.metaVendas ?? 0,

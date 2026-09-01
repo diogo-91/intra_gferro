@@ -9,12 +9,15 @@ import { VendasResumo } from './VendasResumo';
 import { ComparativoMensalVendas } from './ComparativoMensalVendas';
 import { GestaoMetasMensais } from './GestaoMetasMensais';
 import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
+import type { SubmoduloId } from '../modulos';
+import { submoduloLojaVendas } from '../modulos';
 import { formatCurrency, formatInteiro, formatNomeVendedor } from '../utils/format';
 
 type VendasView = 'painel' | 'ranking' | 'loja' | 'gestao';
 
 interface VendasDashboardProps {
   podeEditarGestao?: boolean;
+  submodulos?: SubmoduloId[];
 }
 
 const montarQueryPeriodo = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) => {
@@ -143,8 +146,14 @@ const formatCurrencyComCentavos = (valor: number) =>
     maximumFractionDigits: 2,
   });
 
-export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGestao = false }) => {
-  const [view, setView] = useState<VendasView>('painel');
+export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGestao = false, submodulos = [] }) => {
+  const podeVerGeral = podeEditarGestao || submodulos.includes('vendas:geral');
+  const lojasPermitidas = useMemo(
+    () => podeEditarGestao ? [...LOJAS] : LOJAS.filter((loja) => submodulos.includes(submoduloLojaVendas(loja.id))),
+    [podeEditarGestao, submodulos]
+  );
+  const lojaInicial = lojasPermitidas[0]?.id ?? null;
+  const [view, setView] = useState<VendasView>(podeVerGeral ? 'painel' : 'loja');
   const [periodo, setPeriodo] = useState<Periodo>('mes');
   // Só é usado quando periodo === 'mes'; null = mês corrente.
   const [mes, setMes] = useState<string | null>(null);
@@ -152,8 +161,8 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
   const [dataFim, setDataFim] = useState('');
   const [busca, setBusca] = useState('');
   const [somenteComPedidos, setSomenteComPedidos] = useState(false);
-  const [lojaSelecionada, setLojaSelecionada] = useState<string | null>(null);
-  const [rankingSelecionado, setRankingSelecionado] = useState<string>('geral');
+  const [lojaSelecionada, setLojaSelecionada] = useState<string | null>(lojaInicial);
+  const [rankingSelecionado, setRankingSelecionado] = useState<string>(podeVerGeral ? 'geral' : lojaInicial ?? 'geral');
 
   const [ranking, setRanking] = useState<VendedorRanking[]>([]);
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
@@ -174,6 +183,13 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
   const [pedidosVendedorErro, setPedidosVendedorErro] = useState<string | null>(null);
   const [pedidosVendedorAtualizadoEm, setPedidosVendedorAtualizadoEm] = useState<string | null>(null);
 
+  const filtrarRankingPermitido = (itens: VendedorRanking[]) => podeVerGeral
+    ? itens
+    : itens.filter((vendedor) => {
+      const lojaId = lojaDoVendedor(vendedor.nome);
+      return lojasPermitidas.some((loja) => loja.id === lojaId);
+    });
+
   useEffect(() => {
     if (view !== 'ranking' && view !== 'loja') return;
 
@@ -184,7 +200,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
       if (salvo) {
         const cache = JSON.parse(salvo) as { ranking?: VendedorRanking[]; atualizadoEm?: string };
         if (Array.isArray(cache.ranking) && cache.atualizadoEm) {
-          setRanking(cache.ranking);
+          setRanking(filtrarRankingPermitido(cache.ranking));
           setAtualizadoEm(cache.atualizadoEm);
           possuiCacheLocal = true;
         }
@@ -205,7 +221,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
       })
       .then((data) => {
         if (cancelado) return;
-        setRanking(data.ranking);
+        setRanking(filtrarRankingPermitido(data.ranking));
         setAtualizadoEm(data.atualizadoEm);
         salvarRankingLocal(periodo, mes, dataInicio, dataFim, data);
       })
@@ -302,7 +318,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     let cancelado = false;
     const queryPeriodo = montarQueryPeriodo(periodo, mes, dataInicio, dataFim);
 
-    void Promise.allSettled(LOJAS.map(async (loja) => {
+    void Promise.allSettled(lojasPermitidas.map(async (loja) => {
       const resposta = await fetch(`/api/vendas/lojas/${loja.id}/resumo?periodo=${periodo}${queryPeriodo}`);
       const dados = await resposta.json();
       if (!resposta.ok || cancelado) return;
@@ -372,7 +388,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
         const resposta = await fetch(`/api/vendas/ranking?periodo=${periodo}${mesQuery}`);
         const dados = await resposta.json();
         if (!resposta.ok) return;
-        setRanking(dados.ranking);
+        setRanking(filtrarRankingPermitido(dados.ranking));
         setAtualizadoEm(dados.atualizadoEm);
         salvarRankingLocal(periodo, mes, dataInicio, dataFim, dados);
       } catch {
@@ -592,7 +608,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
         const resposta = await fetch(`/api/vendas/ranking/atualizar?periodo=${periodo}${mesQuery}`, { method: 'POST' });
         const dados = await resposta.json();
         if (!resposta.ok) throw new Error(dados?.error || 'Falha ao atualizar o ranking no Nomus');
-        setRanking(dados.ranking);
+        setRanking(filtrarRankingPermitido(dados.ranking));
         setAtualizadoEm(dados.atualizadoEm);
         salvarRankingLocal(periodo, mes, dataInicio, dataFim, dados);
         return;
@@ -602,11 +618,13 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
       const dados = await resposta.json();
       if (!resposta.ok) throw new Error(dados?.error || 'Falha ao atualizar os dados do Nomus');
 
-      setRanking(dados.ranking);
+      setRanking(filtrarRankingPermitido(dados.ranking));
       setAtualizadoEm(dados.atualizadoEm);
       salvarRankingLocal(periodo, mes, dataInicio, dataFim, dados);
-      setResumo(dados.resumo);
-      salvarResumoLocal('geral', periodo, mes, dataInicio, dataFim, dados.resumo);
+      if (podeVerGeral && dados.resumo) {
+        setResumo(dados.resumo);
+        salvarResumoLocal('geral', periodo, mes, dataInicio, dataFim, dados.resumo);
+      }
 
       if (dados.resumosLojas && typeof dados.resumosLojas === 'object') {
         for (const [lojaId, resumoDaLoja] of Object.entries(dados.resumosLojas)) {
@@ -642,7 +660,11 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     </button>
   );
 
-  if (view === 'gestao') {
+  if (!podeVerGeral && lojasPermitidas.length === 0) {
+    return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900"><strong>Acesso de vendas incompleto.</strong><p className="mt-1">Peça ao administrador para liberar ao menos uma loja dentro do Dashboard de Vendas.</p></div>;
+  }
+
+  if (view === 'gestao' && podeVerGeral) {
     return (
       <GestaoMetasMensais
         podeEditar={podeEditarGestao}
@@ -659,14 +681,14 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <button
+                {podeVerGeral && <button
                   type="button"
                   onClick={() => setView('painel')}
                   className="mb-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500 transition-colors hover:text-neutral-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
                   Voltar ao painel
-                </button>
+                </button>}
                 <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-yellow-600">Dashboard de vendas</span>
                 <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-black tracking-tight text-neutral-950 sm:text-3xl">
                   <Trophy className="h-6 w-6 text-yellow-500" aria-hidden="true" />
@@ -701,7 +723,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
             </div>
 
             <nav className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-neutral-100 p-1.5" aria-label="Selecionar ranking geral ou por loja">
-          <button
+          {podeVerGeral && <button
             type="button"
             aria-pressed={rankingSelecionado === 'geral'}
             onClick={() => setRankingSelecionado('geral')}
@@ -713,8 +735,8 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
           >
             <Building2 className="w-3.5 h-3.5" aria-hidden="true" />
             Ranking Geral
-          </button>
-          {LOJAS.map((loja) => {
+          </button>}
+          {lojasPermitidas.map((loja) => {
             const selecionada = rankingSelecionado === loja.id;
             return (
               <button
@@ -825,14 +847,14 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     const loja = LOJAS.find((l) => l.id === lojaSelecionada);
     return (
       <div className="space-y-6">
-        <button
+        {podeVerGeral && <button
           type="button"
           onClick={() => setView('painel')}
           className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Voltar ao Painel</span>
-        </button>
+        </button>}
 
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
           <div>
@@ -949,14 +971,14 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
 
         {/* Navegação interna do Dashboard de Vendas */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <button
+          {podeVerGeral && <button
             type="button"
             onClick={() => setView('gestao')}
             className="flex items-center gap-2 rounded-full border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-xs font-extrabold text-yellow-900 shadow-sm transition-all hover:bg-yellow-100 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
           >
             <Building2 className="h-4 w-4" aria-hidden="true" />
             <span>Gestão</span>
-          </button>
+          </button>}
           <button
             type="button"
             onClick={() => setView('ranking')}
@@ -969,7 +991,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        {LOJAS.map((loja) => (
+        {lojasPermitidas.map((loja) => (
           <button
             key={loja.id}
             type="button"

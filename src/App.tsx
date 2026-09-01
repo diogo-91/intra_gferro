@@ -37,9 +37,9 @@ import { Login } from './components/Login';
 import { GestaoUsuarios } from './components/GestaoUsuarios';
 import { GestaoMetasMensais } from './components/GestaoMetasMensais';
 import { nomeDoEmail } from './utils/format';
-import type { ModuloId } from './modulos';
+import type { ModuloId, SubmoduloId } from './modulos';
 
-interface Sessao { email: string; nome?: string; administrador: boolean; modulos: ModuloId[] }
+interface Sessao { email: string; nome?: string; administrador: boolean; modulos: ModuloId[]; submodulos: SubmoduloId[] }
 
 export default function App() {
   // Autenticação — verifica o cookie de sessão (ver auth.ts) antes de
@@ -288,7 +288,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'vendas' && <VendasDashboard podeEditarGestao={!!sessao?.administrador} />}
+          {activeTab === 'vendas' && <VendasDashboard podeEditarGestao={!!sessao?.administrador} submodulos={sessao?.submodulos ?? []} />}
 
           {activeTab === 'financeiro' && <ProgramacaoFinanceira />}
 

@@ -30,7 +30,7 @@ export function obterMetasMensais(mes: string): Record<string, number> {
 
 export function salvarMetasMensais(mes: string, metas: Record<string, unknown>): Record<string, number> {
   if (!/^\d{4}-\d{2}$/.test(mes)) throw Object.assign(new Error('Mês inválido. Use AAAA-MM.'), { status: 400 });
-  const idsValidos = new Set(LOJAS.map((loja) => loja.id));
+  const idsValidos = new Set<string>(LOJAS.map((loja) => loja.id));
   const normalizadas: Record<string, number> = {};
   for (const [lojaId, valorBruto] of Object.entries(metas || {})) {
     if (!idsValidos.has(lojaId)) continue;

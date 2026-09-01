@@ -22,10 +22,42 @@ import { obterEnqueteAtual, criarEnquete, registrarVoto } from './enquetes';
 import * as sac from './sac';
 import { obterDadosPlanilhaSac, atualizarDadosPlanilhaSac, iniciarAtualizacaoAutomaticaPlanilhaSac } from './sacPlanilha';
 import * as lojasFotos from './lojasFotos';
-import { LOJAS } from './src/data/vendedorLoja';
+import { LOJAS, lojaDoVendedor, type LojaId } from './src/data/vendedorLoja';
+import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, obterSessao } from './auth';
-import { cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
+import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
 import * as chamados from './chamados';
+
+type SessaoAutenticada = NonNullable<Awaited<ReturnType<typeof obterSessao>>>;
+
+function podeVerVendasGerais(sessao: SessaoAutenticada) {
+  return sessao.administrador || sessao.submodulos.includes('vendas:geral');
+}
+
+function podeVerLoja(sessao: SessaoAutenticada, lojaId: string): lojaId is LojaId {
+  const loja = LOJAS.find((item) => item.id === lojaId);
+  return !!loja && (sessao.administrador || sessao.submodulos.includes(submoduloLojaVendas(loja.id)));
+}
+
+async function obterSessaoVendas(req: express.Request) {
+  const sessao = await obterSessao(req);
+  if (!sessao) throw Object.assign(new Error('Não autenticado.'), { status: 401 });
+  return sessao;
+}
+
+function exigirVendasGerais(sessao: SessaoAutenticada) {
+  if (!podeVerVendasGerais(sessao)) {
+    throw Object.assign(new Error('Seu acesso ao Dashboard de Vendas está limitado à sua loja.'), { status: 403 });
+  }
+}
+
+function filtrarRankingPorSessao<T extends { nome: string }>(sessao: SessaoAutenticada, ranking: T[]): T[] {
+  if (podeVerVendasGerais(sessao)) return ranking;
+  return ranking.filter((vendedor) => {
+    const lojaId = lojaDoVendedor(vendedor.nome);
+    return !!lojaId && podeVerLoja(sessao, lojaId);
+  });
+}
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
   if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
@@ -133,11 +165,11 @@ async function startServer() {
   });
   app.post('/api/usuarios', exigirAdministrador, async (req, res) => {
     try {
-      const { nome, email, senha, modulos } = req.body || {};
-      if (typeof nome !== 'string' || typeof email !== 'string' || typeof senha !== 'string' || !Array.isArray(modulos)) {
+      const { nome, email, senha, modulos, submodulos } = req.body || {};
+      if (typeof nome !== 'string' || typeof email !== 'string' || typeof senha !== 'string' || !Array.isArray(modulos) || !Array.isArray(submodulos)) {
         return res.status(400).json({ error: 'Nome, e-mail, senha e módulos são obrigatórios.' });
       }
-      res.status(201).json(await cadastrarUsuario({ nome, email, senha, modulos }));
+      res.status(201).json(await cadastrarUsuario({ nome, email, senha, modulos, submodulos }));
     } catch (error: any) {
       res.status(error.status || 500).json({ error: error.message || 'Não foi possível cadastrar o usuário.' });
     }
@@ -148,6 +180,17 @@ async function startServer() {
       res.status(204).end();
     } catch (error: any) {
       res.status(error.status || 500).json({ error: error.message || 'Não foi possível remover o usuário.' });
+    }
+  });
+  app.patch('/api/usuarios/:id/permissoes', exigirAdministrador, async (req, res) => {
+    try {
+      const { modulos, submodulos } = req.body || {};
+      if (!Array.isArray(modulos) || !Array.isArray(submodulos)) {
+        return res.status(400).json({ error: 'Módulos e submódulos são obrigatórios.' });
+      }
+      res.json(await atualizarPermissoesUsuario(req.params.id, { modulos, submodulos }));
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Não foi possível atualizar os acessos.' });
     }
   });
   app.use('/api', exigirPermissaoDeModulo);
@@ -271,6 +314,7 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/ranking', async (req, res) => {
     try {
+      const sessao = await obterSessaoVendas(req);
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
@@ -278,7 +322,7 @@ Contexto da GFERRO:
       const mes = validarMesQuery(req.query.mes);
       const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
       const resultado = await getRankingVendedores(periodo as Periodo, mes, intervalo);
-      res.json(resultado);
+      res.json({ ...resultado, ranking: filtrarRankingPorSessao(sessao, resultado.ranking) });
     } catch (error: any) {
       console.error('Erro ao buscar ranking de vendedores no Nomus:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
@@ -287,6 +331,7 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/resumo', async (req, res) => {
     try {
+      exigirVendasGerais(await obterSessaoVendas(req));
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
@@ -303,6 +348,7 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/comparativo-mensal', async (req, res) => {
     try {
+      exigirVendasGerais(await obterSessaoVendas(req));
       const mes = validarMesQuery(req.query.mes);
       res.json(await getComparativoMensalVendas(mes));
     } catch (error: any) {
@@ -316,6 +362,7 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/gestao-metas', async (req, res) => {
     try {
+      exigirVendasGerais(await obterSessaoVendas(req));
       const mes = validarMesQuery(req.query.mes);
       if (!mes) return res.status(400).json({ error: 'Informe o mês no formato AAAA-MM.' });
       res.json(await getGestaoMetasMensais(mes));
@@ -341,12 +388,17 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/vendedores/pedidos', async (req, res) => {
     try {
+      const sessao = await obterSessaoVendas(req);
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const nome = typeof req.query.nome === 'string' ? req.query.nome.trim() : '';
       if (!nome) return res.status(400).json({ error: 'Informe o vendedor.' });
+      const lojaId = lojaDoVendedor(nome);
+      if (!podeVerVendasGerais(sessao) && (!lojaId || !podeVerLoja(sessao, lojaId))) {
+        return res.status(403).json({ error: 'Você não possui acesso aos pedidos deste vendedor.' });
+      }
       const mes = validarMesQuery(req.query.mes);
       const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
       res.json(await getPedidosDoVendedor(periodo as Periodo, nome, mes, intervalo));
@@ -361,13 +413,23 @@ Contexto da GFERRO:
 
   app.post('/api/vendas/atualizar', async (req, res) => {
     try {
+      const sessao = await obterSessaoVendas(req);
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
       const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
-      res.json(await atualizarDadosVendas(periodo as Periodo, mes, intervalo));
+      const resultado = await atualizarDadosVendas(periodo as Periodo, mes, intervalo);
+      if (podeVerVendasGerais(sessao)) return res.json(resultado);
+      const resumosLojas = Object.fromEntries(
+        Object.entries(resultado.resumosLojas).filter(([lojaId]) => podeVerLoja(sessao, lojaId))
+      );
+      res.json({
+        ranking: filtrarRankingPorSessao(sessao, resultado.ranking),
+        atualizadoEm: resultado.atualizadoEm,
+        resumosLojas,
+      });
     } catch (error: any) {
       console.error('Erro ao forçar atualização das vendas no Nomus:', error);
       res.status(error.status || 500).json({
@@ -379,13 +441,15 @@ Contexto da GFERRO:
 
   app.post('/api/vendas/ranking/atualizar', async (req, res) => {
     try {
+      const sessao = await obterSessaoVendas(req);
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
       }
       const mes = validarMesQuery(req.query.mes);
       const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
-      res.json(await atualizarRankingVendas(periodo as Periodo, mes, intervalo));
+      const resultado = await atualizarRankingVendas(periodo as Periodo, mes, intervalo);
+      res.json({ ...resultado, ranking: filtrarRankingPorSessao(sessao, resultado.ranking) });
     } catch (error: any) {
       console.error('Erro ao atualizar ranking de vendedores no Nomus:', error);
       res.status(error.status || 500).json({
@@ -397,9 +461,13 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/lojas/:lojaId/resumo', async (req, res) => {
     try {
+      const sessao = await obterSessaoVendas(req);
       const { lojaId } = req.params;
       if (!LOJAS.some((l) => l.id === lojaId)) {
         return res.status(400).json({ error: 'Loja desconhecida.' });
+      }
+      if (!podeVerLoja(sessao, lojaId)) {
+        return res.status(403).json({ error: 'Você não possui acesso a esta loja.' });
       }
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
@@ -417,6 +485,7 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/ranking/pdf', async (req, res) => {
     try {
+      const sessao = await obterSessaoVendas(req);
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
@@ -424,6 +493,7 @@ Contexto da GFERRO:
       const mes = validarMesQuery(req.query.mes);
       const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
       const { ranking, atualizadoEm } = await getRankingVendedores(periodo as Periodo, mes, intervalo);
+      const rankingPermitido = filtrarRankingPorSessao(sessao, ranking);
 
       const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
       res.setHeader('Content-Type', 'application/pdf');
@@ -433,7 +503,7 @@ Contexto da GFERRO:
         periodoRotulo: rotuloPeriodo(periodo as Periodo, mes, intervalo),
         // Mesma regra da tela: o ranking geral representa a empresa inteira,
         // inclusive vendedores ainda sem unidade cadastrada.
-        ranking,
+        ranking: rankingPermitido,
         atualizadoEm: new Date(atualizadoEm).toLocaleString('pt-BR'),
       });
       doc.end();
@@ -443,7 +513,7 @@ Contexto da GFERRO:
     }
   });
 
-  const IDS_LOJAS_VALIDOS = new Set(LOJAS.map((l) => l.id));
+  const IDS_LOJAS_VALIDOS = new Set<string>(LOJAS.map((l) => l.id));
 
   const uploadLojaFoto = multer({
     storage: multer.diskStorage({
@@ -470,9 +540,13 @@ Contexto da GFERRO:
 
   app.post('/api/vendas/lojas/:lojaId/foto', uploadLojaFoto.single('foto'), async (req, res) => {
     try {
+      const sessao = await obterSessaoVendas(req);
       const { lojaId } = req.params;
       if (!IDS_LOJAS_VALIDOS.has(lojaId)) {
         return res.status(400).json({ error: 'Loja desconhecida.' });
+      }
+      if (!podeVerLoja(sessao, lojaId)) {
+        return res.status(403).json({ error: 'Você não possui acesso a esta loja.' });
       }
       if (!req.file) {
         return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
@@ -488,6 +562,7 @@ Contexto da GFERRO:
 
   app.get('/api/vendas/resumo/pdf', async (req, res) => {
     try {
+      exigirVendasGerais(await obterSessaoVendas(req));
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });

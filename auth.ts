@@ -4,8 +4,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { createHmac, timingSafeEqual } from 'crypto';
-import type { ModuloId } from './src/modulos';
-import { TODOS_MODULOS } from './src/modulos';
+import type { ModuloId, SubmoduloId } from './src/modulos';
+import { TODOS_MODULOS, TODOS_SUBMODULOS } from './src/modulos';
 import { buscarUsuarioPorEmail, verificarSenha } from './usuarios';
 
 const COOKIE_NAME = 'intranet_auth';
@@ -143,7 +143,14 @@ async function login(req: Request, res: Response) {
 
   res.cookie(COOKIE_NAME, criarToken(emailInformado), cookieOptions());
   const administrador = !!credencial;
-  res.json({ ok: true, email: emailInformado, nome: usuario?.nome, administrador, modulos: administrador ? TODOS_MODULOS : usuario?.modulos ?? [] });
+  res.json({
+    ok: true,
+    email: emailInformado,
+    nome: usuario?.nome,
+    administrador,
+    modulos: administrador ? TODOS_MODULOS : usuario?.modulos ?? [],
+    submodulos: administrador ? TODOS_SUBMODULOS : usuario?.submodulos ?? [],
+  });
 }
 
 export function logoutHandler(_req: Request, res: Response) {
@@ -161,7 +168,14 @@ async function me(req: Request, res: Response) {
   const credencialAmbiente = carregarCredenciais().some((item) => item.email === email);
   const usuario = await buscarUsuarioPorEmail(email);
   if (!credencialAmbiente && !usuario) return res.status(401).json({ authenticated: false });
-  res.json({ authenticated: true, email, nome: usuario?.nome, administrador: credencialAmbiente, modulos: credencialAmbiente ? TODOS_MODULOS : usuario?.modulos ?? [] });
+  res.json({
+    authenticated: true,
+    email,
+    nome: usuario?.nome,
+    administrador: credencialAmbiente,
+    modulos: credencialAmbiente ? TODOS_MODULOS : usuario?.modulos ?? [],
+    submodulos: credencialAmbiente ? TODOS_SUBMODULOS : usuario?.submodulos ?? [],
+  });
 }
 
 export function exigirAutenticacao(req: Request, res: Response, next: NextFunction) {
@@ -178,7 +192,13 @@ export async function obterSessao(req: Request) {
   const administrador = carregarCredenciais().some((item) => item.email === email);
   const usuario = await buscarUsuarioPorEmail(email);
   if (!administrador && !usuario) return null;
-  return { email, nome: usuario?.nome, administrador, modulos: (administrador ? TODOS_MODULOS : usuario?.modulos ?? []) as ModuloId[] };
+  return {
+    email,
+    nome: usuario?.nome,
+    administrador,
+    modulos: (administrador ? TODOS_MODULOS : usuario?.modulos ?? []) as ModuloId[],
+    submodulos: (administrador ? TODOS_SUBMODULOS : usuario?.submodulos ?? []) as SubmoduloId[],
+  };
 }
 
 export function exigirAdministrador(req: Request, res: Response, next: NextFunction) {

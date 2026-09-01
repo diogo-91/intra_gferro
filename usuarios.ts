@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import path from 'path';
-import { ModuloId, moduloValido } from './src/modulos';
+import { ModuloId, SubmoduloId, moduloValido, submoduloValido } from './src/modulos';
 
 const scrypt = promisify(scryptCallback);
 const ARQUIVO = path.join(process.cwd(), 'data', 'usuarios.json');
@@ -13,6 +13,7 @@ export interface UsuarioArmazenado {
   email: string;
   senhaHash: string;
   modulos: ModuloId[];
+  submodulos?: SubmoduloId[];
   criadoEm: string;
 }
 
@@ -38,7 +39,7 @@ async function persistir(usuarios: UsuarioArmazenado[]) {
 
 function publico(usuario: UsuarioArmazenado): UsuarioPublico {
   const { senhaHash: _senhaHash, ...dados } = usuario;
-  return dados;
+  return { ...dados, submodulos: dados.submodulos ?? [] };
 }
 
 async function gerarHash(senha: string): Promise<string> {
@@ -63,19 +64,42 @@ export async function listarUsuarios(): Promise<UsuarioPublico[]> {
   return (await carregar()).map(publico).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
-export async function cadastrarUsuario(dados: { nome: string; email: string; senha: string; modulos: unknown[] }) {
+function normalizarPermissoes(modulosInformados: unknown[], submodulosInformados: unknown[]) {
+  const modulos = [...new Set(modulosInformados.filter(moduloValido))];
+  if (modulos.length !== modulosInformados.length) throw Object.assign(new Error('Há um módulo inválido na seleção.'), { status: 400 });
+  const submodulos = [...new Set(submodulosInformados.filter(submoduloValido))];
+  if (submodulos.length !== submodulosInformados.length) throw Object.assign(new Error('Há um submódulo inválido na seleção.'), { status: 400 });
+  if (!modulos.includes('vendas') && submodulos.some((item) => item.startsWith('vendas:'))) {
+    throw Object.assign(new Error('Selecione o Dashboard de Vendas para liberar suas lojas.'), { status: 400 });
+  }
+  if (modulos.includes('vendas') && submodulos.length === 0) {
+    throw Object.assign(new Error('Selecione ao menos um submódulo do Dashboard de Vendas.'), { status: 400 });
+  }
+  return { modulos, submodulos };
+}
+
+export async function cadastrarUsuario(dados: { nome: string; email: string; senha: string; modulos: unknown[]; submodulos?: unknown[] }) {
   const nome = dados.nome.trim();
   const email = dados.email.trim().toLowerCase();
   if (nome.length < 2) throw Object.assign(new Error('Informe o nome do usuário.'), { status: 400 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw Object.assign(new Error('Informe um e-mail válido.'), { status: 400 });
   if (dados.senha.length < 8) throw Object.assign(new Error('A senha deve ter pelo menos 8 caracteres.'), { status: 400 });
-  const modulos = [...new Set(dados.modulos.filter(moduloValido))];
-  if (modulos.length !== dados.modulos.length) throw Object.assign(new Error('Há um módulo inválido na seleção.'), { status: 400 });
+  const { modulos, submodulos } = normalizarPermissoes(dados.modulos, dados.submodulos ?? []);
   const usuarios = await carregar();
   if (usuarios.some((usuario) => usuario.email === email)) throw Object.assign(new Error('Já existe um usuário com este e-mail.'), { status: 409 });
-  const novo: UsuarioArmazenado = { id: randomUUID(), nome, email, senhaHash: await gerarHash(dados.senha), modulos, criadoEm: new Date().toISOString() };
+  const novo: UsuarioArmazenado = { id: randomUUID(), nome, email, senhaHash: await gerarHash(dados.senha), modulos, submodulos, criadoEm: new Date().toISOString() };
   await persistir([...usuarios, novo]);
   return publico(novo);
+}
+
+export async function atualizarPermissoesUsuario(id: string, dados: { modulos: unknown[]; submodulos: unknown[] }) {
+  const { modulos, submodulos } = normalizarPermissoes(dados.modulos, dados.submodulos);
+  const usuarios = await carregar();
+  const usuario = usuarios.find((item) => item.id === id);
+  if (!usuario) throw Object.assign(new Error('Usuário não encontrado.'), { status: 404 });
+  const atualizado: UsuarioArmazenado = { ...usuario, modulos, submodulos };
+  await persistir(usuarios.map((item) => item.id === id ? atualizado : item));
+  return publico(atualizado);
 }
 
 export async function removerUsuario(id: string) {
