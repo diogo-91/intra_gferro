@@ -3,7 +3,15 @@ import { randomUUID } from 'crypto';
 import path from 'path';
 
 const ARQUIVO = path.join(process.cwd(), 'data', 'chat-mensagens.json');
-const CANAIS_VALIDOS = new Set(['chn-geral', 'chn-operacoes', 'chn-engenharia', 'chn-ti', 'chn-rh']);
+const CANAIS_VALIDOS = new Set([
+  'chn-geral',
+  'chn-dep-com',
+  'chn-dep-rh',
+  'chn-dep-sac',
+  'chn-dep-pcp',
+  'chn-dep-producao',
+  'chn-dep-tecnologia',
+]);
 const LIMITE_MENSAGENS = 5000;
 
 export interface MensagemChatInterno {
