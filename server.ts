@@ -24,9 +24,10 @@ import { obterDadosPlanilhaSac, atualizarDadosPlanilhaSac, iniciarAtualizacaoAut
 import * as lojasFotos from './lojasFotos';
 import { LOJAS, lojaDoVendedor, type LojaId } from './src/data/vendedorLoja';
 import { submoduloLojaVendas } from './src/modulos';
-import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, obterSessao } from './auth';
+import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
 import * as chamados from './chamados';
+import { enviarMensagemChat, listarMensagensChat, type MensagemChatInterno } from './chatInterno';
 
 type SessaoAutenticada = NonNullable<Awaited<ReturnType<typeof obterSessao>>>;
 
@@ -77,6 +78,41 @@ function filtrarRankingPorSessao<T extends { nome: string }>(sessao: SessaoAuten
     const lojaId = lojaDoVendedor(vendedor.nome);
     return !!lojaId && podeVerLoja(sessao, lojaId);
   });
+}
+
+function nomePorEmail(email: string) {
+  return email.split('@')[0].split(/[._-]+/).filter(Boolean).map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1)).join(' ');
+}
+
+function mensagemChatPublica(mensagem: MensagemChatInterno) {
+  return {
+    id: mensagem.id,
+    senderId: mensagem.senderId,
+    senderName: mensagem.senderName,
+    content: mensagem.content,
+    channelId: mensagem.channelId,
+    receiverId: mensagem.receiverId,
+    createdAt: mensagem.criadoEm,
+    timestamp: new Date(mensagem.criadoEm).toLocaleString('pt-BR'),
+  };
+}
+
+async function listarContatosChat(sessao: SessaoAutenticada) {
+  const usuarios = await listarUsuarios();
+  const contatos = new Map(usuarios.filter((usuario) => usuario.modulos.includes('chat')).map((usuario) => [usuario.email, {
+    id: usuario.email,
+    name: usuario.nome,
+    email: usuario.email,
+  }]));
+  for (const email of listarEmailsAdministradores()) {
+    if (!contatos.has(email)) contatos.set(email, { id: email, name: nomePorEmail(email), email });
+  }
+  contatos.set(sessao.email, {
+    id: sessao.email,
+    name: sessao.nome || nomePorEmail(sessao.email),
+    email: sessao.email,
+  });
+  return [...contatos.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
 function validarDataIsoQuery(valor: unknown, nomeParametro: string): string {
@@ -154,7 +190,7 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '10mb' }));
   app.use(cookieParser());
@@ -279,6 +315,37 @@ async function startServer() {
   app.use('/uploads/sac', exigirAutenticacao, express.static(sac.PASTA_UPLOADS_SAC));
   // Fotos de fachada das lojas — mesmo esquema.
   app.use('/uploads/lojas', exigirAutenticacao, express.static(lojasFotos.PASTA_UPLOADS_LOJAS));
+
+  app.get('/api/chat-interno/estado', async (req, res) => {
+    try {
+      const sessao = await obterSessao(req);
+      if (!sessao) return res.status(401).json({ error: 'Não autenticado.' });
+      const [contatos, mensagens] = await Promise.all([
+        listarContatosChat(sessao),
+        listarMensagensChat(sessao.email),
+      ]);
+      res.json({ contatos, mensagens: mensagens.map(mensagemChatPublica) });
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Não foi possível carregar o chat.' });
+    }
+  });
+
+  app.post('/api/chat-interno/mensagens', async (req, res) => {
+    try {
+      const sessao = await obterSessao(req);
+      if (!sessao) return res.status(401).json({ error: 'Não autenticado.' });
+      const contatos = await listarContatosChat(sessao);
+      const destinatarios = new Set(contatos.map((contato) => contato.email));
+      const mensagem = await enviarMensagemChat(
+        req.body || {},
+        { email: sessao.email, nome: sessao.nome || nomePorEmail(sessao.email) },
+        destinatarios
+      );
+      res.status(201).json(mensagemChatPublica(mensagem));
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Não foi possível enviar a mensagem.' });
+    }
+  });
 
   app.post('/api/chat', async (req, res) => {
     try {

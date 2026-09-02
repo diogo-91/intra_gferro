@@ -5,7 +5,6 @@ import {
   initialDocumentos, 
   colaboradoresList, 
   initialChannels,
-  initialChatMessages,
   initialDepartments,
   notificationsList
 } from './data/mockData';
@@ -13,7 +12,6 @@ import {
   TabType,
   Comunicado,
   ChatChannel,
-  ChatMessage,
   Department,
   NotificationItem,
   User
@@ -62,7 +60,7 @@ export default function App() {
   }, []);
 
   const usuarioAtual: User = sessao
-    ? { ...currentUser, name: sessao.nome || nomeDoEmail(sessao.email), email: sessao.email, role: sessao.administrador ? 'Administrador' : 'Usuário' }
+    ? { ...currentUser, id: sessao.email, name: sessao.nome || nomeDoEmail(sessao.email), email: sessao.email, role: sessao.administrador ? 'Administrador' : 'Usuário' }
     : currentUser;
 
   const handleLogout = () => {
@@ -84,7 +82,6 @@ export default function App() {
   const [chamadosVersion, setChamadosVersion] = useState(0);
   const [colaboradores] = useState(colaboradoresList);
   const [chatChannels] = useState<ChatChannel[]>(initialChannels);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
   const [departments] = useState<Department[]>(initialDepartments);
   const [selectedDeptId, setSelectedDeptId] = useState<string>(initialDepartments[0]?.id ?? '');
   const [notifications, setNotifications] = useState<NotificationItem[]>(notificationsList);
@@ -147,15 +144,6 @@ export default function App() {
       comments: [],
     };
     setComunicados((prev) => [created, ...prev]);
-  };
-
-  const handleSendMessage = (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => {
-    const createdMsg: ChatMessage = {
-      ...msg,
-      id: `msg-${Date.now()}`,
-      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    };
-    setChatMessages((prev) => [...prev, createdMsg]);
   };
 
   const handleMarkNotificationsRead = () => {
@@ -272,9 +260,6 @@ export default function App() {
             <ChatInterno
               user={usuarioAtual}
               channels={chatChannels}
-              messages={chatMessages}
-              colaboradores={colaboradores}
-              onSendMessage={handleSendMessage}
             />
           )}
 

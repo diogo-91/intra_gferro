@@ -391,13 +391,20 @@ export interface ChatMessage {
   id: string;
   senderId: string;
   senderName: string;
-  senderAvatar: string;
+  senderAvatar?: string;
   senderRole?: string;
   content: string;
   timestamp: string;
+  createdAt?: string;
   channelId?: string; // If null/undefined, it's a DM
   receiverId?: string;
   attachments?: { name: string; url: string; size: string }[];
+}
+
+export interface ChatContato {
+  id: string;
+  name: string;
+  email: string;
 }
 
 export interface Department {

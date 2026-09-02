@@ -1,518 +1,142 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  MessageSquare,
-  Hash,
-  Send,
-  Paperclip,
-  Search,
-  User as UserIcon,
-  FileText,
-  Smile,
-  Phone,
-  Mail,
-  Sparkles,
-  X,
-  CheckCheck,
-  Building2,
-  Lock,
-  Plus
-} from 'lucide-react';
-import { User, ChatChannel, ChatMessage, Colaborador } from '../types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Hash, Loader2, MessageSquare, Search, Send, User as UserIcon } from 'lucide-react';
+import type { ChatChannel, ChatContato, ChatMessage, User } from '../types';
 
 interface ChatInternoProps {
   user: User;
   channels: ChatChannel[];
-  messages: ChatMessage[];
-  colaboradores: Colaborador[];
-  onSendMessage: (newMessage: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
 }
 
-export const ChatInterno: React.FC<ChatInternoProps> = ({
-  user,
-  channels,
-  messages,
-  colaboradores,
-  onSendMessage,
-}) => {
+interface EstadoChat {
+  contatos: ChatContato[];
+  mensagens: ChatMessage[];
+}
+
+export const ChatInterno: React.FC<ChatInternoProps> = ({ user, channels }) => {
   const [activeType, setActiveType] = useState<'channel' | 'dm'>('channel');
-  const [activeTargetId, setActiveTargetId] = useState<string>('chn-geral');
+  const [activeTargetId, setActiveTargetId] = useState(channels[0]?.id ?? 'chn-geral');
   const [inputText, setInputText] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
-  const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; url: string; size: string } | null>(null);
-  const [showQuickAttachModal, setShowQuickAttachModal] = useState(false);
-
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [contatos, setContatos] = useState<ChatContato[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto scroll to latest message
+  const carregar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCarregando(true);
+    try {
+      const resposta = await fetch('/api/chat-interno/estado');
+      const dados = await resposta.json();
+      if (!resposta.ok) throw new Error(dados.error || 'Não foi possível carregar o chat.');
+      const estado = dados as EstadoChat;
+      setMessages(Array.isArray(estado.mensagens) ? estado.mensagens : []);
+      setContatos(Array.isArray(estado.contatos) ? estado.contatos : []);
+      setErro('');
+    } catch (error: any) {
+      if (!silencioso) setErro(error.message || 'Não foi possível carregar o chat.');
+    } finally {
+      if (!silencioso) setCarregando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void carregar();
+    const intervalo = window.setInterval(() => void carregar(true), 3000);
+    return () => window.clearInterval(intervalo);
+  }, [carregar]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeTargetId, activeType]);
 
-  // Current active target details
-  const activeChannel = channels.find((c) => c.id === activeTargetId);
-  const activeColaborador = colaboradores.find((col) => col.id === activeTargetId);
+  const activeChannel = channels.find((canal) => canal.id === activeTargetId);
+  const activeContato = contatos.find((contato) => contato.id === activeTargetId);
+  const contatosDisponiveis = contatos.filter((contato) => contato.id !== user.id);
 
-  // Filtered messages
-  const filteredMessages = messages.filter((msg) => {
-    if (activeType === 'channel') {
-      return msg.channelId === activeTargetId;
-    } else {
-      // DM: between currentUser and activeColaborador
-      return (
-        (msg.senderId === user.id && msg.receiverId === activeTargetId) ||
-        (msg.senderId === activeTargetId && msg.receiverId === user.id)
-      );
-    }
-  });
+  const filteredMessages = useMemo(() => messages.filter((mensagem) => {
+    if (activeType === 'channel') return mensagem.channelId === activeTargetId;
+    return (
+      (mensagem.senderId === user.id && mensagem.receiverId === activeTargetId) ||
+      (mensagem.senderId === activeTargetId && mensagem.receiverId === user.id)
+    );
+  }), [activeTargetId, activeType, messages, user.id]);
 
-  // Handle Send
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() && !selectedAttachment) return;
-
-    const newMsg: Omit<ChatMessage, 'id' | 'timestamp'> = {
-      senderId: user.id,
-      senderName: user.name,
-      senderAvatar: user.avatar,
-      senderRole: user.role,
-      content: inputText.trim(),
-      channelId: activeType === 'channel' ? activeTargetId : undefined,
-      receiverId: activeType === 'dm' ? activeTargetId : undefined,
-      attachments: selectedAttachment ? [selectedAttachment] : undefined,
-    };
-
-    onSendMessage(newMsg);
-    setInputText('');
-    setSelectedAttachment(null);
-
-    // Auto-reply simulation for DM
-    if (activeType === 'dm' && activeColaborador) {
-      setTimeout(() => {
-        const autoReplies = [
-          `Olá ${user.name.split(' ')[0]}! Recebi sua mensagem. Estou analisando a solicitação e já te retorno.`,
-          `Perfeito! Já passei a informação para a equipe do turno. Qualquer novidade te aviso por aqui.`,
-          `Obrigado pelo contato! Estou em reunião no momento, mas já salvei sua mensagem.`
-        ];
-        const randomReply = autoReplies[Math.floor(Math.random() * autoReplies.length)];
-
-        onSendMessage({
-          senderId: activeColaborador.id,
-          senderName: activeColaborador.name,
-          senderAvatar: activeColaborador.avatar,
-          senderRole: activeColaborador.role,
-          content: randomReply,
-          receiverId: user.id,
-        });
-      }, 1200);
+  const enviar = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const content = inputText.trim();
+    if (!content || enviando) return;
+    setEnviando(true); setErro('');
+    try {
+      const resposta = await fetch('/api/chat-interno/mensagens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          ...(activeType === 'channel' ? { channelId: activeTargetId } : { receiverId: activeTargetId }),
+        }),
+      });
+      const mensagem = await resposta.json();
+      if (!resposta.ok) throw new Error(mensagem.error || 'Não foi possível enviar a mensagem.');
+      setMessages((atuais) => atuais.some((item) => item.id === mensagem.id) ? atuais : [...atuais, mensagem]);
+      setInputText('');
+    } catch (error: any) {
+      setErro(error.message || 'Não foi possível enviar a mensagem.');
+    } finally {
+      setEnviando(false);
     }
   };
 
-  // Quick Preset Attachments
-  const presetAttachments = [
-    { name: 'Relatorio_Tecnico_Aco_Inox_2026.pdf', url: '#', size: '2.4 MB' },
-    { name: 'Desenho_CAD_Dobra_CNC_V2.dwg', url: '#', size: '5.1 MB' },
-    { name: 'Certificado_Qualidade_ISO9001.pdf', url: '#', size: '1.1 MB' },
-  ];
+  const busca = searchFilter.trim().toLocaleLowerCase('pt-BR');
 
-  return (
-    <div className="space-y-6 pb-12">
-
-      {/* Top Banner */}
-      <div className="bg-white p-6 rounded-[2rem] border border-neutral-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-yellow-600 font-extrabold text-xs uppercase tracking-widest">
-            <MessageSquare className="w-4 h-4 text-yellow-600" />
-            <span>Comunicação Interna em Tempo Real</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black text-neutral-900 tracking-tight">
-            Chat Interno GFERRO
-          </h1>
-          <p className="text-xs text-neutral-500 font-medium">
-            Conecte-se instantaneamente com canais corporativos por setor e conversas diretas com colegas.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 bg-neutral-50 px-4 py-2.5 rounded-full border border-neutral-200 shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-xs font-bold text-neutral-900">Rede Interna Online</span>
-        </div>
+  return <div className="space-y-6 pb-12">
+    <div className="flex flex-col justify-between gap-4 rounded-[2rem] border border-neutral-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-yellow-600"><MessageSquare className="h-4 w-4"/>Comunicação interna</div>
+        <h1 className="text-xl font-black tracking-tight text-neutral-900 sm:text-2xl">Chat Interno GFERRO</h1>
+        <p className="text-xs font-medium text-neutral-500">Mensagens persistentes em canais e conversas diretas entre usuários cadastrados.</p>
       </div>
-
-      {/* Main Chat Layout Container */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[720px]">
-
-        {/* Left Column: Channels & DMs Navigation (4 cols) */}
-        <div className="lg:col-span-4 bg-white border border-neutral-200 rounded-[2rem] p-4 flex flex-col shadow-sm overflow-hidden">
-
-          {/* Search Box */}
-          <div className="relative mb-4">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500" />
-            <input
-              type="text"
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              placeholder="Buscar canais ou pessoas..."
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-full py-2 pl-9 pr-3 text-xs text-neutral-900 placeholder-neutral-500 focus:outline-none focus:border-yellow-400 transition-all"
-            />
-          </div>
-
-          {/* Navigation Items List */}
-          <div className="flex-1 overflow-y-auto space-y-5 pr-1">
-
-            {/* Channels Section */}
-            <div>
-              <div className="flex items-center justify-between px-2 mb-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500">
-                <span>Canais Corporativos</span>
-                <span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
-                  {channels.length}
-                </span>
-              </div>
-
-              <div className="space-y-1">
-                {channels
-                  .filter((c) => c.name.toLowerCase().includes(searchFilter.toLowerCase()))
-                  .map((chn) => {
-                    const isActive = activeType === 'channel' && activeTargetId === chn.id;
-                    return (
-                      <button
-                        key={chn.id}
-                        onClick={() => {
-                          setActiveType('channel');
-                          setActiveTargetId(chn.id);
-                        }}
-                        className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs transition-all text-left ${
-                          isActive
-                            ? 'bg-yellow-400 text-black font-extrabold shadow-lg shadow-yellow-400/20'
-                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Hash className={`w-4 h-4 shrink-0 ${isActive ? 'text-black' : 'text-yellow-600'}`} />
-                          <span className="truncate">{chn.name}</span>
-                        </div>
-                        {chn.unreadCount && chn.unreadCount > 0 && !isActive && (
-                          <span className="px-2 py-0.5 rounded-full bg-yellow-400 text-black text-[10px] font-extrabold">
-                            {chn.unreadCount}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* Direct Messages Section */}
-            <div>
-              <div className="flex items-center justify-between px-2 mb-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500">
-                <span>Mensagens Diretas</span>
-                <span className="text-[10px] bg-neutral-100 px-2 py-0.5 rounded-full text-neutral-500">
-                  {colaboradores.length}
-                </span>
-              </div>
-
-              <div className="space-y-1">
-                {colaboradores
-                  .filter((col) => col.id !== user.id && col.name.toLowerCase().includes(searchFilter.toLowerCase()))
-                  .map((col) => {
-                    const isActive = activeType === 'dm' && activeTargetId === col.id;
-                    return (
-                      <button
-                        key={col.id}
-                        onClick={() => {
-                          setActiveType('dm');
-                          setActiveTargetId(col.id);
-                        }}
-                        className={`w-full flex items-center gap-3 p-3 rounded-2xl text-xs transition-all text-left ${
-                          isActive
-                            ? 'bg-yellow-400 text-black font-extrabold shadow-lg shadow-yellow-400/20'
-                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
-                        }`}
-                      >
-                        <div className="relative shrink-0">
-                          <img
-                            src={col.avatar}
-                            alt={col.name}
-                            className={`w-8 h-8 rounded-full object-cover border ${
-                              isActive ? 'border-black' : 'border-yellow-400'
-                            }`}
-                          />
-                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-neutral-900" />
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <span className="block truncate font-semibold">{col.name}</span>
-                          <span className={`block truncate text-[10px] ${isActive ? 'text-black/80' : 'text-neutral-500'}`}>
-                            {col.role}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* Right Column: Chat Main Feed (8 cols) */}
-        <div className="lg:col-span-8 bg-white border border-neutral-200 rounded-[2rem] flex flex-col shadow-sm overflow-hidden">
-
-          {/* Chat Header Bar */}
-          <div className="p-4 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between gap-4 shrink-0">
-            {activeType === 'channel' && activeChannel ? (
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 rounded-2xl bg-yellow-50 text-yellow-700 border border-yellow-200">
-                  <Hash className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-extrabold text-neutral-900 truncate flex items-center gap-2">
-                    <span>#{activeChannel.name}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-neutral-100 text-[10px] font-mono text-neutral-600 font-normal">
-                      {activeChannel.category}
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-neutral-500 truncate mt-0.5 font-medium">
-                    {activeChannel.description}
-                  </p>
-                </div>
-              </div>
-            ) : activeType === 'dm' && activeColaborador ? (
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="relative shrink-0">
-                  <img
-                    src={activeColaborador.avatar}
-                    alt={activeColaborador.name}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400"
-                  />
-                  <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 border-2 border-neutral-900" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-extrabold text-neutral-900 truncate">
-                    {activeColaborador.name}
-                  </h3>
-                  <p className="text-[11px] text-neutral-500 truncate mt-0.5 font-medium">
-                    {activeColaborador.role} • Ramal: <strong className="text-yellow-600">{activeColaborador.ramal}</strong>
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Quick Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              {activeColaborador && (
-                <a
-                  href={`tel:${activeColaborador.ramal}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    alert(`Ligando para Ramal ${activeColaborador.ramal} (${activeColaborador.name})`);
-                  }}
-                  className="p-2.5 rounded-full bg-neutral-100 text-neutral-600 hover:text-yellow-600 hover:bg-neutral-100 transition-colors"
-                  title="Chamar Ramal IP"
-                >
-                  <Phone className="w-4 h-4" />
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* Chat Messages Feed Area */}
-          <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
-            {filteredMessages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-                <div className="p-4 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">
-                  <MessageSquare className="w-8 h-8" />
-                </div>
-                <h4 className="text-sm font-extrabold text-neutral-900 uppercase tracking-wider">
-                  Nenhuma mensagem por aqui ainda
-                </h4>
-                <p className="text-xs text-neutral-500 max-w-sm leading-relaxed">
-                  Envie a primeira mensagem para iniciar a conversa corporativa com sua equipe.
-                </p>
-              </div>
-            ) : (
-              filteredMessages.map((msg) => {
-                const isMe = msg.senderId === user.id;
-
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex items-start gap-3 ${isMe ? 'flex-row-reverse' : ''}`}
-                  >
-                    <img
-                      src={msg.senderAvatar}
-                      alt={msg.senderName}
-                      className="w-8 h-8 rounded-full object-cover border border-yellow-400 shrink-0 mt-1"
-                    />
-
-                    <div className={`space-y-1 max-w-[80%] ${isMe ? 'items-end text-right' : ''}`}>
-                      <div className="flex items-center gap-2 text-[11px]">
-                        <span className="font-extrabold text-neutral-900">{msg.senderName}</span>
-                        {msg.senderRole && (
-                          <span className="text-[10px] text-neutral-500 hidden sm:inline">
-                            • {msg.senderRole}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-neutral-500 font-mono">{msg.timestamp}</span>
-                      </div>
-
-                      <div
-                        className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
-                          isMe
-                            ? 'bg-yellow-400 text-black font-medium shadow-md rounded-tr-none'
-                            : 'bg-neutral-50 text-neutral-800 border border-neutral-200 rounded-tl-none'
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
-
-                        {/* Attachments */}
-                        {msg.attachments && msg.attachments.length > 0 && (
-                          <div className="mt-2 space-y-1 pt-2 border-t border-black/10">
-                            {msg.attachments.map((att, idx) => (
-                              <div
-                                key={idx}
-                                className={`p-2 rounded-xl flex items-center justify-between gap-3 text-xs ${
-                                  isMe ? 'bg-black/10 text-black' : 'bg-white text-yellow-600 border border-neutral-200'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <FileText className="w-4 h-4 shrink-0" />
-                                  <span className="font-bold truncate">{att.name}</span>
-                                </div>
-                                <span className="text-[10px] font-mono opacity-80 shrink-0">{att.size}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Attached File Preview Bar */}
-          {selectedAttachment && (
-            <div className="px-4 py-2 bg-yellow-50 border-t border-yellow-200 flex items-center justify-between text-xs text-yellow-700">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                <span className="font-bold">Anexo selecionado: {selectedAttachment.name}</span>
-                <span className="text-[10px] font-mono opacity-80">({selectedAttachment.size})</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedAttachment(null)}
-                className="text-neutral-500 hover:text-neutral-900"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Quick Presets Strip */}
-          <div className="px-4 py-2 bg-neutral-50 border-t border-neutral-100 flex items-center gap-2 overflow-x-auto text-[11px] no-scrollbar">
-            <span className="text-neutral-500 font-bold uppercase shrink-0 text-[10px]">
-              Atalhos Rápidos:
-            </span>
-            <button
-              type="button"
-              onClick={() => setInputText('👍 Recebido e aprovado!')}
-              className="px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600 hover:text-yellow-600 hover:bg-neutral-100 whitespace-nowrap transition-colors"
-            >
-              👍 Recebido e Aprovado
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputText('📄 Segue o laudo técnico da ordem de produção.')}
-              className="px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600 hover:text-yellow-600 hover:bg-neutral-100 whitespace-nowrap transition-colors"
-            >
-              📄 Laudo Técnico
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputText('⚠️ Favor verificar no pátio de bobinas.')}
-              className="px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600 hover:text-yellow-600 hover:bg-neutral-100 whitespace-nowrap transition-colors"
-            >
-              ⚠️ Aviso de Pátio
-            </button>
-          </div>
-
-          {/* Message Input Form */}
-          <form onSubmit={handleSend} className="p-4 bg-neutral-50 border-t border-neutral-200 flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowQuickAttachModal(true)}
-              className="p-3 rounded-full bg-neutral-100 text-neutral-500 hover:text-yellow-600 hover:bg-neutral-100 transition-colors"
-              title="Anexar Documento"
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
-
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={
-                activeType === 'channel' && activeChannel
-                  ? `Enviar mensagem no #${activeChannel.name}...`
-                  : `Conversar com ${activeColaborador?.name || 'colega'}...`
-              }
-              className="flex-1 bg-white border border-neutral-200 rounded-full py-3 px-5 text-xs text-neutral-900 placeholder-neutral-500 focus:outline-none focus:border-yellow-400 transition-all"
-            />
-
-            <button
-              type="submit"
-              disabled={!inputText.trim() && !selectedAttachment}
-              className="p-3 rounded-full bg-yellow-400 text-black hover:bg-yellow-300 disabled:opacity-40 shadow-lg shadow-yellow-400/20 transition-all active:scale-95"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-
-        </div>
-
-      </div>
-
-      {/* Attach Modal */}
-      {showQuickAttachModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-neutral-200 rounded-[2rem] max-w-sm w-full p-6 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
-              <h3 className="text-xs font-extrabold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
-                <FileText className="w-4 h-4 text-yellow-600" />
-                Anexar Documento Corporativo
-              </h3>
-              <button onClick={() => setShowQuickAttachModal(false)} className="text-neutral-500 hover:text-neutral-900">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              {presetAttachments.map((att, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setSelectedAttachment(att);
-                    setShowQuickAttachModal(false);
-                  }}
-                  className="w-full p-3 rounded-2xl bg-white border border-neutral-200 hover:border-yellow-400 text-left flex items-center justify-between group transition-all"
-                >
-                  <div className="min-w-0">
-                    <span className="font-bold text-neutral-900 group-hover:text-yellow-600 block truncate">
-                      {att.name}
-                    </span>
-                    <span className="text-[10px] text-neutral-500 font-mono">{att.size}</span>
-                  </div>
-                  <Plus className="w-4 h-4 text-neutral-500 group-hover:text-yellow-600 shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
+      <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2.5"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400"/><span className="text-xs font-bold text-neutral-900">Sincronização ativa</span></div>
     </div>
-  );
+
+    <div className="grid h-[720px] grid-cols-1 gap-6 lg:grid-cols-12">
+      <aside className="flex flex-col overflow-hidden rounded-[2rem] border border-neutral-200 bg-white p-4 shadow-sm lg:col-span-4">
+        <div className="relative mb-4"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500"/><input value={searchFilter} onChange={(event) => setSearchFilter(event.target.value)} placeholder="Buscar canais ou pessoas..." className="w-full rounded-full border border-neutral-200 bg-neutral-50 py-2 pl-9 pr-3 text-xs outline-none focus:border-yellow-400"/></div>
+        <div className="flex-1 space-y-5 overflow-y-auto pr-1">
+          <section>
+            <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Canais corporativos</p>
+            <div className="space-y-1">{channels.filter((canal) => canal.name.toLowerCase().includes(busca)).map((canal) => {
+              const ativo = activeType === 'channel' && activeTargetId === canal.id;
+              return <button key={canal.id} onClick={() => { setActiveType('channel'); setActiveTargetId(canal.id); }} className={`flex w-full items-center gap-2.5 rounded-2xl p-3 text-left text-xs transition ${ativo ? 'bg-yellow-400 font-extrabold text-black' : 'text-neutral-600 hover:bg-neutral-100'}`}><Hash className="h-4 w-4 shrink-0"/><span className="truncate">{canal.name}</span></button>;
+            })}</div>
+          </section>
+          <section>
+            <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Mensagens diretas</p>
+            <div className="space-y-1">{contatosDisponiveis.filter((contato) => `${contato.name} ${contato.email}`.toLowerCase().includes(busca)).map((contato) => {
+              const ativo = activeType === 'dm' && activeTargetId === contato.id;
+              return <button key={contato.id} onClick={() => { setActiveType('dm'); setActiveTargetId(contato.id); }} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left text-xs transition ${ativo ? 'bg-yellow-400 font-extrabold text-black' : 'text-neutral-600 hover:bg-neutral-100'}`}><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${ativo ? 'border-black/30 bg-black/10' : 'border-yellow-300 bg-yellow-50'}`}><UserIcon className="h-4 w-4"/></span><span className="min-w-0"><span className="block truncate font-semibold">{contato.name}</span><span className={`block truncate text-[10px] ${ativo ? 'text-black/70' : 'text-neutral-400'}`}>{contato.email}</span></span></button>;
+            })}{!carregando && contatosDisponiveis.length === 0 && <p className="px-3 py-4 text-xs text-neutral-400">Nenhum outro usuário cadastrado.</p>}</div>
+          </section>
+        </div>
+      </aside>
+
+      <section className="flex flex-col overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-sm lg:col-span-8">
+        <header className="flex min-h-20 items-center gap-3 border-b border-neutral-200 bg-neutral-50 p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-yellow-200 bg-yellow-50 text-yellow-700">{activeType === 'channel' ? <Hash className="h-5 w-5"/> : <UserIcon className="h-5 w-5"/>}</span>
+          <div className="min-w-0"><h3 className="truncate text-sm font-extrabold text-neutral-900">{activeType === 'channel' ? `#${activeChannel?.name ?? 'canal'}` : activeContato?.name ?? 'Selecione um usuário'}</h3><p className="mt-0.5 truncate text-[11px] text-neutral-500">{activeType === 'channel' ? activeChannel?.description : activeContato?.email}</p></div>
+        </header>
+
+        {erro && <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700"><AlertTriangle className="h-4 w-4 shrink-0"/>{erro}</div>}
+        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+          {carregando ? <div className="flex h-full items-center justify-center gap-2 text-xs text-neutral-500"><Loader2 className="h-5 w-5 animate-spin text-yellow-600"/>Carregando mensagens...</div> : filteredMessages.length === 0 ? <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"><span className="rounded-full border border-yellow-200 bg-yellow-50 p-4 text-yellow-700"><MessageSquare className="h-8 w-8"/></span><h4 className="text-sm font-extrabold uppercase tracking-wider">Nenhuma mensagem ainda</h4><p className="max-w-sm text-xs text-neutral-500">Envie a primeira mensagem para iniciar a conversa.</p></div> : filteredMessages.map((mensagem) => {
+            const minha = mensagem.senderId === user.id;
+            return <div key={mensagem.id} className={`flex items-start gap-3 ${minha ? 'flex-row-reverse' : ''}`}><span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-yellow-300 bg-yellow-50"><UserIcon className="h-4 w-4 text-yellow-700"/></span><div className={`max-w-[80%] space-y-1 ${minha ? 'text-right' : ''}`}><div className="flex items-center gap-2 text-[11px]"><span className="font-extrabold text-neutral-900">{mensagem.senderName}</span><span className="font-mono text-[10px] text-neutral-400">{mensagem.createdAt ? new Date(mensagem.createdAt).toLocaleString('pt-BR') : mensagem.timestamp}</span></div><div className={`rounded-2xl p-3.5 text-left text-xs leading-relaxed ${minha ? 'rounded-tr-none bg-yellow-400 font-medium text-black' : 'rounded-tl-none border border-neutral-200 bg-neutral-50 text-neutral-800'}`}><p className="whitespace-pre-wrap break-words">{mensagem.content}</p></div></div></div>;
+          })}<div ref={chatEndRef}/>
+        </div>
+
+        <form onSubmit={enviar} className="flex items-center gap-3 border-t border-neutral-200 bg-neutral-50 p-4"><input value={inputText} onChange={(event) => setInputText(event.target.value)} disabled={activeType === 'dm' && !activeContato} maxLength={4000} placeholder={activeType === 'channel' ? `Enviar mensagem no #${activeChannel?.name ?? 'canal'}...` : activeContato ? `Conversar com ${activeContato.name}...` : 'Selecione um usuário...'} className="flex-1 rounded-full border border-neutral-200 bg-white px-5 py-3 text-xs outline-none focus:border-yellow-400 disabled:bg-neutral-100"/><button type="submit" disabled={!inputText.trim() || enviando || (activeType === 'dm' && !activeContato)} className="rounded-full bg-yellow-400 p-3 text-black shadow-lg shadow-yellow-400/20 transition hover:bg-yellow-300 disabled:opacity-40">{enviando ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}</button></form>
+      </section>
+    </div>
+  </div>;
 };
