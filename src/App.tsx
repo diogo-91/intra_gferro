@@ -252,9 +252,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'pessoas' && (
-            <DiretorioPessoas colaboradores={colaboradores} />
-          )}
+          {activeTab === 'pessoas' && <DiretorioPessoas />}
 
           {activeTab === 'chat' && (
             <ChatInterno
