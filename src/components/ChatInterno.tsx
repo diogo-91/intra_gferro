@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Hash, Loader2, MessageSquare, Search, Send, User as UserIcon } from 'lucide-react';
+import { AlertTriangle, FileText, Hash, Loader2, MessageSquare, Paperclip, Search, Send, User as UserIcon, X } from 'lucide-react';
 import type { ChatChannel, ChatContato, ChatMessage, User } from '../types';
 
 interface ChatInternoProps {
@@ -22,7 +22,9 @@ export const ChatInterno: React.FC<ChatInternoProps> = ({ user, channels }) => {
   const [carregando, setCarregando] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
+  const [anexo, setAnexo] = useState<File | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const anexoInputRef = useRef<HTMLInputElement>(null);
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
@@ -66,26 +68,35 @@ export const ChatInterno: React.FC<ChatInternoProps> = ({ user, channels }) => {
   const enviar = async (event: React.FormEvent) => {
     event.preventDefault();
     const content = inputText.trim();
-    if (!content || enviando) return;
+    if ((!content && !anexo) || enviando) return;
     setEnviando(true); setErro('');
     try {
-      const resposta = await fetch('/api/chat-interno/mensagens', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content,
-          ...(activeType === 'channel' ? { channelId: activeTargetId } : { receiverId: activeTargetId }),
-        }),
-      });
+      const formulario = new FormData();
+      formulario.append('content', content);
+      formulario.append(activeType === 'channel' ? 'channelId' : 'receiverId', activeTargetId);
+      if (anexo) formulario.append('anexo', anexo);
+      const resposta = await fetch('/api/chat-interno/mensagens', { method: 'POST', body: formulario });
       const mensagem = await resposta.json();
       if (!resposta.ok) throw new Error(mensagem.error || 'Não foi possível enviar a mensagem.');
       setMessages((atuais) => atuais.some((item) => item.id === mensagem.id) ? atuais : [...atuais, mensagem]);
       setInputText('');
+      setAnexo(null);
+      if (anexoInputRef.current) anexoInputRef.current.value = '';
     } catch (error: any) {
       setErro(error.message || 'Não foi possível enviar a mensagem.');
     } finally {
       setEnviando(false);
     }
+  };
+
+  const selecionarAnexo = (arquivo?: File) => {
+    if (!arquivo) return;
+    if (arquivo.size > 10 * 1024 * 1024) {
+      setErro('O anexo deve ter no máximo 10 MB.');
+      if (anexoInputRef.current) anexoInputRef.current.value = '';
+      return;
+    }
+    setAnexo(arquivo); setErro('');
   };
 
   const busca = searchFilter.trim().toLocaleLowerCase('pt-BR');
@@ -131,11 +142,12 @@ export const ChatInterno: React.FC<ChatInternoProps> = ({ user, channels }) => {
         <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
           {carregando ? <div className="flex h-full items-center justify-center gap-2 text-xs text-neutral-500"><Loader2 className="h-5 w-5 animate-spin text-yellow-600"/>Carregando mensagens...</div> : filteredMessages.length === 0 ? <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"><span className="rounded-full border border-yellow-200 bg-yellow-50 p-4 text-yellow-700"><MessageSquare className="h-8 w-8"/></span><h4 className="text-sm font-extrabold uppercase tracking-wider">Nenhuma mensagem ainda</h4><p className="max-w-sm text-xs text-neutral-500">Envie a primeira mensagem para iniciar a conversa.</p></div> : filteredMessages.map((mensagem) => {
             const minha = mensagem.senderId === user.id;
-            return <div key={mensagem.id} className={`flex items-start gap-3 ${minha ? 'flex-row-reverse' : ''}`}><span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-yellow-300 bg-yellow-50"><UserIcon className="h-4 w-4 text-yellow-700"/></span><div className={`max-w-[80%] space-y-1 ${minha ? 'text-right' : ''}`}><div className="flex items-center gap-2 text-[11px]"><span className="font-extrabold text-neutral-900">{mensagem.senderName}</span><span className="font-mono text-[10px] text-neutral-400">{mensagem.createdAt ? new Date(mensagem.createdAt).toLocaleString('pt-BR') : mensagem.timestamp}</span></div><div className={`rounded-2xl p-3.5 text-left text-xs leading-relaxed ${minha ? 'rounded-tr-none bg-yellow-400 font-medium text-black' : 'rounded-tl-none border border-neutral-200 bg-neutral-50 text-neutral-800'}`}><p className="whitespace-pre-wrap break-words">{mensagem.content}</p></div></div></div>;
+            return <div key={mensagem.id} className={`flex items-start gap-3 ${minha ? 'flex-row-reverse' : ''}`}><span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-yellow-300 bg-yellow-50"><UserIcon className="h-4 w-4 text-yellow-700"/></span><div className={`max-w-[80%] space-y-1 ${minha ? 'text-right' : ''}`}><div className="flex items-center gap-2 text-[11px]"><span className="font-extrabold text-neutral-900">{mensagem.senderName}</span><span className="font-mono text-[10px] text-neutral-400">{mensagem.createdAt ? new Date(mensagem.createdAt).toLocaleString('pt-BR') : mensagem.timestamp}</span></div><div className={`rounded-2xl p-3.5 text-left text-xs leading-relaxed ${minha ? 'rounded-tr-none bg-yellow-400 font-medium text-black' : 'rounded-tl-none border border-neutral-200 bg-neutral-50 text-neutral-800'}`}>{mensagem.content && <p className="whitespace-pre-wrap break-words">{mensagem.content}</p>}{mensagem.attachments?.map((arquivo) => <a key={arquivo.url} href={arquivo.url} target="_blank" rel="noreferrer" className={`mt-2 flex items-center gap-2 rounded-xl border p-2.5 font-bold underline-offset-2 hover:underline ${minha ? 'border-black/15 bg-black/10' : 'border-neutral-200 bg-white text-yellow-700'}`}><FileText className="h-4 w-4 shrink-0"/><span className="min-w-0 flex-1 truncate">{arquivo.name}</span><span className="shrink-0 text-[10px] font-normal opacity-70">{arquivo.size}</span></a>)}</div></div></div>;
           })}<div ref={chatEndRef}/>
         </div>
 
-        <form onSubmit={enviar} className="flex items-center gap-3 border-t border-neutral-200 bg-neutral-50 p-4"><input value={inputText} onChange={(event) => setInputText(event.target.value)} disabled={activeType === 'dm' && !activeContato} maxLength={4000} placeholder={activeType === 'channel' ? `Enviar mensagem no #${activeChannel?.name ?? 'canal'}...` : activeContato ? `Conversar com ${activeContato.name}...` : 'Selecione um usuário...'} className="flex-1 rounded-full border border-neutral-200 bg-white px-5 py-3 text-xs outline-none focus:border-yellow-400 disabled:bg-neutral-100"/><button type="submit" disabled={!inputText.trim() || enviando || (activeType === 'dm' && !activeContato)} className="rounded-full bg-yellow-400 p-3 text-black shadow-lg shadow-yellow-400/20 transition hover:bg-yellow-300 disabled:opacity-40">{enviando ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}</button></form>
+        {anexo && <div className="flex items-center gap-2 border-t border-yellow-200 bg-yellow-50 px-4 py-2.5 text-xs text-yellow-900"><FileText className="h-4 w-4 shrink-0"/><span className="min-w-0 flex-1 truncate font-bold">{anexo.name}</span><span className="shrink-0 text-[10px]">{(anexo.size / 1024 / 1024).toFixed(1)} MB</span><button type="button" onClick={() => { setAnexo(null); if (anexoInputRef.current) anexoInputRef.current.value = ''; }} aria-label="Remover anexo" className="rounded-full p-1 hover:bg-yellow-100"><X className="h-4 w-4"/></button></div>}
+        <form onSubmit={enviar} className="flex items-center gap-3 border-t border-neutral-200 bg-neutral-50 p-4"><input ref={anexoInputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.dwg" onChange={(event) => selecionarAnexo(event.target.files?.[0])}/><button type="button" onClick={() => anexoInputRef.current?.click()} disabled={enviando || (activeType === 'dm' && !activeContato)} title="Anexar arquivo (máximo 10 MB)" className="rounded-full border border-neutral-200 bg-white p-3 text-neutral-500 transition hover:border-yellow-400 hover:text-yellow-700 disabled:opacity-40"><Paperclip className="h-4 w-4"/></button><input value={inputText} onChange={(event) => setInputText(event.target.value)} disabled={activeType === 'dm' && !activeContato} maxLength={4000} placeholder={activeType === 'channel' ? `Enviar mensagem no #${activeChannel?.name ?? 'canal'}...` : activeContato ? `Conversar com ${activeContato.name}...` : 'Selecione um usuário...'} className="flex-1 rounded-full border border-neutral-200 bg-white px-5 py-3 text-xs outline-none focus:border-yellow-400 disabled:bg-neutral-100"/><button type="submit" disabled={(!inputText.trim() && !anexo) || enviando || (activeType === 'dm' && !activeContato)} className="rounded-full bg-yellow-400 p-3 text-black shadow-lg shadow-yellow-400/20 transition hover:bg-yellow-300 disabled:opacity-40">{enviando ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}</button></form>
       </section>
     </div>
   </div>;

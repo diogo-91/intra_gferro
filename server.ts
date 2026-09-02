@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { mkdir } from 'fs/promises';
+import { mkdir, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import cookieParser from 'cookie-parser';
 import multer from 'multer';
@@ -27,7 +27,7 @@ import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
 import * as chamados from './chamados';
-import { enviarMensagemChat, listarMensagensChat, type MensagemChatInterno } from './chatInterno';
+import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
 
 type SessaoAutenticada = NonNullable<Awaited<ReturnType<typeof obterSessao>>>;
 
@@ -92,6 +92,7 @@ function mensagemChatPublica(mensagem: MensagemChatInterno) {
     content: mensagem.content,
     channelId: mensagem.channelId,
     receiverId: mensagem.receiverId,
+    attachments: mensagem.attachments,
     createdAt: mensagem.criadoEm,
     timestamp: new Date(mensagem.criadoEm).toLocaleString('pt-BR'),
   };
@@ -316,6 +317,35 @@ async function startServer() {
   // Fotos de fachada das lojas — mesmo esquema.
   app.use('/uploads/lojas', exigirAutenticacao, express.static(lojasFotos.PASTA_UPLOADS_LOJAS));
 
+  const extensoesChatPermitidas = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.zip', '.dwg']);
+  const uploadChat = multer({
+    storage: multer.diskStorage({
+      destination: async (_req, _file, callback) => {
+        await mkdir(PASTA_ANEXOS_CHAT, { recursive: true });
+        callback(null, PASTA_ANEXOS_CHAT);
+      },
+      filename: (_req, arquivo, callback) => {
+        callback(null, `${randomUUID()}${path.extname(arquivo.originalname).toLowerCase()}`);
+      },
+    }),
+    fileFilter: (_req, arquivo, callback) => {
+      if (!extensoesChatPermitidas.has(path.extname(arquivo.originalname).toLowerCase())) {
+        return callback(new Error('Formato de anexo não permitido.'));
+      }
+      callback(null, true);
+    },
+    limits: { fileSize: 10 * 1024 * 1024 },
+  });
+  const receberAnexoChat: express.RequestHandler = (req, res, next) => {
+    uploadChat.single('anexo')(req, res, (error: any) => {
+      if (!error) return next();
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'O anexo deve ter no máximo 10 MB.' });
+      }
+      return res.status(400).json({ error: error.message || 'Não foi possível receber o anexo.' });
+    });
+  };
+
   app.get('/api/chat-interno/estado', async (req, res) => {
     try {
       const sessao = await obterSessao(req);
@@ -330,19 +360,42 @@ async function startServer() {
     }
   });
 
-  app.post('/api/chat-interno/mensagens', async (req, res) => {
+  app.get('/api/chat-interno/anexos/:arquivo', async (req, res) => {
+    try {
+      const sessao = await obterSessao(req);
+      if (!sessao) return res.status(401).json({ error: 'Não autenticado.' });
+      const arquivo = path.basename(req.params.arquivo);
+      if (!arquivo || arquivo !== req.params.arquivo) return res.status(400).json({ error: 'Arquivo inválido.' });
+      const url = `/api/chat-interno/anexos/${arquivo}`;
+      const mensagensVisiveis = await listarMensagensChat(sessao.email);
+      const permitido = mensagensVisiveis.some((mensagem) => mensagem.attachments?.some((anexo) => anexo.url === url));
+      if (!permitido) return res.status(404).json({ error: 'Anexo não encontrado.' });
+      res.sendFile(path.join(PASTA_ANEXOS_CHAT, arquivo));
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Não foi possível baixar o anexo.' });
+    }
+  });
+
+  app.post('/api/chat-interno/mensagens', receberAnexoChat, async (req, res) => {
     try {
       const sessao = await obterSessao(req);
       if (!sessao) return res.status(401).json({ error: 'Não autenticado.' });
       const contatos = await listarContatosChat(sessao);
       const destinatarios = new Set(contatos.map((contato) => contato.email));
+      const attachment = req.file ? {
+        name: req.file.originalname,
+        url: `/api/chat-interno/anexos/${req.file.filename}`,
+        size: req.file.size < 1024 * 1024 ? `${Math.ceil(req.file.size / 1024)} KB` : `${(req.file.size / 1024 / 1024).toFixed(1)} MB`,
+        mimeType: req.file.mimetype,
+      } : undefined;
       const mensagem = await enviarMensagemChat(
-        req.body || {},
+        { ...(req.body || {}), attachment },
         { email: sessao.email, nome: sessao.nome || nomePorEmail(sessao.email) },
         destinatarios
       );
       res.status(201).json(mensagemChatPublica(mensagem));
     } catch (error: any) {
+      if (req.file?.path) await unlink(req.file.path).catch(() => undefined);
       res.status(error.status || 500).json({ error: error.message || 'Não foi possível enviar a mensagem.' });
     }
   });

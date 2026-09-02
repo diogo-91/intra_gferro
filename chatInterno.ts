@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import path from 'path';
 
 const ARQUIVO = path.join(process.cwd(), 'data', 'chat-mensagens.json');
+export const PASTA_ANEXOS_CHAT = path.join(process.cwd(), 'data', 'uploads', 'chat');
 const CANAIS_VALIDOS = new Set([
   'chn-geral',
   'chn-dep-com',
@@ -22,6 +23,14 @@ export interface MensagemChatInterno {
   criadoEm: string;
   channelId?: string;
   receiverId?: string;
+  attachments?: AnexoChat[];
+}
+
+export interface AnexoChat {
+  name: string;
+  url: string;
+  size: string;
+  mimeType: string;
 }
 
 let cache: MensagemChatInterno[] | null = null;
@@ -52,12 +61,12 @@ export async function listarMensagensChat(email: string) {
 }
 
 export async function enviarMensagemChat(
-  dados: { content: unknown; channelId?: unknown; receiverId?: unknown },
+  dados: { content: unknown; channelId?: unknown; receiverId?: unknown; attachment?: AnexoChat },
   autor: { email: string; nome: string },
   destinatariosValidos: Set<string>
 ) {
   const content = typeof dados.content === 'string' ? dados.content.trim() : '';
-  if (!content) throw Object.assign(new Error('Digite uma mensagem.'), { status: 400 });
+  if (!content && !dados.attachment) throw Object.assign(new Error('Digite uma mensagem ou selecione um anexo.'), { status: 400 });
   if (content.length > 4000) throw Object.assign(new Error('A mensagem deve ter no máximo 4.000 caracteres.'), { status: 400 });
 
   const channelId = typeof dados.channelId === 'string' ? dados.channelId : undefined;
@@ -79,6 +88,7 @@ export async function enviarMensagemChat(
     content,
     criadoEm: new Date().toISOString(),
     ...(channelId ? { channelId } : { receiverId }),
+    ...(dados.attachment ? { attachments: [dados.attachment] } : {}),
   };
   const operacao = filaPersistencia.then(async () => {
     const mensagens = await carregar();
