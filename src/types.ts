@@ -26,12 +26,19 @@ export interface VendedorRanking {
   valorFrete: number;
   ticketMedio: number;
   valorRecebido: number;
+  /** Campos do fechamento comercial oficial (presentes em Agosto/2026). */
+  percentualIndicado?: number | null;
+  comissaoVendas?: number | null;
+  comissaoFretes?: number | null;
+  pedidosCodigos?: string[];
+  observacao?: string;
+  fechamentoOficial?: boolean;
 }
 
 export interface PedidoVendedorDetalhe {
   id: number;
   codigo: string;
-  dataEmissao: string;
+  dataLiberacao: string;
   quantidadeItens: number;
   quantidadeParafusos: number;
   valorRecebido: number;
@@ -59,6 +66,7 @@ export interface ResumoVendas {
   vendedoresAtivos: number;
   produtos: ProdutoRanking[];
   atualizadoEm: string;
+  fechamentoOficial?: boolean;
 }
 
 export interface ComparativoMensalVendasItem {

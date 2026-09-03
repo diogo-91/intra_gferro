@@ -140,6 +140,10 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
 
   if (!resumo) return null;
 
+  const formatValor = (valor: number) => resumo.fechamentoOficial
+    ? valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : formatCurrency(valor);
+
   const maiorValorProduto = resumo.produtos.reduce((max, p) => Math.max(max, p.valorTotal), 0) || 1;
   const maiorPrecoMedio = resumo.produtos.reduce((max, p) => Math.max(max, precoMedioDe(p.valorTotal, p.quantidade) ?? 0), 0) || 1;
   const ticketMedio = resumo.totalPedidos > 0 ? resumo.totalVendas / resumo.totalPedidos : 0;
@@ -163,7 +167,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
             <Wallet className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
             Total de Vendas
           </span>
-          <span className={`font-black text-emerald-900 tabular-nums ${classeValorKpi}`}>{formatCurrency(resumo.totalVendas)}</span>
+          <span className={`font-black text-emerald-900 tabular-nums ${classeValorKpi}`}>{formatValor(resumo.totalVendas)}</span>
         </div>
 
         <div className={`rounded-xl bg-violet-50 border border-violet-100 flex flex-col gap-1 ${classeCardKpi}`}>
@@ -195,7 +199,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
         <div className={`rounded-xl bg-teal-50 border border-teal-100 flex flex-col gap-1 ${classeCardKpi}`}>
           <span className={`flex items-center gap-1.5 text-teal-700/80 font-medium ${classeRotuloKpi}`}>
             <CircleDollarSign className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
-            Percentual Recebido
+            {resumo.fechamentoOficial ? 'Total Recebível' : 'Percentual Recebido'}
             {resumo.financeiroPedidosCarregando && (
               <RefreshCw className="h-3 w-3 animate-spin" aria-label="Atualizando em segundo plano" />
             )}
@@ -205,11 +209,13 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
             title="Valor e percentual já recebidos sobre o total vendido no período"
           >
             <span className={`font-black text-teal-900 tabular-nums ${classeValorKpi}`}>
-              {formatCurrency(resumo.valorRecebidoPedidos ?? 0)}
+              {formatValor(resumo.valorRecebidoPedidos ?? 0)}
             </span>
-            <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[11px] font-black text-teal-700 tabular-nums">
-              {percentualRecebido.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
-            </span>
+            {!resumo.fechamentoOficial && (
+              <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[11px] font-black text-teal-700 tabular-nums">
+                {percentualRecebido.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+              </span>
+            )}
           </div>
           {resumo.financeiroPedidosCarregando && (
             <span className="text-[9px] font-semibold text-teal-700/60">Atualizando em segundo plano</span>
@@ -225,7 +231,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
             )}
           </span>
           <span className={`font-black text-orange-900 tabular-nums ${classeValorKpi}`} title="Total dos pedidos menos os valores já recebidos">
-            {formatCurrency(resumo.valorPendentePedidos ?? resumo.totalVendas)}
+            {formatValor(resumo.valorPendentePedidos ?? resumo.totalVendas)}
           </span>
           {resumo.financeiroPedidosCarregando && (
             <span className="text-[9px] font-semibold text-orange-700/60">Atualizando em segundo plano</span>
@@ -240,7 +246,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
                 Total em Parafusos
               </span>
               <span className={`font-black text-amber-900 tabular-nums ${classeValorKpi}`}>
-                {formatCurrency(resumo.totalValorParafusos ?? 0)}
+                {formatValor(resumo.totalValorParafusos ?? 0)}
               </span>
             </div>
 
@@ -250,7 +256,7 @@ export const VendasResumo: React.FC<VendasResumoProps> = ({
                 Total Fretes e Outros
               </span>
               <span className={`font-black text-cyan-900 tabular-nums ${classeValorKpi}`}>
-                {formatCurrency(resumo.totalFrete ?? 0)}
+                {formatValor(resumo.totalFrete ?? 0)}
               </span>
             </div>
           </>

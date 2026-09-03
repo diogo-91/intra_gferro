@@ -2,7 +2,9 @@
 // Segue a documentação oficial da API (Nomus ERP.postman_collection.json):
 // - GET /pedidos: cada pedido já traz "valorTotal" pronto no cabeçalho
 //   (string em formato BR, ex.: "32.468,04") — não precisa recalcular pelos itens.
-// - Filtro por data server-side via query: ?query=dataEmissao>AAAA-MM-DDTHH:mm:ss
+// - O comercial considera a liberação do pedido. Como a API do Nomus não
+//   expõe um campo específico de liberação, essa data corresponde a
+//   "dataModificacao", atualizada quando o pedido é liberado.
 // - Paginação: parâmetro "pagina", 50 registros por página.
 // - GET /vendedores: cada vendedor tem "id" e "nome".
 // - GET /contasReceber e /contasPagar: mesmo formato de registro pros dois —
@@ -23,6 +25,12 @@ import type { ContaReceber, ContaPagar, ContaConcluida, DreConta, DreFinanceira,
 import { aplicarReprogramacoes } from './reprogramacoes';
 import { CLASSIFICACOES_FINANCEIRAS, GRUPOS_CLASSIFICACAO_FINANCEIRA, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
 import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
+import {
+  ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026,
+  FECHAMENTO_VENDAS_AGOSTO_2026,
+  TOTAIS_FECHAMENTO_VENDAS_AGOSTO_2026,
+  periodoEhFechamentoAgosto2026,
+} from './src/data/fechamentoVendasAgosto2026';
 import { obterMetasMensais } from './metasVendas';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -122,6 +130,7 @@ interface Pedido {
   id: number;
   codigoPedido?: string;
   dataEmissao?: string;
+  dataModificacao?: string;
   idPessoaVendedor?: number;
   valorTotal?: string | number;
   valorTotalFrete?: string | number;
@@ -132,7 +141,7 @@ interface Pedido {
 export interface PedidoVendedorDetalhe {
   id: number;
   codigo: string;
-  dataEmissao: string;
+  dataLiberacao: string;
   quantidadeItens: number;
   quantidadeParafusos: number;
   valorRecebido: number;
@@ -168,6 +177,12 @@ export interface VendedorRanking {
   valorFrete: number;
   ticketMedio: number;
   valorRecebido: number;
+  percentualIndicado?: number | null;
+  comissaoVendas?: number | null;
+  comissaoFretes?: number | null;
+  pedidosCodigos?: string[];
+  observacao?: string;
+  fechamentoOficial?: boolean;
 }
 
 export interface ProdutoRanking {
@@ -190,6 +205,7 @@ export interface ResumoVendas {
   /** Todos os produtos distintos vendidos no período, ordenados por valor desc. */
   produtos: ProdutoRanking[];
   atualizadoEm: string;
+  fechamentoOficial?: boolean;
 }
 
 export interface ComparativoMensalVendasItem {
@@ -204,6 +220,66 @@ export interface ComparativoMensalVendasItem {
   totalValorParafusos: number;
   totalFrete: number;
   financeiroCarregando: boolean;
+}
+
+function rankingDoFechamentoAgosto2026(): VendedorRanking[] {
+  return FECHAMENTO_VENDAS_AGOSTO_2026
+    .map((vendedor) => ({
+      nome: vendedor.nome,
+      pedidos: vendedor.pedidosCodigos.length,
+      valorTotal: vendedor.valorTotal,
+      metrosQuadrados: 0,
+      pedidosParafusos: 0,
+      quantidadeParafusos: vendedor.quantidadeParafusos,
+      valorParafusos: vendedor.valorParafusos,
+      pedidosComFrete: 0,
+      valorFrete: vendedor.valorFrete,
+      ticketMedio: vendedor.pedidosCodigos.length > 0
+        ? vendedor.valorTotal / vendedor.pedidosCodigos.length
+        : 0,
+      valorRecebido: vendedor.valorRecebido,
+      percentualIndicado: vendedor.percentualIndicado,
+      comissaoVendas: vendedor.comissaoVendas,
+      comissaoFretes: vendedor.comissaoFretes,
+      pedidosCodigos: [...vendedor.pedidosCodigos],
+      observacao: vendedor.observacao,
+      fechamentoOficial: true,
+    }))
+    .sort((a, b) => b.valorTotal - a.valorTotal || a.nome.localeCompare(b.nome));
+}
+
+function resumoDoFechamentoAgosto2026(lojaId?: string): ResumoVendas {
+  const vendedores = lojaId
+    ? FECHAMENTO_VENDAS_AGOSTO_2026.filter((vendedor) => lojaDoVendedor(vendedor.nome) === lojaId)
+    : FECHAMENTO_VENDAS_AGOSTO_2026;
+  const somar = (campo: 'valorTotal' | 'valorRecebido' | 'valorParafusos' | 'valorFrete' | 'quantidadeParafusos') =>
+    vendedores.reduce((total, vendedor) => total + vendedor[campo], 0);
+  const totalVendas = lojaId ? somar('valorTotal') : TOTAIS_FECHAMENTO_VENDAS_AGOSTO_2026.totalVendas;
+  const valorRecebidoPedidos = lojaId ? somar('valorRecebido') : TOTAIS_FECHAMENTO_VENDAS_AGOSTO_2026.valorRecebido;
+  const totalValorParafusos = somar('valorParafusos');
+  const quantidadeParafusos = somar('quantidadeParafusos');
+
+  return {
+    totalVendas,
+    totalValorParafusos,
+    totalFrete: somar('valorFrete'),
+    valorRecebidoPedidos,
+    valorPendentePedidos: Math.max(0, totalVendas - valorRecebidoPedidos),
+    financeiroPedidosCarregando: false,
+    totalPedidos: vendedores.reduce((total, vendedor) => total + vendedor.pedidosCodigos.length, 0),
+    totalMetrosQuadrados: 0,
+    vendedoresAtivos: lojaId
+      ? vendedores.filter((vendedor) => vendedor.pedidosCodigos.length > 0).length
+      : TOTAIS_FECHAMENTO_VENDAS_AGOSTO_2026.vendedoresAtivos,
+    produtos: quantidadeParafusos > 0 ? [{
+      nome: 'Parafusos — fechamento oficial',
+      valorTotal: totalValorParafusos,
+      quantidade: quantidadeParafusos,
+      unidade: 'unidades',
+    }] : [],
+    atualizadoEm: ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026,
+    fechamentoOficial: true,
+  };
 }
 
 function getConfig() {
@@ -385,8 +461,8 @@ function parseMesReferencia(mes: string): Date | undefined {
   return undefined;
 }
 
-// dataEmissao vem sempre à meia-noite (ex.: "29/07/2026 00:00:00"), então os
-// limites usam ">"/"<" estritos um dia fora do intervalo pra incluir as bordas.
+// dataModificacao representa a liberação na integração disponível do Nomus.
+// Os limites usam ">"/"<" estritos um dia fora do intervalo para incluir as bordas.
 // mesReferencia (só usado quando periodo === 'mes') seleciona um mês específico
 // no passado (ex.: Julho) em vez do mês corrente.
 function periodoParaQuery(periodo: Periodo, mesReferencia?: Date, intervalo?: IntervaloVendas): string {
@@ -421,7 +497,7 @@ function periodoParaQuery(periodo: Periodo, mesReferencia?: Date, intervalo?: In
   depoisDoFim.setDate(depoisDoFim.getDate() + 1);
   depoisDoFim.setHours(0, 0, 0, 0);
 
-  return `dataEmissao>${formatarDataNomus(antesDoInicio)};dataEmissao<${formatarDataNomus(depoisDoFim)}`;
+  return `dataModificacao>${formatarDataNomus(antesDoInicio)};dataModificacao<${formatarDataNomus(depoisDoFim)}`;
 }
 
 interface CacheVendedores {
@@ -445,9 +521,11 @@ interface CachePedidos {
 // agora ela sobrevive ao processo reiniciar.
 const ARQUIVO_CACHE_VENDEDORES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-vendedores.json');
 const ARQUIVO_CACHE_UNIDADES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-unidades.json');
-const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-cache-pedidos.json');
-const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-cache-financeiro-pedidos.json');
-const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-cache-resumos.json');
+// Arquivos v2 separam os snapshots pela nova regra de data de liberação e
+// impedem que caches antigos, classificados pela emissão, sejam reutilizados.
+const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-cache-pedidos-v2.json');
+const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-cache-financeiro-v2.json');
+const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-cache-resumos-v2.json');
 
 // "dia"/"semana"/"mes" (mês corrente) são períodos RELATIVOS a hoje — um cache
 // salvo ontem (ou na semana/mês passado) mostraria dado errado rotulado como
@@ -827,11 +905,19 @@ async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: I
   return resultado.pedidos;
 }
 
-function dataEmissaoPedido(data?: string): Date | null {
+function parseDataPedido(data?: string): Date | null {
   if (!data) return null;
   const [parteData] = data.split(' ');
   const [dia, mes, ano] = parteData.split('/').map(Number);
   return dia && mes && ano ? new Date(ano, mes - 1, dia) : null;
+}
+
+function dataEmissaoPedido(data?: string): Date | null {
+  return parseDataPedido(data);
+}
+
+function dataLiberacaoPedido(pedido: Pedido): Date | null {
+  return parseDataPedido(pedido.dataModificacao || pedido.dataEmissao);
 }
 
 export interface GestaoMetaLojaMensal {
@@ -872,7 +958,7 @@ export async function getGestaoMetasMensais(mes: string): Promise<{
     const nomeVendedor = nomeVendedorPorId.get(pedido.idPessoaVendedor);
     const lojaId = nomeVendedor ? lojaDoVendedor(nomeVendedor) : undefined;
     const loja = lojaId ? lojas.get(lojaId) : undefined;
-    const data = dataEmissaoPedido(pedido.dataEmissao);
+    const data = dataLiberacaoPedido(pedido);
     if (!loja || !data) continue;
     const chaveDia = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
     const valor = parseNum(pedido.valorTotal);
@@ -911,7 +997,13 @@ async function getFinanceiroDosPedidos(
     const { baseUrl, apiKey } = getConfig();
     if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
 
-    const datas = pedidos.map((pedido) => dataEmissaoPedido(pedido.dataEmissao)).filter((data): data is Date => data != null);
+    // As contas a receber mantêm a competência original da emissão, mesmo
+    // quando o pedido só é liberado em outro mês. Portanto, a venda é
+    // classificada pela liberação, mas o intervalo usado para localizar suas
+    // parcelas financeiras continua baseado na emissão.
+    const datas = pedidos
+      .map((pedido) => dataEmissaoPedido(pedido.dataEmissao))
+      .filter((data): data is Date => data != null);
     if (datas.length === 0) return { contas: [], carregando: false };
     const inicio = new Date(Math.min(...datas.map((data) => data.getTime())));
     const fim = new Date(Math.max(...datas.map((data) => data.getTime())));
@@ -965,6 +1057,12 @@ export async function getRankingVendedores(
   mes?: string,
   intervalo?: IntervaloVendas
 ): Promise<{ ranking: VendedorRanking[]; atualizadoEm: string }> {
+  if (periodoEhFechamentoAgosto2026(periodo, mes, intervalo)) {
+    return {
+      ranking: rankingDoFechamentoAgosto2026(),
+      atualizadoEm: ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026,
+    };
+  }
   const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes, intervalo)]);
   // O financeiro segue o mesmo padrão stale-while-revalidate: usa o último
   // cache disponível imediatamente e atualiza contas a receber em segundo
@@ -1050,6 +1148,23 @@ export async function getPedidosDoVendedor(
   mes?: string,
   intervalo?: IntervaloVendas
 ): Promise<{ pedidos: PedidoVendedorDetalhe[]; atualizadoEm: string }> {
+  if (periodoEhFechamentoAgosto2026(periodo, mes, intervalo)) {
+    const vendedor = FECHAMENTO_VENDAS_AGOSTO_2026.find((item) => item.nome === nomeVendedor);
+    return {
+      pedidos: (vendedor?.pedidosCodigos ?? []).map((codigo, index) => ({
+        id: -(index + 1),
+        codigo,
+        dataLiberacao: 'Agosto/2026',
+        quantidadeItens: 0,
+        quantidadeParafusos: 0,
+        valorRecebido: 0,
+        valorPendente: 0,
+        valorTotal: 0,
+        valorFrete: 0,
+      })),
+      atualizadoEm: ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026,
+    };
+  }
   const [vendedores, pedidos] = await Promise.all([getVendedores(), getPedidosDoPeriodo(periodo, mes, intervalo)]);
   const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, false, intervalo);
   const idsVendedor = new Set(
@@ -1083,7 +1198,7 @@ export async function getPedidosDoVendedor(
       return {
         id: pedido.id,
         codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
-        dataEmissao: pedido.dataEmissao || '—',
+        dataLiberacao: pedido.dataModificacao || pedido.dataEmissao || '—',
         quantidadeItens: (pedido.itensPedido || []).length,
         quantidadeParafusos: (pedido.itensPedido || [])
           .filter((item) => item.idProduto != null && idsParafusos.has(item.idProduto))
@@ -1094,7 +1209,7 @@ export async function getPedidosDoVendedor(
         valorFrete: valorFretesEOutrosPedido(pedido),
       };
     })
-    .sort((a, b) => (dataEmissaoPedido(b.dataEmissao)?.getTime() ?? 0) - (dataEmissaoPedido(a.dataEmissao)?.getTime() ?? 0));
+    .sort((a, b) => (parseDataPedido(b.dataLiberacao)?.getTime() ?? 0) - (parseDataPedido(a.dataLiberacao)?.getTime() ?? 0));
 
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
   return { pedidos: detalhes, atualizadoEm: new Date(atualizadoEm).toISOString() };
@@ -1208,6 +1323,9 @@ async function obterResumoVendasCacheado(
 }
 
 export async function getResumoVendas(periodo: Periodo, mes?: string, aguardarFinanceiro = false, intervalo?: IntervaloVendas): Promise<ResumoVendas> {
+  if (periodoEhFechamentoAgosto2026(periodo, mes, intervalo)) {
+    return resumoDoFechamentoAgosto2026();
+  }
   const chavePeriodo = chavePedidos(periodo, mes, intervalo);
   return obterResumoVendasCacheado(`geral:${chavePeriodo}`, async () => {
     const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes, intervalo), getUnidadesMedida()]);
@@ -1221,6 +1339,9 @@ export async function getResumoVendas(periodo: Periodo, mes?: string, aguardarFi
 // vinculados a uma loja (ver src/data/vendedorLoja.ts) — pedido explícito
 // da GFERRO pra ver as vendas de cada unidade separadamente.
 export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, mes?: string, intervalo?: IntervaloVendas): Promise<ResumoVendas> {
+  if (periodoEhFechamentoAgosto2026(periodo, mes, intervalo)) {
+    return resumoDoFechamentoAgosto2026(lojaId);
+  }
   const chavePeriodo = chavePedidos(periodo, mes, intervalo);
   return obterResumoVendasCacheado(`loja:${lojaId}:${chavePeriodo}`, async () => {
     const [pedidos, unidades, vendedores] = await Promise.all([

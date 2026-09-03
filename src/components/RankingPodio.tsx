@@ -1,5 +1,5 @@
 import React from 'react';
-import { Crown, Medal, Package, Ruler, Store, Trophy } from 'lucide-react';
+import { Crown, Medal, Package, Receipt, Ruler, Store, Trophy } from 'lucide-react';
 import { VendedorRanking } from '../types';
 import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
 import { formatCurrency, formatInteiro, formatMetrosQuadrados, formatNomeVendedor } from '../utils/format';
@@ -71,7 +71,11 @@ export const RankingPodio: React.FC<RankingPodioProps> = ({ vendedores }) => {
                   <span className="truncate">{nomeDaLoja(vendedor.nome)}</span>
                 </span>
 
-                <strong className="mt-4 block text-xl font-black tabular-nums tracking-tight text-emerald-700">{formatCurrency(vendedor.valorTotal)}</strong>
+                <strong className="mt-4 block text-xl font-black tabular-nums tracking-tight text-emerald-700">
+                  {vendedor.fechamentoOficial
+                    ? vendedor.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : formatCurrency(vendedor.valorTotal)}
+                </strong>
                 <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Total vendido</span>
 
                 <div className="mt-5 grid grid-cols-2 divide-x divide-neutral-100 rounded-2xl bg-neutral-50 px-2 py-3">
@@ -81,9 +85,13 @@ export const RankingPodio: React.FC<RankingPodioProps> = ({ vendedores }) => {
                     <span className="text-[9px] font-semibold text-neutral-400">Pedidos</span>
                   </div>
                   <div className="flex flex-col items-center gap-1 px-2">
-                    <Ruler className="h-3.5 w-3.5 text-sky-500" aria-hidden="true" />
-                    <strong className="max-w-full truncate text-xs font-black tabular-nums text-neutral-800" title={formatMetrosQuadrados(vendedor.metrosQuadrados)}>{formatMetrosQuadrados(vendedor.metrosQuadrados)}</strong>
-                    <span className="text-[9px] font-semibold text-neutral-400">Área vendida</span>
+                    {vendedor.fechamentoOficial ? <Receipt className="h-3.5 w-3.5 text-teal-500" aria-hidden="true" /> : <Ruler className="h-3.5 w-3.5 text-sky-500" aria-hidden="true" />}
+                    <strong className="max-w-full truncate text-xs font-black tabular-nums text-neutral-800">
+                      {vendedor.fechamentoOficial
+                        ? vendedor.valorRecebido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        : formatMetrosQuadrados(vendedor.metrosQuadrados)}
+                    </strong>
+                    <span className="text-[9px] font-semibold text-neutral-400">{vendedor.fechamentoOficial ? 'Total recebível' : 'Área vendida'}</span>
                   </div>
                 </div>
               </div>

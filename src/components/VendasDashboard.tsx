@@ -96,7 +96,7 @@ const chaveCachePedidosVendedorLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:pedidos-vendedor-v1:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:pedidos-vendedor-v2:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 interface CachePedidosVendedorLocal {
   pedidos: PedidoVendedorDetalhe[];
@@ -376,6 +376,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     ),
     [rankingDaVisao]
   );
+  const fechamentoOficial = ranking.some((vendedor) => vendedor.fechamentoOficial);
 
   // Arquivo de verdade gerado no servidor (não é window.print()) — mesmo
   // período já carregado na tela.
@@ -470,6 +471,17 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
 
   const abrirPedidosVendedor = async (nome: string) => {
     setVendedorModal(nome);
+    const fechamento = ranking.find((vendedor) => vendedor.nome === nome && vendedor.fechamentoOficial);
+    if (fechamento) {
+      setPedidosVendedor((fechamento.pedidosCodigos ?? []).map((codigo, index) => ({
+        id: -(index + 1), codigo, dataLiberacao: 'Agosto/2026', quantidadeItens: 0,
+        quantidadeParafusos: 0, valorRecebido: 0, valorPendente: 0, valorTotal: 0, valorFrete: 0,
+      })));
+      setPedidosVendedorErro(null);
+      setPedidosVendedorAtualizadoEm(atualizadoEm);
+      setPedidosVendedorLoading(false);
+      return;
+    }
     const cacheLocal = carregarPedidosVendedorLocal(nome, periodo, mes, dataInicio, dataFim);
     setPedidosVendedor(cacheLocal?.pedidos ?? []);
     setPedidosVendedorErro(null);
@@ -507,6 +519,10 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     };
   }, [vendedorModal]);
 
+  const vendedorRankingModal = vendedorModal
+    ? ranking.find((vendedor) => vendedor.nome === vendedorModal) ?? null
+    : null;
+
   const modalPedidosVendedor = vendedorModal ? (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8" role="dialog" aria-modal="true" aria-labelledby="titulo-pedidos-vendedor">
       <button
@@ -541,7 +557,44 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
-          {pedidosVendedorLoading ? (
+          {vendedorRankingModal?.fechamentoOficial ? (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                {[
+                  ['Total vendido', formatCurrencyComCentavos(vendedorRankingModal.valorTotal)],
+                  ['Total recebível', formatCurrencyComCentavos(vendedorRankingModal.valorRecebido)],
+                  ['Percentual indicado', vendedorRankingModal.percentualIndicado == null ? '—' : `${vendedorRankingModal.percentualIndicado}%`],
+                  ['Comissão vendas', vendedorRankingModal.comissaoVendas == null ? 'Não informada' : formatCurrencyComCentavos(vendedorRankingModal.comissaoVendas)],
+                  ['Parafusos', `${formatInteiro(vendedorRankingModal.quantidadeParafusos)} unidades`],
+                  ['Valor parafusos', formatCurrencyComCentavos(vendedorRankingModal.valorParafusos)],
+                  ['Fretes', formatCurrencyComCentavos(vendedorRankingModal.valorFrete)],
+                  ['Comissão fretes', vendedorRankingModal.comissaoFretes == null ? 'Não informada' : formatCurrencyComCentavos(vendedorRankingModal.comissaoFretes)],
+                ].map(([rotulo, valor]) => (
+                  <div key={rotulo} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                    <span className="block text-[9px] font-bold uppercase tracking-wider text-neutral-500">{rotulo}</span>
+                    <strong className="mt-1 block text-sm font-black text-neutral-900">{valor}</strong>
+                  </div>
+                ))}
+              </div>
+              {vendedorRankingModal.observacao && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-900">
+                  <strong>Observação:</strong> {vendedorRankingModal.observacao}
+                </div>
+              )}
+              <section>
+                <h3 className="mb-3 text-xs font-black uppercase tracking-wider text-neutral-600">Pedidos do fechamento</h3>
+                {(vendedorRankingModal.pedidosCodigos?.length ?? 0) === 0 ? (
+                  <div className="rounded-xl border border-neutral-200 p-8 text-center text-sm text-neutral-500">Nenhum pedido registrado.</div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {vendedorRankingModal.pedidosCodigos?.map((codigo, index) => (
+                      <span key={`${codigo}-${index}`} className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs font-black text-neutral-900">{codigo}</span>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          ) : pedidosVendedorLoading ? (
             <div className="flex min-h-52 items-center justify-center gap-2 text-xs text-neutral-500">
               <RefreshCw className="h-5 w-5 animate-spin text-yellow-600" aria-hidden="true" />
               Consultando pedidos no cache do Nomus...
@@ -561,7 +614,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
                 <thead className="sticky top-0 bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
                   <tr>
                     <th className="px-4 py-3 text-left">Pedido</th>
-                    <th className="px-4 py-3 text-left">Emissão</th>
+                    <th className="px-4 py-3 text-left">Liberação</th>
                     <th className="px-4 py-3 text-left">Itens</th>
                     <th className="px-4 py-3 text-left">Parafusos</th>
                     <th className="px-4 py-3 text-left">Recebido</th>
@@ -574,7 +627,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
                   {pedidosVendedor.map((pedido) => (
                     <tr key={pedido.id} className="transition-colors hover:bg-yellow-50/60">
                       <td className="px-4 py-3 font-black text-neutral-900">{pedido.codigo}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-neutral-600">{pedido.dataEmissao}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-neutral-600">{pedido.dataLiberacao}</td>
                       <td className="px-4 py-3 font-bold tabular-nums text-violet-600">{formatInteiro(pedido.quantidadeItens)}</td>
                       <td className="px-4 py-3 font-bold tabular-nums text-orange-600">
                         {pedido.quantidadeParafusos > 0 ? formatInteiro(pedido.quantidadeParafusos) : '—'}
@@ -655,11 +708,11 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     <button
       type="button"
       onClick={atualizarAgora}
-      disabled={atualizandoForcado}
+      disabled={atualizandoForcado || fechamentoOficial}
       className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs font-bold text-neutral-700 transition-all hover:border-yellow-400 hover:text-yellow-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
     >
       <RefreshCw className={`h-4 w-4 ${atualizandoForcado ? 'animate-spin' : ''}`} aria-hidden="true" />
-      {atualizandoForcado ? 'Atualizando no Nomus...' : 'Atualizar dados'}
+      {fechamentoOficial ? 'Fechamento oficial' : atualizandoForcado ? 'Atualizando no Nomus...' : 'Atualizar dados'}
     </button>
   );
 
@@ -700,6 +753,11 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
                 <p className="mt-1.5 max-w-xl text-sm text-neutral-500">
                   Classificação geral da empresa e desempenho individual por unidade.
                 </p>
+                {fechamentoOficial && (
+                  <p className="mt-2 w-fit rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">
+                    Agosto/2026 fechado com os valores oficiais conferidos.
+                  </p>
+                )}
               </div>
 
               <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
@@ -765,7 +823,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
         {!loading && !erro && (
           <section className="grid grid-cols-1 overflow-hidden rounded-2xl border border-neutral-200 bg-white sm:grid-cols-3" aria-label="Resumo do ranking selecionado">
             {[
-              { label: 'Volume vendido', value: formatCurrency(resumoRanking.vendas), Icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { label: 'Volume vendido', value: fechamentoOficial ? formatCurrencyComCentavos(resumoRanking.vendas) : formatCurrency(resumoRanking.vendas), Icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
               { label: 'Vendedores ativos', value: formatInteiro(resumoRanking.vendedoresAtivos), Icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
               { label: 'Pedidos no período', value: formatInteiro(resumoRanking.pedidos), Icon: Package, color: 'text-violet-600', bg: 'bg-violet-50' },
             ].map(({ label, value, Icon, color, bg }) => (
