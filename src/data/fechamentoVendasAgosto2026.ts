@@ -19,12 +19,12 @@ export interface FechamentoVendedorAgosto2026 {
 const pedidos = (lista: string) => lista ? lista.split(',').map((codigo) => codigo.trim()) : [];
 
 export const MES_FECHAMENTO_VENDAS_AGOSTO_2026 = '2026-08';
-export const ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026 = '2026-09-01T02:59:59.000Z';
+export const ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026 = '2026-09-03T18:34:11.006Z';
 
 export const FECHAMENTO_VENDAS_AGOSTO_2026: readonly FechamentoVendedorAgosto2026[] = [
   { nome: 'Paulo', pedidosCodigos: [], valorTotal: 0, valorRecebido: 0, percentualIndicado: null, comissaoVendas: 0, quantidadeParafusos: 0, valorParafusos: 0, valorFrete: 0, comissaoFretes: 0 },
   { nome: 'SAMUEL WOLFGAN SILVA', pedidosCodigos: pedidos('PD1442,PD1445,PD1454,PD1465,PD1472,PD1480,PD1508,PD1509,PD1527,PD1570,PD1573,PD1576,PD1582,PD1608,PD1618,PD1621,PD1629,PD1644,PD1645,PD1651,PD1652,PD1659,PD1661,PD1670,PD1692,PD1693,PD1695,PD1702'), valorTotal: 194055.97, valorRecebido: 134991.72, percentualIndicado: 78, comissaoVendas: 2699.83, quantidadeParafusos: 2837, valorParafusos: 3380.65, valorFrete: 2787.16, comissaoFretes: 192.50 },
-  { nome: 'SUMAIA LUCENA', pedidosCodigos: pedidos('PD1441,PD1448,PD1450,PD1491,PD1495,PD1514,PD1537,PD1541,PD1566,PD1569,PD1585,PD1594,PD1601,PD1609,PD1616,PD1622,PD1626,PD1631,PD593,PD1635,PD1668,PD1689,PD1694,PD1703'), valorTotal: 199331.48, valorRecebido: 115240.90, percentualIndicado: 69, comissaoVendas: 2304.82, quantidadeParafusos: 2781, valorParafusos: 3642.38, valorFrete: 3927.55, comissaoFretes: 226.50, observacao: '“PD593” aparece dessa forma na imagem; pode ser PD1593.' },
+  { nome: 'SUMAIA LUCENA', pedidosCodigos: pedidos('PD1441,PD1448,PD1450,PD1491,PD1495,PD1514,PD1537,PD1541,PD1566,PD1569,PD1585,PD1594,PD1601,PD1609,PD1616,PD1622,PD1626,PD1631,PD593,PD1635,PD1668,PD1689,PD1694,PD1703'), valorTotal: 186096.48, valorRecebido: 115240.90, percentualIndicado: 69, comissaoVendas: 2304.82, quantidadeParafusos: 2781, valorParafusos: 3642.38, valorFrete: 3677.55, comissaoFretes: 204.50, observacao: '“PD593” aparece dessa forma na imagem; pode ser PD1593.' },
   { nome: 'Elson Marcelo Braga da Silva', pedidosCodigos: pedidos('PD1436,PD1440,PD1452,PD1453,PD1457,PD1497,PD1502,PD1505,PD1518,PD1521,PD1540,PD1542,PD1545,PD1547,PD1548,PD1550,PD1567,PD1592,PD1602,PD1604,PD1611,PD1617,PD1620,PD1636,PD1640,PD1641,PD1649,PD1658,PD1660,PD1663,PD1678'), valorTotal: 147558.42, valorRecebido: 114706.48, percentualIndicado: 72, comissaoVendas: 2294.13, quantidadeParafusos: 3041, valorParafusos: 3395.21, valorFrete: 2354.09, comissaoFretes: 193 },
   { nome: 'Andreza Soares Ribeiro de Andrade', pedidosCodigos: pedidos('PD1438,PD1439,PD1443,PD1455,PD1456,PD1485,PD1504,PD1512,PD1529,PD1534,PD1543,PD1557,PD1591,PD1625,PD1676'), valorTotal: 71039.07, valorRecebido: 54557.72, percentualIndicado: 78, comissaoVendas: 1666.73, quantidadeParafusos: 1528, valorParafusos: 1846.50, valorFrete: 1400, comissaoFretes: 123.50 },
   { nome: 'EDER PULLHEIS', pedidosCodigos: pedidos('PD641,PD1475,PD1476,PD1477,PD1578,PD1484,PD1499,PD1472,PD1510,PD1516,PD1523,PD1538,PD1541,PD1575,PD1584,PD1596,PD1624,PD1687,PD1477,PD1701'), valorTotal: 221457.18, valorRecebido: 158766.86, percentualIndicado: 65, comissaoVendas: 3175.34, quantidadeParafusos: 6915, valorParafusos: 9189.30, valorFrete: 1560, comissaoFretes: 128, observacao: 'Alguns pedidos estão pouco nítidos na imagem original e precisam ser conferidos.' },
@@ -43,7 +43,7 @@ export const FECHAMENTO_VENDAS_AGOSTO_2026: readonly FechamentoVendedorAgosto202
 ] as const;
 
 export const TOTAIS_FECHAMENTO_VENDAS_AGOSTO_2026 = {
-  totalVendas: 1599207.46,
+  totalVendas: 1585972.46,
   valorRecebido: 1070828.34,
   vendedoresAtivos: 16,
   vendedoresSemVendas: ['Paulo', 'Lucas'],
