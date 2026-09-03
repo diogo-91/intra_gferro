@@ -116,6 +116,7 @@ export interface IntervaloVendas {
 
 interface ItemPedido {
   idProduto?: number;
+  status?: number;
   quantidade?: string | number;
   valorUnitario?: string | number;
   valorDesconto?: string | number;
@@ -871,12 +872,38 @@ function periodoEhFechado(chave: string): boolean {
   return chave.slice(4) < mesAtual;
 }
 
+const PEDIDOS_EXCLUIDOS_SETEMBRO_2026 = new Set(['1737', '1738']);
+
+function filtrarPedidosConsideradosNasVendas(pedidos: Pedido[]): Pedido[] {
+  return pedidos.filter((pedido) => {
+    const statusItens = (pedido.itensPedido || [])
+      .map((item) => item.status)
+      .filter((status): status is number => status != null);
+
+    // Um pedido com todos os itens cancelados não representa venda.
+    if (statusItens.length > 0 && statusItens.every((status) => status === 6)) return false;
+
+    if (pedido.dataEmissao?.includes('/09/2026')) {
+      const codigo = chaveCodigoPedido(pedido.codigoPedido);
+      if (codigo && PEDIDOS_EXCLUIDOS_SETEMBRO_2026.has(codigo)) return false;
+
+      // O PD1722 pertence ao Eder/Loja 2, mas ainda não foi liberado por falta
+      // de pagamento. Ele volta automaticamente quando seu status avançar.
+      if (codigo === '1722' && statusItens.length > 0 && statusItens.every((status) => status === 1)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
 async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<Pedido[]> {
   const chave = chavePedidos(periodo, mes, intervalo);
   const agora = Date.now();
   const cacheado = cachePedidosPorPeriodo.get(chave);
   if (cacheado && (periodoEhFechado(chave) || agora - cacheado.atualizadoEm < CACHE_TTL_MS)) {
-    return cacheado.pedidos;
+    return filtrarPedidosConsideradosNasVendas(cacheado.pedidos);
   }
 
   let emAndamento = cachePedidosEmAndamento.get(chave);
@@ -901,7 +928,7 @@ async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: I
   }
 
   const resultado = cacheado ?? (await emAndamento);
-  return resultado.pedidos;
+  return filtrarPedidosConsideradosNasVendas(resultado.pedidos);
 }
 
 function parseDataPedido(data?: string): Date | null {
