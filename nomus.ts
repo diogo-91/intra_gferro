@@ -2,9 +2,8 @@
 // Segue a documentação oficial da API (Nomus ERP.postman_collection.json):
 // - GET /pedidos: cada pedido já traz "valorTotal" pronto no cabeçalho
 //   (string em formato BR, ex.: "32.468,04") — não precisa recalcular pelos itens.
-// - O comercial considera a liberação do pedido. Como a API do Nomus não
-//   expõe um campo específico de liberação, essa data corresponde a
-//   "dataModificacao", atualizada quando o pedido é liberado.
+// - O período comercial considera a emissão do pedido ("dataEmissao"). Assim,
+//   uma alteração ou liberação posterior não transfere a venda para outro mês.
 // - Paginação: parâmetro "pagina", 50 registros por página.
 // - GET /vendedores: cada vendedor tem "id" e "nome".
 // - GET /contasReceber e /contasPagar: mesmo formato de registro pros dois —
@@ -461,7 +460,7 @@ function parseMesReferencia(mes: string): Date | undefined {
   return undefined;
 }
 
-// dataModificacao representa a liberação na integração disponível do Nomus.
+// O período de vendas é definido pela data de emissão do pedido.
 // Os limites usam ">"/"<" estritos um dia fora do intervalo para incluir as bordas.
 // mesReferencia (só usado quando periodo === 'mes') seleciona um mês específico
 // no passado (ex.: Julho) em vez do mês corrente.
@@ -497,7 +496,7 @@ function periodoParaQuery(periodo: Periodo, mesReferencia?: Date, intervalo?: In
   depoisDoFim.setDate(depoisDoFim.getDate() + 1);
   depoisDoFim.setHours(0, 0, 0, 0);
 
-  return `dataModificacao>${formatarDataNomus(antesDoInicio)};dataModificacao<${formatarDataNomus(depoisDoFim)}`;
+  return `dataEmissao>${formatarDataNomus(antesDoInicio)};dataEmissao<${formatarDataNomus(depoisDoFim)}`;
 }
 
 interface CacheVendedores {
@@ -521,11 +520,11 @@ interface CachePedidos {
 // agora ela sobrevive ao processo reiniciar.
 const ARQUIVO_CACHE_VENDEDORES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-vendedores.json');
 const ARQUIVO_CACHE_UNIDADES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-unidades.json');
-// Arquivos v2 separam os snapshots pela nova regra de data de liberação e
-// impedem que caches antigos, classificados pela emissão, sejam reutilizados.
-const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-cache-pedidos-v2.json');
-const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-cache-financeiro-v2.json');
-const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-cache-resumos-v2.json');
+// A versão do arquivo separa os snapshots pela regra de data de emissão e
+// impede que caches anteriores, classificados pela modificação, sejam reutilizados.
+const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-cache-pedidos-v3.json');
+const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-cache-financeiro-v3.json');
+const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-cache-resumos-v3.json');
 
 // "dia"/"semana"/"mes" (mês corrente) são períodos RELATIVOS a hoje — um cache
 // salvo ontem (ou na semana/mês passado) mostraria dado errado rotulado como
@@ -916,8 +915,8 @@ function dataEmissaoPedido(data?: string): Date | null {
   return parseDataPedido(data);
 }
 
-function dataLiberacaoPedido(pedido: Pedido): Date | null {
-  return parseDataPedido(pedido.dataModificacao || pedido.dataEmissao);
+function dataReferenciaPedido(pedido: Pedido): Date | null {
+  return dataEmissaoPedido(pedido.dataEmissao);
 }
 
 export interface GestaoMetaLojaMensal {
@@ -958,7 +957,7 @@ export async function getGestaoMetasMensais(mes: string): Promise<{
     const nomeVendedor = nomeVendedorPorId.get(pedido.idPessoaVendedor);
     const lojaId = nomeVendedor ? lojaDoVendedor(nomeVendedor) : undefined;
     const loja = lojaId ? lojas.get(lojaId) : undefined;
-    const data = dataLiberacaoPedido(pedido);
+    const data = dataReferenciaPedido(pedido);
     if (!loja || !data) continue;
     const chaveDia = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
     const valor = parseNum(pedido.valorTotal);
@@ -997,10 +996,8 @@ async function getFinanceiroDosPedidos(
     const { baseUrl, apiKey } = getConfig();
     if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
 
-    // As contas a receber mantêm a competência original da emissão, mesmo
-    // quando o pedido só é liberado em outro mês. Portanto, a venda é
-    // classificada pela liberação, mas o intervalo usado para localizar suas
-    // parcelas financeiras continua baseado na emissão.
+    // As contas a receber mantêm a competência original da emissão; usamos
+    // as datas extremas dos pedidos para localizar somente suas parcelas.
     const datas = pedidos
       .map((pedido) => dataEmissaoPedido(pedido.dataEmissao))
       .filter((data): data is Date => data != null);

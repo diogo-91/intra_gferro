@@ -29,7 +29,7 @@ const montarQueryPeriodo = (periodo: Periodo, mes: string | null, dataInicio: st
 };
 
 const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) =>
-  `gferro:ranking-v5:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+  `gferro:ranking-v6:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const salvarRankingLocal = (
   periodo: Periodo,
@@ -52,7 +52,7 @@ const chaveCacheResumoLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:resumo-vendas-v4:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:resumo-vendas-v5:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const carregarResumoLocal = (
   escopo: string,
@@ -96,7 +96,7 @@ const chaveCachePedidosVendedorLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:pedidos-vendedor-v3:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:pedidos-vendedor-v4:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 interface CachePedidosVendedorLocal {
   pedidos: PedidoVendedorDetalhe[];
