@@ -29,7 +29,7 @@ const montarQueryPeriodo = (periodo: Periodo, mes: string | null, dataInicio: st
 };
 
 const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) =>
-  `gferro:ranking-v4:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+  `gferro:ranking-v5:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const salvarRankingLocal = (
   periodo: Periodo,
@@ -52,7 +52,7 @@ const chaveCacheResumoLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:resumo-vendas-v3:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:resumo-vendas-v4:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const carregarResumoLocal = (
   escopo: string,

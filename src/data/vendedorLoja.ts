@@ -47,20 +47,29 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'Virgínia': 'correa',
 
   'Bruno Felipe Santos Bezerra': 'tatui',
+  'Jeferson Antonio Corrêa': 'tatui',
+  'Ana Claudia Bastos Vieira': 'tatui',
+  'Rodrigo Carriel Ferreira Reigota': 'tatui',
+  'Sabrina Fernanda Rodrigues dos Santos': 'tatui',
+  'Alisson': 'tatui',
+  'Rosemeire Lopes Eleutério': 'tatui',
 };
 
 // Vendedores informados pela GFERRO que ainda não aparecem na API do Nomus.
 // O prefixo permite reconhecer automaticamente "Nome + sobrenomes" quando o
 // cadastro for criado, sem exigir uma nova publicação da intranet.
 const VENDEDOR_LOJA_POR_PRIMEIRO_NOME: Record<string, string> = {
+  'JEFERSON': 'tatui',
   'JEFFERSON': 'tatui',
   'RODRIGO': 'tatui',
   'SABRINA': 'tatui',
+  'ALISSON': 'tatui',
   'ROSEMEIRE': 'tatui',
 };
 
 function normalizar(texto: string): string {
   return texto
+    .replace(/(?:&#x20;|&#32;|&nbsp;)/gi, ' ')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .trim()
