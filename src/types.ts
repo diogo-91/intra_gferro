@@ -38,7 +38,7 @@ export interface VendedorRanking {
 export interface PedidoVendedorDetalhe {
   id: number;
   codigo: string;
-  dataLiberacao: string;
+  dataEmissao: string;
   quantidadeItens: number;
   quantidadeParafusos: number;
   valorRecebido: number;

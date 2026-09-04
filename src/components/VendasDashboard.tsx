@@ -29,7 +29,7 @@ const montarQueryPeriodo = (periodo: Periodo, mes: string | null, dataInicio: st
 };
 
 const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) =>
-  `gferro:ranking-v9-somente-liberados:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+  `gferro:ranking-v10-emissao-somente-liberados:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const salvarRankingLocal = (
   periodo: Periodo,
@@ -52,7 +52,7 @@ const chaveCacheResumoLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:resumo-vendas-v8-somente-liberados:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:resumo-vendas-v9-emissao-somente-liberados:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const carregarResumoLocal = (
   escopo: string,
@@ -96,7 +96,7 @@ const chaveCachePedidosVendedorLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:pedidos-vendedor-v7-somente-liberados:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:pedidos-vendedor-v8-emissao-somente-liberados:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 interface CachePedidosVendedorLocal {
   pedidos: PedidoVendedorDetalhe[];
@@ -474,7 +474,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     const fechamento = ranking.find((vendedor) => vendedor.nome === nome && vendedor.fechamentoOficial);
     if (fechamento) {
       setPedidosVendedor((fechamento.pedidosCodigos ?? []).map((codigo, index) => ({
-        id: -(index + 1), codigo, dataLiberacao: 'Agosto/2026', quantidadeItens: 0,
+        id: -(index + 1), codigo, dataEmissao: 'Agosto/2026', quantidadeItens: 0,
         quantidadeParafusos: 0, valorRecebido: 0, valorPendente: 0, valorTotal: 0, valorFrete: 0,
       })));
       setPedidosVendedorErro(null);
@@ -614,7 +614,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
                 <thead className="sticky top-0 bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
                   <tr>
                     <th className="px-4 py-3 text-left">Pedido</th>
-                    <th className="px-4 py-3 text-left">Liberação</th>
+                    <th className="px-4 py-3 text-left">Emissão</th>
                     <th className="px-4 py-3 text-left">Itens</th>
                     <th className="px-4 py-3 text-left">Parafusos</th>
                     <th className="px-4 py-3 text-left">Recebido</th>
@@ -627,7 +627,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
                   {pedidosVendedor.map((pedido) => (
                     <tr key={pedido.id} className="transition-colors hover:bg-yellow-50/60">
                       <td className="px-4 py-3 font-black text-neutral-900">{pedido.codigo}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-neutral-600">{pedido.dataLiberacao}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-neutral-600">{pedido.dataEmissao}</td>
                       <td className="px-4 py-3 font-bold tabular-nums text-violet-600">{formatInteiro(pedido.quantidadeItens)}</td>
                       <td className="px-4 py-3 font-bold tabular-nums text-orange-600">
                         {pedido.quantidadeParafusos > 0 ? formatInteiro(pedido.quantidadeParafusos) : '—'}

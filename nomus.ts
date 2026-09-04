@@ -2,10 +2,9 @@
 // Segue a documentação oficial da API (Nomus ERP.postman_collection.json):
 // - GET /pedidos: cada pedido já traz "valorTotal" pronto no cabeçalho
 //   (string em formato BR, ex.: "32.468,04") — não precisa recalcular pelos itens.
-// - A API não expõe uma data de liberação separada. Para classificar a venda no
-//   período em que ela foi liberada, usamos "dataModificacao" e validamos o status
-//   dos itens. No Dashboard de Vendas entram somente pedidos integralmente
-//   liberados: todos os itens precisam estar no status 2 (Liberado).
+// - O período do Dashboard de Vendas usa a data de emissão do pedido. Entram
+//   somente pedidos integralmente liberados: todos os itens precisam estar no
+//   status 2 (Liberado).
 // - Paginação: parâmetro "pagina", 50 registros por página.
 // - GET /vendedores: cada vendedor tem "id" e "nome".
 // - GET /contasReceber e /contasPagar: mesmo formato de registro pros dois —
@@ -143,7 +142,7 @@ interface Pedido {
 export interface PedidoVendedorDetalhe {
   id: number;
   codigo: string;
-  dataLiberacao: string;
+  dataEmissao: string;
   quantidadeItens: number;
   quantidadeParafusos: number;
   valorRecebido: number;
@@ -463,8 +462,7 @@ function parseMesReferencia(mes: string): Date | undefined {
   return undefined;
 }
 
-// O período de vendas é definido pela data de modificação do pedido, que é o
-// melhor indicador de liberação disponível na API do Nomus.
+// O período de vendas é definido pela data de emissão do pedido.
 // Os limites usam ">"/"<" estritos um dia fora do intervalo para incluir as bordas.
 // mesReferencia (só usado quando periodo === 'mes') seleciona um mês específico
 // no passado (ex.: Julho) em vez do mês corrente.
@@ -500,7 +498,7 @@ function periodoParaQuery(periodo: Periodo, mesReferencia?: Date, intervalo?: In
   depoisDoFim.setDate(depoisDoFim.getDate() + 1);
   depoisDoFim.setHours(0, 0, 0, 0);
 
-  return `dataModificacao>${formatarDataNomus(antesDoInicio)};dataModificacao<${formatarDataNomus(depoisDoFim)}`;
+  return `dataEmissao>${formatarDataNomus(antesDoInicio)};dataEmissao<${formatarDataNomus(depoisDoFim)}`;
 }
 
 interface CacheVendedores {
@@ -527,9 +525,9 @@ const ARQUIVO_CACHE_UNIDADES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-unidad
 // Pedidos e financeiro são snapshots brutos da API e continuam reutilizáveis.
 // O resumo é derivado; sua versão muda para impedir o reaproveitamento de
 // totais calculados pela regra comercial anterior.
-const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-status-cache-pedidos-v4.json');
-const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-status-cache-financeiro-v4.json');
-const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-somente-liberados-cache-resumos-v5.json');
+const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-somente-liberados-cache-pedidos-v5.json');
+const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-somente-liberados-cache-financeiro-v5.json');
+const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-somente-liberados-cache-resumos-v6.json');
 
 // "dia"/"semana"/"mes" (mês corrente) são períodos RELATIVOS a hoje — um cache
 // salvo ontem (ou na semana/mês passado) mostraria dado errado rotulado como
@@ -950,7 +948,7 @@ function dataEmissaoPedido(data?: string): Date | null {
 }
 
 function dataReferenciaPedido(pedido: Pedido): Date | null {
-  return parseDataPedido(pedido.dataModificacao || pedido.dataEmissao);
+  return parseDataPedido(pedido.dataEmissao);
 }
 
 export interface GestaoMetaLojaMensal {
@@ -1185,7 +1183,7 @@ export async function getPedidosDoVendedor(
       pedidos: (vendedor?.pedidosCodigos ?? []).map((codigo, index) => ({
         id: -(index + 1),
         codigo,
-        dataLiberacao: 'Agosto/2026',
+        dataEmissao: 'Agosto/2026',
         quantidadeItens: 0,
         quantidadeParafusos: 0,
         valorRecebido: 0,
@@ -1229,7 +1227,7 @@ export async function getPedidosDoVendedor(
       return {
         id: pedido.id,
         codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
-        dataLiberacao: pedido.dataModificacao || pedido.dataEmissao || '—',
+        dataEmissao: pedido.dataEmissao || '—',
         quantidadeItens: (pedido.itensPedido || []).length,
         quantidadeParafusos: (pedido.itensPedido || [])
           .filter((item) => item.idProduto != null && idsParafusos.has(item.idProduto))
@@ -1240,7 +1238,7 @@ export async function getPedidosDoVendedor(
         valorFrete: valorFretesEOutrosPedido(pedido),
       };
     })
-    .sort((a, b) => (parseDataPedido(b.dataLiberacao)?.getTime() ?? 0) - (parseDataPedido(a.dataLiberacao)?.getTime() ?? 0));
+    .sort((a, b) => (parseDataPedido(b.dataEmissao)?.getTime() ?? 0) - (parseDataPedido(a.dataEmissao)?.getTime() ?? 0));
 
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
   return { pedidos: detalhes, atualizadoEm: new Date(atualizadoEm).toISOString() };
