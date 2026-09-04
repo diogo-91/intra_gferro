@@ -527,7 +527,7 @@ const ARQUIVO_CACHE_UNIDADES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-unidad
 // totais calculados pela regra comercial anterior.
 const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-somente-liberados-cache-pedidos-v5.json');
 const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-somente-liberados-cache-financeiro-v5.json');
-const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-somente-liberados-cache-resumos-v6.json');
+const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-somente-liberados-cache-resumos-v7.json');
 
 // "dia"/"semana"/"mes" (mês corrente) são períodos RELATIVOS a hoje — um cache
 // salvo ontem (ou na semana/mês passado) mostraria dado errado rotulado como
@@ -1322,7 +1322,8 @@ async function obterResumoVendasCacheado(
   calcular: () => Promise<ResumoVendas>
 ): Promise<ResumoVendas> {
   const cacheado = cacheResumosVendas.get(chave);
-  if (cacheado && Date.now() - cacheado.geradoEm < CACHE_RESUMO_VENDAS_TTL_MS) {
+  const resumoProvisorio = cacheado?.resumo.financeiroPedidosCarregando === true;
+  if (cacheado && !resumoProvisorio && Date.now() - cacheado.geradoEm < CACHE_RESUMO_VENDAS_TTL_MS) {
     return cacheado.resumo;
   }
 
@@ -1338,10 +1339,10 @@ async function obterResumoVendasCacheado(
     cacheResumosVendasEmAndamento.set(chave, emAndamento);
   }
 
-  // Stale-while-revalidate: a resposta pronta nunca desaparece da tela.
-  // A consulta ao Nomus e a remontagem de produtos/financeiro continuam sem
-  // bloquear o usuário e substituem este cache quando terminarem.
-  if (cacheado) {
+  // Stale-while-revalidate vale apenas para snapshots completos. Um resumo
+  // provisório (financeiro ainda carregando) aguarda a nova montagem para não
+  // manter Recebido/Falta receber em zero depois de as contas ficarem prontas.
+  if (cacheado && !resumoProvisorio) {
     void emAndamento.catch((err) =>
       console.error(`[nomus] falha ao atualizar resumo ${chave}; mantendo último cache:`, err)
     );
@@ -1359,7 +1360,10 @@ export async function getResumoVendas(periodo: Periodo, mes?: string, aguardarFi
   return obterResumoVendasCacheado(`geral:${chavePeriodo}`, async () => {
     const [pedidos, unidades] = await Promise.all([getPedidosDoPeriodo(periodo, mes, intervalo), getUnidadesMedida()]);
     const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, aguardarFinanceiro, intervalo);
-    const atualizadoEm = cachePedidosPorPeriodo.get(chavePeriodo)?.atualizadoEm ?? Date.now();
+    const atualizadoEm = Math.max(
+      cachePedidosPorPeriodo.get(chavePeriodo)?.atualizadoEm ?? 0,
+      cacheFinanceiroPedidosPorPeriodo.get(chavePeriodo)?.atualizadoEm ?? 0,
+    ) || Date.now();
     return montarResumoDePedidos(pedidos, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
   });
 }
@@ -1385,7 +1389,10 @@ export async function getResumoVendasPorLoja(periodo: Periodo, lojaId: string, m
       return nome != null && lojaDoVendedor(nome) === lojaId;
     });
     const financeiro = await getFinanceiroDosPedidos(periodo, mes, pedidos, false, intervalo);
-    const atualizadoEm = cachePedidosPorPeriodo.get(chavePeriodo)?.atualizadoEm ?? Date.now();
+    const atualizadoEm = Math.max(
+      cachePedidosPorPeriodo.get(chavePeriodo)?.atualizadoEm ?? 0,
+      cacheFinanceiroPedidosPorPeriodo.get(chavePeriodo)?.atualizadoEm ?? 0,
+    ) || Date.now();
     return montarResumoDePedidos(pedidosDaLoja, unidades, atualizadoEm, financeiro.contas, financeiro.carregando);
   });
 }

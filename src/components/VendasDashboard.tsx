@@ -52,7 +52,7 @@ const chaveCacheResumoLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:resumo-vendas-v9-emissao-somente-liberados:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:resumo-vendas-v10-financeiro-completo:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const carregarResumoLocal = (
   escopo: string,
