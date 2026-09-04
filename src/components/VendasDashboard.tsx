@@ -29,7 +29,7 @@ const montarQueryPeriodo = (periodo: Periodo, mes: string | null, dataInicio: st
 };
 
 const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) =>
-  `gferro:ranking-v8:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+  `gferro:ranking-v9-somente-liberados:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const salvarRankingLocal = (
   periodo: Periodo,
@@ -52,7 +52,7 @@ const chaveCacheResumoLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:resumo-vendas-v7:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:resumo-vendas-v8-somente-liberados:${escopo}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const carregarResumoLocal = (
   escopo: string,
@@ -96,7 +96,7 @@ const chaveCachePedidosVendedorLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:pedidos-vendedor-v6:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:pedidos-vendedor-v7-somente-liberados:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 interface CachePedidosVendedorLocal {
   pedidos: PedidoVendedorDetalhe[];
@@ -340,7 +340,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     const vendedores = rankingSelecionado === 'geral'
       // O geral representa a empresa inteira, inclusive vendedores que ainda
       // não foram vinculados a uma das quatro unidades. Assim os KPIs batem
-      // com o Painel de Vendas, que também considera todos os pedidos.
+      // com o Painel de Vendas, que considera todos os pedidos liberados.
       ? ranking
       : ranking.filter((v) => lojaDoVendedor(v.nome) === rankingSelecionado);
     return vendedores.map((v, index) => ({ ...v, posicao: index + 1 }));
@@ -1028,7 +1028,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
           <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Dashboard • Vendas</span>
           <h1 className="text-2xl font-black text-neutral-900 mt-1">Painel de Vendas</h1>
           <p className="text-neutral-500 text-sm mt-1">
-            Acompanhamento de pedidos, vendedores e desempenho comercial da GFERRO.
+            Somente pedidos integralmente liberados, vendedores e desempenho comercial da GFERRO.
           </p>
         </div>
 

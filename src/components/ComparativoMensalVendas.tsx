@@ -116,7 +116,7 @@ const LinhaComparativa: React.FC<{
 };
 
 export const ComparativoMensalVendas: React.FC<ComparativoMensalVendasProps> = ({ mesBase }) => {
-  const chaveCache = `gferro:comparativo-mensal:${mesBase || 'atual'}`;
+  const chaveCache = `gferro:comparativo-mensal-v2-somente-liberados:${mesBase || 'atual'}`;
   const [meses, setMeses] = useState<ComparativoMensalVendasItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);

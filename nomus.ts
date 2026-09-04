@@ -4,7 +4,8 @@
 //   (string em formato BR, ex.: "32.468,04") — não precisa recalcular pelos itens.
 // - A API não expõe uma data de liberação separada. Para classificar a venda no
 //   período em que ela foi liberada, usamos "dataModificacao" e validamos o status
-//   dos itens (2 = Liberado; 4 = Atendido Totalmente).
+//   dos itens. No Dashboard de Vendas entram somente pedidos integralmente
+//   liberados: todos os itens precisam estar no status 2 (Liberado).
 // - Paginação: parâmetro "pagina", 50 registros por página.
 // - GET /vendedores: cada vendedor tem "id" e "nome".
 // - GET /contasReceber e /contasPagar: mesmo formato de registro pros dois —
@@ -523,11 +524,12 @@ interface CachePedidos {
 // agora ela sobrevive ao processo reiniciar.
 const ARQUIVO_CACHE_VENDEDORES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-vendedores.json');
 const ARQUIVO_CACHE_UNIDADES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-unidades.json');
-// A versão separa os snapshots da regra por modificação + status e impede o
-// reaproveitamento de totais calculados pelas regras comerciais anteriores.
+// Pedidos e financeiro são snapshots brutos da API e continuam reutilizáveis.
+// O resumo é derivado; sua versão muda para impedir o reaproveitamento de
+// totais calculados pela regra comercial anterior.
 const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-status-cache-pedidos-v4.json');
 const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-status-cache-financeiro-v4.json');
-const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-status-cache-resumos-v4.json');
+const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-somente-liberados-cache-resumos-v5.json');
 
 // "dia"/"semana"/"mes" (mês corrente) são períodos RELATIVOS a hoje — um cache
 // salvo ontem (ou na semana/mês passado) mostraria dado errado rotulado como
@@ -875,7 +877,7 @@ function periodoEhFechado(chave: string): boolean {
 }
 
 const PEDIDOS_EXCLUIDOS_DAS_VENDAS = new Set(['1737', '1738']);
-const STATUS_ITEM_QUE_COMPUTA_VENDA = new Set([2, 4]);
+const STATUS_ITEM_LIBERADO = 2;
 
 function filtrarPedidosConsideradosNasVendas(pedidos: Pedido[]): Pedido[] {
   const pedidosUnicos = new Map<string, Pedido>();
@@ -884,12 +886,14 @@ function filtrarPedidosConsideradosNasVendas(pedidos: Pedido[]): Pedido[] {
     const codigo = chaveCodigoPedido(pedido.codigoPedido);
     if (codigo && PEDIDOS_EXCLUIDOS_DAS_VENDAS.has(codigo)) continue;
 
-    // Basta um item liberado ou atendido totalmente para computar o valorTotal
-    // inteiro do pedido. Os demais status, isoladamente, não geram venda.
-    const possuiItemQueComputa = (pedido.itensPedido || []).some(
-      (item) => item.status != null && STATUS_ITEM_QUE_COMPUTA_VENDA.has(item.status),
-    );
-    if (!possuiItemQueComputa) continue;
+    // O cabeçalho não expõe status na API. Para reproduzir "Liberado" sem
+    // aceitar pedidos mistos, o pedido precisa ter ao menos um item e todos
+    // os itens devem estar no status 2. Status 4 (Atendido totalmente) e
+    // qualquer outro status ficam fora de todos os indicadores de vendas.
+    const itens = pedido.itensPedido || [];
+    const pedidoIntegralmenteLiberado = itens.length > 0
+      && itens.every((item) => item.status === STATUS_ITEM_LIBERADO);
+    if (!pedidoIntegralmenteLiberado) continue;
 
     // Evita somar duas vezes o mesmo pedido se a API o repetir entre páginas.
     // Em uma eventual duplicidade de cadastro, preserva o registro de maior id.
