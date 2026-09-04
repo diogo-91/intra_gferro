@@ -2,8 +2,9 @@
 // Segue a documentação oficial da API (Nomus ERP.postman_collection.json):
 // - GET /pedidos: cada pedido já traz "valorTotal" pronto no cabeçalho
 //   (string em formato BR, ex.: "32.468,04") — não precisa recalcular pelos itens.
-// - O período comercial considera a emissão do pedido ("dataEmissao"). Assim,
-//   uma alteração ou liberação posterior não transfere a venda para outro mês.
+// - A API não expõe uma data de liberação separada. Para classificar a venda no
+//   período em que ela foi liberada, usamos "dataModificacao" e validamos o status
+//   dos itens (2 = Liberado; 4 = Atendido Totalmente).
 // - Paginação: parâmetro "pagina", 50 registros por página.
 // - GET /vendedores: cada vendedor tem "id" e "nome".
 // - GET /contasReceber e /contasPagar: mesmo formato de registro pros dois —
@@ -461,7 +462,8 @@ function parseMesReferencia(mes: string): Date | undefined {
   return undefined;
 }
 
-// O período de vendas é definido pela data de emissão do pedido.
+// O período de vendas é definido pela data de modificação do pedido, que é o
+// melhor indicador de liberação disponível na API do Nomus.
 // Os limites usam ">"/"<" estritos um dia fora do intervalo para incluir as bordas.
 // mesReferencia (só usado quando periodo === 'mes') seleciona um mês específico
 // no passado (ex.: Julho) em vez do mês corrente.
@@ -497,7 +499,7 @@ function periodoParaQuery(periodo: Periodo, mesReferencia?: Date, intervalo?: In
   depoisDoFim.setDate(depoisDoFim.getDate() + 1);
   depoisDoFim.setHours(0, 0, 0, 0);
 
-  return `dataEmissao>${formatarDataNomus(antesDoInicio)};dataEmissao<${formatarDataNomus(depoisDoFim)}`;
+  return `dataModificacao>${formatarDataNomus(antesDoInicio)};dataModificacao<${formatarDataNomus(depoisDoFim)}`;
 }
 
 interface CacheVendedores {
@@ -521,11 +523,11 @@ interface CachePedidos {
 // agora ela sobrevive ao processo reiniciar.
 const ARQUIVO_CACHE_VENDEDORES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-vendedores.json');
 const ARQUIVO_CACHE_UNIDADES = path.join(PASTA_CACHE_DISCO, 'vendas-cache-unidades.json');
-// A versão do arquivo separa os snapshots pela regra de data de emissão e
-// impede que caches anteriores, classificados pela modificação, sejam reutilizados.
-const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-cache-pedidos-v3.json');
-const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-cache-financeiro-v3.json');
-const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-emissao-cache-resumos-v3.json');
+// A versão separa os snapshots da regra por modificação + status e impede o
+// reaproveitamento de totais calculados pelas regras comerciais anteriores.
+const ARQUIVO_CACHE_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-status-cache-pedidos-v4.json');
+const ARQUIVO_CACHE_FINANCEIRO_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-status-cache-financeiro-v4.json');
+const ARQUIVO_CACHE_RESUMOS_VENDAS = path.join(PASTA_CACHE_DISCO, 'vendas-liberacao-status-cache-resumos-v4.json');
 
 // "dia"/"semana"/"mes" (mês corrente) são períodos RELATIVOS a hoje — um cache
 // salvo ontem (ou na semana/mês passado) mostraria dado errado rotulado como
@@ -872,30 +874,31 @@ function periodoEhFechado(chave: string): boolean {
   return chave.slice(4) < mesAtual;
 }
 
-const PEDIDOS_EXCLUIDOS_SETEMBRO_2026 = new Set(['1737', '1738']);
+const PEDIDOS_EXCLUIDOS_DAS_VENDAS = new Set(['1737', '1738']);
+const STATUS_ITEM_QUE_COMPUTA_VENDA = new Set([2, 4]);
 
 function filtrarPedidosConsideradosNasVendas(pedidos: Pedido[]): Pedido[] {
-  return pedidos.filter((pedido) => {
-    const statusItens = (pedido.itensPedido || [])
-      .map((item) => item.status)
-      .filter((status): status is number => status != null);
+  const pedidosUnicos = new Map<string, Pedido>();
 
-    // Um pedido com todos os itens cancelados não representa venda.
-    if (statusItens.length > 0 && statusItens.every((status) => status === 6)) return false;
+  for (const pedido of pedidos) {
+    const codigo = chaveCodigoPedido(pedido.codigoPedido);
+    if (codigo && PEDIDOS_EXCLUIDOS_DAS_VENDAS.has(codigo)) continue;
 
-    if (pedido.dataEmissao?.includes('/09/2026')) {
-      const codigo = chaveCodigoPedido(pedido.codigoPedido);
-      if (codigo && PEDIDOS_EXCLUIDOS_SETEMBRO_2026.has(codigo)) return false;
+    // Basta um item liberado ou atendido totalmente para computar o valorTotal
+    // inteiro do pedido. Os demais status, isoladamente, não geram venda.
+    const possuiItemQueComputa = (pedido.itensPedido || []).some(
+      (item) => item.status != null && STATUS_ITEM_QUE_COMPUTA_VENDA.has(item.status),
+    );
+    if (!possuiItemQueComputa) continue;
 
-      // O PD1722 pertence ao Eder/Loja 2, mas ainda não foi liberado por falta
-      // de pagamento. Ele volta automaticamente quando seu status avançar.
-      if (codigo === '1722' && statusItens.length > 0 && statusItens.every((status) => status === 1)) {
-        return false;
-      }
-    }
+    // Evita somar duas vezes o mesmo pedido se a API o repetir entre páginas.
+    // Em uma eventual duplicidade de cadastro, preserva o registro de maior id.
+    const chaveUnica = codigo || `id:${pedido.id}`;
+    const existente = pedidosUnicos.get(chaveUnica);
+    if (!existente || pedido.id > existente.id) pedidosUnicos.set(chaveUnica, pedido);
+  }
 
-    return true;
-  });
+  return [...pedidosUnicos.values()];
 }
 
 async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<Pedido[]> {
@@ -943,7 +946,7 @@ function dataEmissaoPedido(data?: string): Date | null {
 }
 
 function dataReferenciaPedido(pedido: Pedido): Date | null {
-  return dataEmissaoPedido(pedido.dataEmissao);
+  return parseDataPedido(pedido.dataModificacao || pedido.dataEmissao);
 }
 
 export interface GestaoMetaLojaMensal {
@@ -1123,8 +1126,8 @@ export async function getRankingVendedores(
   );
 
   // Soma direto o "valorTotal" de cada pedido (campo pronto da API), sem
-  // recalcular pelos itens — inclui TODOS os pedidos do período, não só os
-  // que têm itens em aberto. Metros quadrados somam só os itens vendidos
+  // recalcular pelos itens — inclui os pedidos validados pela regra comercial.
+  // Metros quadrados somam só os itens vendidos
   // na unidade M2 (chapas/placas); itens em outras unidades (kg, peça, etc.)
   // não entram nessa soma.
   const ranking: VendedorRanking[] = Array.from(grupos.entries()).map(([nome, peds]) => ({
