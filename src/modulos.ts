@@ -20,6 +20,7 @@ export const MODULOS = [
   { id: 'comunicados', nome: 'Comunicados & Feed' },
   { id: 'documentos', nome: 'Documentos & NRs' },
   { id: 'servicos', nome: 'Meus Chamados' },
+  { id: 'qualidade', nome: 'Qualidade — Não conformidades' },
   { id: 'pessoas', nome: 'Diretório de Pessoas / RH' },
   { id: 'chat', nome: 'Chat Interno' },
   { id: 'departamentos', nome: 'Departamentos & Áreas' },

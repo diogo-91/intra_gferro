@@ -34,6 +34,7 @@ import { NovoChamadoModal } from './components/NovoChamadoModal';
 import { Login } from './components/Login';
 import { GestaoUsuarios } from './components/GestaoUsuarios';
 import { GestaoMetasMensais } from './components/GestaoMetasMensais';
+import { QualidadeApp } from './components/QualidadeApp';
 import { nomeDoEmail } from './utils/format';
 import type { ModuloId, SubmoduloId } from './modulos';
 
@@ -253,6 +254,7 @@ export default function App() {
           )}
 
           {activeTab === 'pessoas' && <DiretorioPessoas />}
+          {activeTab === 'qualidade' && <QualidadeApp />}
 
           {activeTab === 'chat' && (
             <ChatInterno
@@ -268,6 +270,7 @@ export default function App() {
               colaboradores={colaboradores}
               selectedDeptId={selectedDeptId}
               refreshKey={chamadosVersion}
+              podeAcessarQualidade={!!sessao && (sessao.administrador || sessao.modulos.includes('qualidade'))}
             />
           )}
 

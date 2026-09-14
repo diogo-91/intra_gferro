@@ -27,6 +27,7 @@ import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
 import * as chamados from './chamados';
+import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
 
 type SessaoAutenticada = NonNullable<Awaited<ReturnType<typeof obterSessao>>>;
@@ -251,6 +252,7 @@ async function startServer() {
     }
   });
   app.use('/api', exigirPermissaoDeModulo);
+  app.use('/api/qualidade', criarRotasQualidade());
 
   const autorChamado = async (req: express.Request) => {
     const sessao = await obterSessao(req);

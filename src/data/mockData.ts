@@ -1,4 +1,4 @@
-import { Comunicado, Documento, Chamado, Colaborador, ChatChannel, ChatMessage, Department, NotificationItem, User } from '../types';
+import { Comunicado, Documento, Chamado, Colaborador, ChatChannel, ChatMessage, NotificationItem, User } from '../types';
 
 export const currentUser: User = {
   id: 'usr-001',
@@ -83,80 +83,7 @@ export const initialChatMessages: ChatMessage[] = [];
 // Estrutura real da empresa (nome, gestor, descrição, projetos e
 // responsabilidades) — fica. Os KPIs "ao vivo" fake que existiam por
 // departamento foram removidos (ver DepartamentosApp.tsx).
-export const initialDepartments: Department[] = [
-  {
-    id: 'dep-com',
-    code: 'DEP-COM',
-    name: 'Comercial',
-    description: '',
-    memberCount: 0,
-    ramal: '',
-    location: '',
-    color: 'purple',
-    keyProjects: [],
-    responsibilities: [],
-  },
-  {
-    id: 'dep-rh',
-    code: 'DEP-RH',
-    name: 'RH',
-    description: '',
-    memberCount: 0,
-    ramal: '',
-    location: '',
-    color: 'emerald',
-    keyProjects: [],
-    responsibilities: [],
-  },
-  {
-    id: 'dep-sac',
-    code: 'DEP-SAC',
-    name: 'SAC',
-    description: '',
-    memberCount: 0,
-    ramal: '',
-    location: '',
-    color: 'sky',
-    keyProjects: [],
-    responsibilities: [],
-  },
-  {
-    id: 'dep-pcp',
-    code: 'DEP-PCP',
-    name: 'PCP',
-    description: '',
-    memberCount: 0,
-    ramal: '',
-    location: '',
-    color: 'indigo',
-    keyProjects: [],
-    responsibilities: [],
-  },
-  {
-    id: 'dep-producao',
-    code: 'DEP-PROD',
-    name: 'Produção',
-    description: '',
-    memberCount: 0,
-    ramal: '',
-    location: '',
-    color: 'yellow',
-    keyProjects: [],
-    responsibilities: [],
-  },
-  {
-    id: 'dep-tecnologia',
-    code: 'DEP-TEC',
-    name: 'Tecnologia',
-    description: '',
-    memberCount: 0,
-    ramal: '',
-    location: '',
-    color: 'orange',
-    keyProjects: [],
-    responsibilities: [],
-  },
-];
+export { initialDepartments } from './departamentos';
 
 // Notificações são geradas por eventos reais do sistema — sem seed de
 // demonstração pra produção.

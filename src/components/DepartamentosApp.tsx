@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Layers, CheckCircle2, LayoutDashboard, TicketCheck } from 'lucide-react';
+import { Layers, CheckCircle2, LayoutDashboard, TicketCheck, ShieldCheck } from 'lucide-react';
 import { Department, Colaborador, User } from '../types';
 import { CadastroFuncionariosRH } from './CadastroFuncionariosRH';
 import { SacApp } from './SacApp';
 import { PlanejamentoProducaoPCP } from './PlanejamentoProducaoPCP';
 import { ChamadosDepartamento } from './ChamadosDepartamento';
+import { QualidadeApp } from './QualidadeApp';
 
 interface DepartamentosAppProps {
   user: User;
@@ -12,6 +13,7 @@ interface DepartamentosAppProps {
   colaboradores: Colaborador[];
   selectedDeptId: string;
   refreshKey: number;
+  podeAcessarQualidade?: boolean;
 }
 
 export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
@@ -20,9 +22,10 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
   colaboradores,
   selectedDeptId,
   refreshKey,
+  podeAcessarQualidade = false,
 }) => {
   const selectedDepartment = departments.find((d) => d.id === selectedDeptId) || departments[0];
-  const [visao, setVisao] = useState<'area' | 'chamados'>('area');
+  const [visao, setVisao] = useState<'area' | 'chamados' | 'qualidade'>('area');
   const [novosChamados, setNovosChamados] = useState(0);
   useEffect(() => setVisao('area'), [selectedDeptId]);
   useEffect(() => {
@@ -43,10 +46,13 @@ export const DepartamentosApp: React.FC<DepartamentosAppProps> = ({
     const intervalo = window.setInterval(atualizarContagem, 30000);
     return () => { ativo = false; window.clearInterval(intervalo); };
   }, [selectedDepartment.id, refreshKey]);
-  const navegacao = <div className="grid w-full grid-cols-2 gap-1.5 rounded-2xl bg-neutral-100 p-1 sm:flex sm:w-fit sm:gap-2">
+  const navegacao = <div className={`grid w-full grid-cols-2 gap-1.5 rounded-2xl bg-neutral-100 p-1 sm:flex sm:w-fit sm:gap-2 ${podeAcessarQualidade ? 'lg:grid-cols-3' : ''}`}>
     <button onClick={()=>setVisao('area')} className={`min-h-11 min-w-0 justify-center px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black flex gap-1.5 sm:gap-2 items-center ${visao==='area'?'bg-white shadow-sm':'text-neutral-500'}`}><LayoutDashboard className="w-4 h-4 shrink-0"/><span className="truncate">Visão da área</span></button>
     <button onClick={()=>setVisao('chamados')} className={`relative min-h-11 min-w-0 justify-center px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black flex gap-1.5 sm:gap-2 items-center ${visao==='chamados'?'bg-yellow-400 shadow-sm':'text-neutral-500'}`}><TicketCheck className="w-4 h-4 shrink-0"/><span className="truncate">Chamados do departamento</span>{novosChamados>0&&<span className="absolute -right-1 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-black text-white ring-2 ring-white">{novosChamados>99?'99+':novosChamados}</span>}</button>
+    {podeAcessarQualidade && <button onClick={() => setVisao('qualidade')} className={`min-h-11 min-w-0 justify-center px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black flex gap-1.5 sm:gap-2 items-center ${visao === 'qualidade' ? 'bg-yellow-400 shadow-sm' : 'text-neutral-500'}`}><ShieldCheck className="h-4 w-4 shrink-0" /><span>Não conformidades</span></button>}
   </div>;
+
+  if (visao === 'qualidade' && podeAcessarQualidade) return <div className="space-y-5">{navegacao}<QualidadeApp key={selectedDepartment.id} departamentoInicial={selectedDepartment.id} /></div>;
 
   if (visao === 'chamados') return <div className="space-y-4 sm:space-y-5 pb-8 sm:pb-12">{navegacao}<div><h1 className="text-xl sm:text-2xl font-black break-words">Atendimento · {selectedDepartment.name}</h1><p className="text-xs text-neutral-500 mt-1">Fila completa de solicitações encaminhadas a este departamento.</p></div><ChamadosDepartamento department={selectedDepartment} refreshKey={refreshKey} onNewCountChange={setNovosChamados}/></div>;
 

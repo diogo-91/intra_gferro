@@ -8,6 +8,7 @@ export type TabType =
   | 'comunicados'
   | 'documentos'
   | 'servicos'
+  | 'qualidade'
   | 'pessoas'
   | 'chat'
   | 'departamentos'

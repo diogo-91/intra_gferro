@@ -74,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'pessoas', label: 'Diretório de Pessoas', icon: Users },
     { id: 'chat', label: 'Chat Interno GFERRO', icon: MessageSquare },
     { id: 'ia-assistente', label: 'Ideias e Sugestões', icon: Lightbulb },
+    { id: 'qualidade', label: 'Qualidade', icon: ShieldCheck },
     {
       id: 'dashboard',
       label: 'Dashboard',
