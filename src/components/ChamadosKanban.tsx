@@ -101,6 +101,11 @@ export const ChamadosKanban: React.FC<Props> = ({
 
                 <h4 className="mt-3 line-clamp-2 text-sm font-black leading-5 text-neutral-900">{chamado.assunto}</h4>
                 <p className="mt-2 line-clamp-2 text-xs leading-5 text-neutral-500">{chamado.descricao}</p>
+                {chamado.solucao && (
+                  <p className="mt-3 flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Resolução disponível
+                  </p>
+                )}
 
                 <div className="mt-4 space-y-2 border-t border-neutral-100 pt-3 text-[10px] text-neutral-500">
                   {mostrarDepartamento && <p className="font-bold text-neutral-700">{chamado.departamentoNome}</p>}

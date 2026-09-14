@@ -1,0 +1,160 @@
+GFERRO - RELAÇÃO DE PEDIDOS DE VENDAS
+PERÍODO: 01/08/2026 A 31/08/2026
+FONTE: Nomus ERP - cache atualizado em 24/08/2026, 10:11:19
+QUANTIDADE: 149 pedidos
+VALOR TOTAL: R$ 978.271,03
+
+Observação: o retorno usado pelo painel de Vendas informa o ID do cliente, mas não traz o nome do cliente.
+
+001 | PD 01436 | Emissão: 03/08/2026 | Empresa: 3 | Cliente ID: 7371 | Vendedor: Elson Marcelo Braga da Silva | Itens: 2 | Valor: R$ 11.900,00
+002 | PD 01437 | Emissão: 03/08/2026 | Empresa: 3 | Cliente ID: 7429 | Vendedor: MARCELO BUGANZA JUNIOR | Itens: 1 | Valor: R$ 14.540,70
+003 | PD 01438 | Emissão: 03/08/2026 | Empresa: 3 | Cliente ID: 7432 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 3 | Valor: R$ 3.850,00
+004 | PD 01439 | Emissão: 03/08/2026 | Empresa: 3 | Cliente ID: 7434 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 3 | Valor: R$ 3.360,00
+005 | PD 01440 | Emissão: 03/08/2026 | Empresa: 3 | Cliente ID: 7435 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 1.500,00
+006 | PD 01441 | Emissão: 03/08/2026 | Empresa: 3 | Cliente ID: 7439 | Vendedor: SUMAIA LUCENA | Itens: 4 | Valor: R$ 1.473,00
+007 | PD 01442 | Emissão: 03/08/2026 | Empresa: 3 | Cliente ID: 7441 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 3 | Valor: R$ 6.075,00
+008 | PD 01443 | Emissão: 04/08/2026 | Empresa: 3 | Cliente ID: 7448 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 3 | Valor: R$ 6.057,90
+009 | PD 01444 | Emissão: 04/08/2026 | Empresa: 3 | Cliente ID: 7451 | Vendedor: MARCELO BUGANZA JUNIOR | Itens: 1 | Valor: R$ 1.650,00
+010 | PD 01445 | Emissão: 04/08/2026 | Empresa: 3 | Cliente ID: 7446 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 2 | Valor: R$ 4.953,00
+011 | PD 01447 | Emissão: 04/08/2026 | Empresa: 3 | Cliente ID: 5406 | Vendedor: Myrene Aparecida da Silva | Itens: 3 | Valor: R$ 2.088,00
+012 | PD 01448 | Emissão: 04/08/2026 | Empresa: 3 | Cliente ID: 7421 | Vendedor: SUMAIA LUCENA | Itens: 2 | Valor: R$ 3.337,00
+013 | PD 01450 | Emissão: 05/08/2026 | Empresa: 3 | Cliente ID: 7455 | Vendedor: SUMAIA LUCENA | Itens: 2 | Valor: R$ 7.972,00
+014 | PD 01451 | Emissão: 05/08/2026 | Empresa: 3 | Cliente ID: 2950 | Vendedor: Dirceu Alves de Lima | Itens: 1 | Valor: R$ 2.275,68
+015 | PD 01452 | Emissão: 05/08/2026 | Empresa: 3 | Cliente ID: 447 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 6.200,00
+016 | PD 01453 | Emissão: 05/08/2026 | Empresa: 3 | Cliente ID: 7461 | Vendedor: Elson Marcelo Braga da Silva | Itens: 3 | Valor: R$ 13.360,95
+017 | PD 01454 | Emissão: 05/08/2026 | Empresa: 3 | Cliente ID: 7464 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 1 | Valor: R$ 5.985,50
+018 | PD 01455 | Emissão: 05/08/2026 | Empresa: 3 | Cliente ID: 7466 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 4 | Valor: R$ 7.194,25
+019 | PD 01456 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 6982 | Vendedor: REBECA GONÇALVES | Itens: 3 | Valor: R$ 1.662,00
+020 | PD 01457 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 7470 | Vendedor: Elson Marcelo Braga da Silva | Itens: 4 | Valor: R$ 1.721,60
+021 | PD 01459 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 7471 | Vendedor: REBECA GONÇALVES | Itens: 2 | Valor: R$ 1.260,36
+022 | PD 01460 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 5851 | Vendedor: VERA LUCIA NASCIMENTO MOREIRA | Itens: 1 | Valor: R$ 4.200,00
+023 | PD 01462 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 5920 | Vendedor: Myrene Aparecida da Silva | Itens: 1 | Valor: R$ 7.972,00
+024 | PD 01463 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 6787 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 3 | Valor: R$ 7.501,80
+025 | PD 01464 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 7473 | Vendedor: Myrene Aparecida da Silva | Itens: 4 | Valor: R$ 1.907,80
+026 | PD 01465 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 6879 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 2 | Valor: R$ 127,00
+027 | PD 01466 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 7477 | Vendedor: JAYMES JANOLLA | Itens: 1 | Valor: R$ 4.652,50
+028 | PD 01468 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 7417 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 3 | Valor: R$ 2.835,00
+029 | PD 01469 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 7467 | Vendedor: MARCELO BUGANZA JUNIOR | Itens: 1 | Valor: R$ 2.800,00
+030 | PD 01470 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 7483 | Vendedor: Myrene Aparecida da Silva | Itens: 3 | Valor: R$ 489,70
+031 | PD 01471 | Emissão: 06/08/2026 | Empresa: 3 | Cliente ID: 6942 | Vendedor: Myrene Aparecida da Silva | Itens: 1 | Valor: R$ 1.232,00
+032 | PD 01472 | Emissão: 07/08/2026 | Empresa: 3 | Cliente ID: 7469 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 1 | Valor: R$ 7.030,00
+033 | PD 01473 | Emissão: 07/08/2026 | Empresa: 3 | Cliente ID: 7493 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 27.413,60
+034 | PD 01474 | Emissão: 07/08/2026 | Empresa: 3 | Cliente ID: 7485 | Vendedor: REBECA GONÇALVES | Itens: 1 | Valor: R$ 802,00
+035 | PD 01475 | Emissão: 07/08/2026 | Empresa: 3 | Cliente ID: 7498 | Vendedor: Myrene Aparecida da Silva | Itens: 3 | Valor: R$ 6.628,00
+036 | PD 01476 | Emissão: 07/08/2026 | Empresa: 3 | Cliente ID: 7495 | Vendedor: EDER PULLHEIS | Itens: 3 | Valor: R$ 87.669,60
+037 | PD 01477 | Emissão: 07/08/2026 | Empresa: 3 | Cliente ID: 7499 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 3.825,00
+038 | PD 01478 | Emissão: 07/08/2026 | Empresa: 3 | Cliente ID: 7506 | Vendedor: RAFAEL LUIZ AURO | Itens: 1 | Valor: R$ 4.452,00
+039 | PD 01479 | Emissão: 07/08/2026 | Empresa: 3 | Cliente ID: 7508 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 15.947,65
+040 | PD 01480 | Emissão: 10/08/2026 | Empresa: 3 | Cliente ID: 7509 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 3 | Valor: R$ 4.068,25
+041 | PD 01482 | Emissão: 10/08/2026 | Empresa: 3 | Cliente ID: 7511 | Vendedor: JAYMES JANOLLA | Itens: 3 | Valor: R$ 6.590,00
+042 | PD 01483 | Emissão: 10/08/2026 | Empresa: 3 | Cliente ID: 7530 | Vendedor: Myrene Aparecida da Silva | Itens: 1 | Valor: R$ 11.959,25
+043 | PD 01484 | Emissão: 10/08/2026 | Empresa: 3 | Cliente ID: 7468 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 3.725,21
+044 | PD 01485 | Emissão: 10/08/2026 | Empresa: 3 | Cliente ID: 6786 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 3 | Valor: R$ 7.614,75
+045 | PD 01486 | Emissão: 10/08/2026 | Empresa: 3 | Cliente ID: 7404 | Vendedor: Marcos Felipe Alcântara Sanson | Itens: 2 | Valor: R$ 2.743,75
+046 | PD 01487 | Emissão: 10/08/2026 | Empresa: 3 | Cliente ID: 2950 | Vendedor: Dirceu Alves de Lima | Itens: 2 | Valor: R$ 2.912,20
+047 | PD 01488 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 6728 | Vendedor: JAYMES JANOLLA | Itens: 2 | Valor: R$ 145,00
+048 | PD 01489 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 7540 | Vendedor: RAFAEL LUIZ AURO | Itens: 2 | Valor: R$ 4.861,60
+049 | PD 01490 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 7543 | Vendedor: Laís da Silva Gomes | Itens: 2 | Valor: R$ 5.116,50
+050 | PD 01491 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 7554 | Vendedor: SUMAIA LUCENA | Itens: 3 | Valor: R$ 728,10
+051 | PD 01493 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 7550 | Vendedor: MARCELO BUGANZA JUNIOR | Itens: 1 | Valor: R$ 2.775,50
+052 | PD 01494 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 2631 | Vendedor: VERA LUCIA NASCIMENTO MOREIRA | Itens: 1 | Valor: R$ 3.900,00
+053 | PD 01495 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 7556 | Vendedor: SUMAIA LUCENA | Itens: 4 | Valor: R$ 12.777,16
+054 | PD 01496 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 7562 | Vendedor: Myrene Aparecida da Silva | Itens: 3 | Valor: R$ 3.000,08
+055 | PD 01497 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 7555 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 2.147,00
+056 | PD 01498 | Emissão: 11/08/2026 | Empresa: 3 | Cliente ID: 4726 | Vendedor: LUCAS AMARAL COSTA | Itens: 1 | Valor: R$ 43.160,00
+057 | PD 01499 | Emissão: 12/08/2026 | Empresa: 3 | Cliente ID: 115 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 6.240,00
+058 | PD 01500 | Emissão: 12/08/2026 | Empresa: 3 | Cliente ID: 7564 | Vendedor: RAFAEL LUIZ AURO | Itens: 1 | Valor: R$ 1.321,00
+059 | PD 01501 | Emissão: 12/08/2026 | Empresa: 3 | Cliente ID: 7567 | Vendedor: Laís da Silva Gomes | Itens: 3 | Valor: R$ 3.004,10
+060 | PD 01502 | Emissão: 12/08/2026 | Empresa: 3 | Cliente ID: 7566 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 6.753,60
+061 | PD 01503 | Emissão: 12/08/2026 | Empresa: 3 | Cliente ID: 7578 | Vendedor: Myrene Aparecida da Silva | Itens: 2 | Valor: R$ 9.857,00
+062 | PD 01504 | Emissão: 12/08/2026 | Empresa: 3 | Cliente ID: 7560 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 2 | Valor: R$ 19.560,91
+063 | PD 01505 | Emissão: 13/08/2026 | Empresa: 3 | Cliente ID: 6661 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 500,00
+064 | PD 01506 | Emissão: 13/08/2026 | Empresa: 3 | Cliente ID: 7580 | Vendedor: Elson Marcelo Braga da Silva | Itens: 3 | Valor: R$ 2.177,50
+065 | PD 01507 | Emissão: 13/08/2026 | Empresa: 3 | Cliente ID: 7588 | Vendedor: Telma Carlos Gomes de Camargo | Itens: 1 | Valor: R$ 5.718,15
+066 | PD 01508 | Emissão: 13/08/2026 | Empresa: 3 | Cliente ID: 4262 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 1 | Valor: R$ 26.927,20
+067 | PD 01509 | Emissão: 13/08/2026 | Empresa: 3 | Cliente ID: 7589 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 2 | Valor: R$ 636,12
+068 | PD 01510 | Emissão: 13/08/2026 | Empresa: 3 | Cliente ID: 7499 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 120,00
+069 | PD 01512 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7594 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 1 | Valor: R$ 50,70
+070 | PD 01513 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7600 | Vendedor: Myrene Aparecida da Silva | Itens: 3 | Valor: R$ 2.763,35
+071 | PD 01514 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7601 | Vendedor: SUMAIA LUCENA | Itens: 1 | Valor: R$ 200,06
+072 | PD 01515 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7603 | Vendedor: JAYMES JANOLLA | Itens: 1 | Valor: R$ 5.001,00
+073 | PD 01516 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 115 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 1.382,25
+074 | PD 01517 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7605 | Vendedor: RAFAEL LUIZ AURO | Itens: 4 | Valor: R$ 13.012,42
+075 | PD 01518 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7606 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 396,00
+076 | PD 01519 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7602 | Vendedor: Telma Carlos Gomes de Camargo | Itens: 1 | Valor: R$ 752,00
+077 | PD 01520 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7565 | Vendedor: RAFAEL LUIZ AURO | Itens: 3 | Valor: R$ 5.450,00
+078 | PD 01521 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7608 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 2.490,00
+079 | PD 01522 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7610 | Vendedor: Dirceu Alves de Lima | Itens: 1 | Valor: R$ 1.575,00
+080 | PD 01523 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7609 | Vendedor: EDER PULLHEIS | Itens: 4 | Valor: R$ 4.320,00
+081 | PD 01524 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7586 | Vendedor: JAYMES JANOLLA | Itens: 2 | Valor: R$ 60.096,00
+082 | PD 01525 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7611 | Vendedor: Vanessa Pereira Bezerra | Itens: 1 | Valor: R$ 1.500,00
+083 | PD 01526 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7611 | Vendedor: Vanessa Pereira Bezerra | Itens: 1 | Valor: R$ 1.500,00
+084 | PD 01527 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7595 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 1 | Valor: R$ 2.340,00
+085 | PD 01528 | Emissão: 14/08/2026 | Empresa: 3 | Cliente ID: 7591 | Vendedor: Myrene Aparecida da Silva | Itens: 7 | Valor: R$ 9.946,88
+086 | PD 01529 | Emissão: 15/08/2026 | Empresa: 3 | Cliente ID: 6797 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 5 | Valor: R$ 2.009,50
+087 | PD 01530 | Emissão: 17/08/2026 | Empresa: 3 | Cliente ID: 7387 | Vendedor: JAYMES JANOLLA | Itens: 1 | Valor: R$ 240,00
+088 | PD 01531 | Emissão: 17/08/2026 | Empresa: 3 | Cliente ID: 7616 | Vendedor: MARCELO BUGANZA JUNIOR | Itens: 2 | Valor: R$ 3.642,00
+089 | PD 01533 | Emissão: 17/08/2026 | Empresa: 3 | Cliente ID: 7615 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 1.880,00
+090 | PD 01534 | Emissão: 17/08/2026 | Empresa: 3 | Cliente ID: 7596 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 1 | Valor: R$ 1.046,00
+091 | PD 01535 | Emissão: 17/08/2026 | Empresa: 3 | Cliente ID: 6513 | Vendedor: JAYMES JANOLLA | Itens: 6 | Valor: R$ 852,47
+092 | PD 01537 | Emissão: 17/08/2026 | Empresa: 3 | Cliente ID: 7620 | Vendedor: SUMAIA LUCENA | Itens: 2 | Valor: R$ 5.572,00
+093 | PD 01538 | Emissão: 17/08/2026 | Empresa: 3 | Cliente ID: 7628 | Vendedor: Myrene Aparecida da Silva | Itens: 3 | Valor: R$ 2.399,93
+094 | PD 01539 | Emissão: 18/08/2026 | Empresa: 3 | Cliente ID: 7617 | Vendedor: MARCELO BUGANZA JUNIOR | Itens: 2 | Valor: R$ 6.703,95
+095 | PD 01540 | Emissão: 18/08/2026 | Empresa: 3 | Cliente ID: 7633 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 9.977,40
+096 | PD 01541 | Emissão: 18/08/2026 | Empresa: 3 | Cliente ID: 7601 | Vendedor: SUMAIA LUCENA | Itens: 1 | Valor: R$ 165,20
+097 | PD 01542 | Emissão: 18/08/2026 | Empresa: 3 | Cliente ID: 7637 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 2.490,00
+098 | PD 01543 | Emissão: 18/08/2026 | Empresa: 3 | Cliente ID: 5933 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 1 | Valor: R$ 2.239,65
+099 | PD 01544 | Emissão: 18/08/2026 | Empresa: 3 | Cliente ID: 7643 | Vendedor: JAYMES JANOLLA | Itens: 4 | Valor: R$ 19.777,49
+100 | PD 01545 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7694 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 300,00
+101 | PD 01546 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7669 | Vendedor: Myrene Aparecida da Silva | Itens: 3 | Valor: R$ 4.031,80
+102 | PD 01547 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7695 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 3.510,00
+103 | PD 01548 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7681 | Vendedor: Elson Marcelo Braga da Silva | Itens: 5 | Valor: R$ 19.094,30
+104 | PD 01549 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7664 | Vendedor: Myrene Aparecida da Silva | Itens: 1 | Valor: R$ 3.542,00
+105 | PD 01550 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7697 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 4.847,00
+106 | PD 01551 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7702 | Vendedor: Dirceu Alves de Lima | Itens: 1 | Valor: R$ 240,00
+107 | PD 01552 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7701 | Vendedor: Vanessa Pereira Bezerra | Itens: 1 | Valor: R$ 282,00
+108 | PD 01555 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7706 | Vendedor: JAYMES JANOLLA | Itens: 1 | Valor: R$ 4.219,50
+109 | PD 01556 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7715 | Vendedor: JAYMES JANOLLA | Itens: 3 | Valor: R$ 3.828,00
+110 | PD 01557 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7718 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 1 | Valor: R$ 2.990,00
+111 | PD 01558 | Emissão: 19/08/2026 | Empresa: 3 | Cliente ID: 7717 | Vendedor: MARCELO BUGANZA JUNIOR | Itens: 2 | Valor: R$ 15.980,00
+112 | PD 01559 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7721 | Vendedor: Laís da Silva Gomes | Itens: 1 | Valor: R$ 2.342,40
+113 | PD 01560 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 5851 | Vendedor: VERA LUCIA NASCIMENTO MOREIRA | Itens: 1 | Valor: R$ 69,12
+114 | PD 01561 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7699 | Vendedor: EDER PULLHEIS | Itens: 2 | Valor: R$ 3.403,75
+115 | PD 01562 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7739 | Vendedor: Myrene Aparecida da Silva | Itens: 2 | Valor: R$ 4.288,80
+116 | PD 01563 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7740 | Vendedor: RAFAEL LUIZ AURO | Itens: 2 | Valor: R$ 4.300,00
+117 | PD 01564 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7742 | Vendedor: Laís da Silva Gomes | Itens: 1 | Valor: R$ 4.152,00
+118 | PD 01565 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 5851 | Vendedor: VERA LUCIA NASCIMENTO MOREIRA | Itens: 1 | Valor: R$ 2.067,12
+119 | PD 01566 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7745 | Vendedor: SUMAIA LUCENA | Itens: 1 | Valor: R$ 210,00
+120 | PD 01567 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7743 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 2.648,85
+121 | PD 01568 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7746 | Vendedor: JAYMES JANOLLA | Itens: 5 | Valor: R$ 37.500,01
+122 | PD 01569 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7744 | Vendedor: SUMAIA LUCENA | Itens: 2 | Valor: R$ 5.359,70
+123 | PD 01570 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7639 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 3 | Valor: R$ 13.765,00
+124 | PD 01571 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7751 | Vendedor: Dirceu Alves de Lima | Itens: 1 | Valor: R$ 2.191,20
+125 | PD 01572 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7751 | Vendedor: Dirceu Alves de Lima | Itens: 1 | Valor: R$ 2.631,60
+126 | PD 01573 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 7752 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 1 | Valor: R$ 3.326,40
+127 | PD 01574 | Emissão: 20/08/2026 | Empresa: 3 | Cliente ID: 4556 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 1 | Valor: R$ 120,00
+128 | PD 01575 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7750 | Vendedor: EDER PULLHEIS | Itens: 3 | Valor: R$ 9.898,00
+129 | PD 01576 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7747 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 1 | Valor: R$ 1.302,00
+130 | PD 01577 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7760 | Vendedor: JAYMES JANOLLA | Itens: 1 | Valor: R$ 2.425,00
+131 | PD 01578 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7610 | Vendedor: Dirceu Alves de Lima | Itens: 1 | Valor: R$ 3.510,00
+132 | PD 01579 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7663 | Vendedor: MARIA DE FATIMA DE SOUZA CAMPOS | Itens: 3 | Valor: R$ 2.274,40
+133 | PD 01580 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7759 | Vendedor: RAFAEL LUIZ AURO | Itens: 1 | Valor: R$ 1.694,00
+134 | PD 01581 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7755 | Vendedor: MARIA DE FATIMA DE SOUZA CAMPOS | Itens: 1 | Valor: R$ 5.913,65
+135 | PD 01582 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7749 | Vendedor: SAMUEL WOLFGAN SILVA | Itens: 1 | Valor: R$ 17.641,20
+136 | PD 01583 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 4753 | Vendedor: Ana Caroline Paz Basseto | Itens: 3 | Valor: R$ 7.519,44
+137 | PD 01584 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7716 | Vendedor: EDER PULLHEIS | Itens: 3 | Valor: R$ 13.350,60
+138 | PD 01585 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7764 | Vendedor: SUMAIA LUCENA | Itens: 1 | Valor: R$ 9.160,04
+139 | PD 01586 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7765 | Vendedor: Myrene Aparecida da Silva | Itens: 3 | Valor: R$ 146,25
+140 | PD 01587 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 2950 | Vendedor: Dirceu Alves de Lima | Itens: 1 | Valor: R$ 1.415,04
+141 | PD 01588 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7767 | Vendedor: RAFAEL LUIZ AURO | Itens: 1 | Valor: R$ 182,40
+142 | PD 01590 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7396 | Vendedor: PATRICIA APARECIDA BENTO DORNELLES | Itens: 2 | Valor: R$ 30.003,20
+143 | PD 01591 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7768 | Vendedor: Andreza Soares Ribeiro de Andrade | Itens: 1 | Valor: R$ 4.646,00
+144 | PD 01592 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7766 | Vendedor: Elson Marcelo Braga da Silva | Itens: 1 | Valor: R$ 1.854,00
+145 | PD 01593 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7769 | Vendedor: Myrene Aparecida da Silva | Itens: 2 | Valor: R$ 3.399,00
+146 | PD 01594 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 5870 | Vendedor: SUMAIA LUCENA | Itens: 1 | Valor: R$ 17.799,00
+147 | PD 01595 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7166 | Vendedor: JAYMES JANOLLA | Itens: 1 | Valor: R$ 17.419,50
+148 | PD 01596 | Emissão: 21/08/2026 | Empresa: 3 | Cliente ID: 7771 | Vendedor: EDER PULLHEIS | Itens: 1 | Valor: R$ 5.064,00
+149 | PD 01597 | Emissão: 24/08/2026 | Empresa: 3 | Cliente ID: 7772 | Vendedor: JAYMES JANOLLA | Itens: 3 | Valor: R$ 1.699,99
+
+FIM DA RELAÇÃO - 149 PEDIDOS
+

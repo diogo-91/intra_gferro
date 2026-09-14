@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   CalendarDays,
+  CheckCircle2,
   Clock3,
   FileText,
   Headphones,
@@ -51,6 +52,8 @@ const prioridadeStyle: Record<Chamado['prioridade'], string> = {
 
 export const ChamadoDetalhe: React.FC<Props> = ({ chamado, podeAtender, onClose, onUpdated }) => {
   const [conteudo, setConteudo] = useState('');
+  const [finalizando, setFinalizando] = useState(false);
+  const [resolucao, setResolucao] = useState(chamado.solucao || '');
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -88,6 +91,19 @@ export const ChamadoDetalhe: React.FC<Props> = ({ chamado, podeAtender, onClose,
     if (enviado) setConteudo('');
   };
 
+  const finalizarChamado = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!resolucao.trim()) {
+      setErro('Informe a resolução antes de finalizar o chamado.');
+      return;
+    }
+    const finalizado = await requisicao(`/api/chamados/${chamado.id}`, 'PATCH', {
+      status: 'Encerrado',
+      solucao: resolucao,
+    });
+    if (finalizado) setFinalizando(false);
+  };
+
   const concluido = ['Resolvido', 'Encerrado', 'Cancelado'].includes(chamado.status);
   const emAtendimento = chamado.status === 'Em atendimento';
 
@@ -119,6 +135,14 @@ export const ChamadoDetalhe: React.FC<Props> = ({ chamado, podeAtender, onClose,
               <TituloSecao icon={FileText}>Solicitação</TituloSecao>
               <p className="mt-6 whitespace-pre-wrap break-words text-sm leading-7 text-neutral-800 sm:text-base">{chamado.descricao}</p>
             </section>
+
+            {chamado.solucao && (
+              <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-6">
+                <TituloSecao icon={CheckCircle2}>Resolução</TituloSecao>
+                <p className="mt-5 whitespace-pre-wrap break-words text-sm leading-7 text-emerald-950 sm:text-base">{chamado.solucao}</p>
+                {chamado.encerradoEm && <p className="mt-4 text-xs text-emerald-700">Finalizado em {formatarData(chamado.encerradoEm)}</p>}
+              </section>
+            )}
 
             <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-6">
               <TituloSecao icon={Clock3}>Histórico</TituloSecao>
@@ -192,10 +216,29 @@ export const ChamadoDetalhe: React.FC<Props> = ({ chamado, podeAtender, onClose,
                   <Pause className="h-5 w-5 fill-black" />
                   Pausar
                 </button>
-                <button type="button" disabled={ocupado || concluido} onClick={() => alterarStatus('Encerrado')} className="flex min-h-14 w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-black text-neutral-900 transition hover:border-yellow-400 disabled:cursor-not-allowed disabled:opacity-40">
+                <button type="button" disabled={ocupado || concluido} onClick={() => setFinalizando(true)} className="flex min-h-14 w-full items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-black text-neutral-900 transition hover:border-yellow-400 disabled:cursor-not-allowed disabled:opacity-40">
                   <Square className="h-4 w-4 fill-black" />
                   Finalizar
                 </button>
+                {finalizando && (
+                  <form onSubmit={finalizarChamado} className="rounded-2xl border border-yellow-300 bg-yellow-50 p-4">
+                    <label className="text-xs font-black text-neutral-800">Resolução do chamado *</label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={resolucao}
+                      onChange={(event) => setResolucao(event.target.value)}
+                      className="mt-2 w-full rounded-xl border border-neutral-200 bg-white p-3 text-base outline-none focus:border-yellow-400 sm:text-sm"
+                      placeholder="Descreva o que foi feito para resolver a solicitação"
+                    />
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setFinalizando(false)} className="min-h-11 rounded-xl border border-neutral-300 bg-white text-xs font-black text-neutral-700">Voltar</button>
+                      <button disabled={ocupado || !resolucao.trim()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-yellow-400 text-xs font-black text-black disabled:opacity-40">
+                        {ocupado && <Loader2 className="h-4 w-4 animate-spin" />} Confirmar
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             )}
 

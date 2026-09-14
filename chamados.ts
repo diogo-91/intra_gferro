@@ -121,6 +121,9 @@ export async function atualizarChamado(id: string, patch: any, autor: { nome: st
   if (patch.prioridade && ['Baixa', 'Média', 'Alta', 'Urgente'].includes(patch.prioridade) && patch.prioridade !== atual.prioridade) {
     novo.prioridade = patch.prioridade; alteracoes.push(`Prioridade alterada de ${atual.prioridade} para ${patch.prioridade}`);
   }
+  if (patch.status === 'Encerrado' && !texto(patch.solucao) && !atual.solucao) {
+    throw Object.assign(new Error('Informe a resolução antes de finalizar o chamado.'), { status: 400 });
+  }
   if (patch.status && ['Aberto', 'Em atendimento', 'Aguardando solicitante', 'Resolvido', 'Encerrado', 'Cancelado'].includes(patch.status) && patch.status !== atual.status) {
     novo.status = patch.status; alteracoes.push(`Status alterado de ${atual.status} para ${patch.status}`);
     if (patch.status === 'Em atendimento' && !atual.responsavel && !texto(patch.responsavel, 120)) {
