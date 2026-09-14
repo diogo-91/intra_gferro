@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BarChart3, Building2, CalendarDays, Check, RefreshCw, Save, Target, TrendingUp } from 'lucide-react';
 import { LOJAS } from '../data/vendedorLoja';
+import { calcularMetasSemanais, semanasDoMes, type SemanaMes } from '../utils/metasSemanais';
 
 interface MetaLojaMensal {
   id: string;
@@ -14,12 +15,6 @@ interface RespostaMetasMensais {
   mes: string;
   lojas: MetaLojaMensal[];
   atualizadoEm: string;
-}
-
-interface SemanaMes {
-  inicio: number;
-  fim: number;
-  diasTrabalhados: number;
 }
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -40,24 +35,6 @@ const percentual = (valor: number) => `${valor.toLocaleString('pt-BR', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 })}%`;
-
-function semanasDoMes(ano: number, mes: number): SemanaMes[] {
-  const ultimoDia = new Date(ano, mes + 1, 0).getDate();
-  const semanas: SemanaMes[] = [];
-  let inicio = 1;
-  while (inicio <= ultimoDia) {
-    const diaSemana = new Date(ano, mes, inicio).getDay();
-    const ateDomingo = diaSemana === 0 ? 0 : 7 - diaSemana;
-    const fim = Math.min(ultimoDia, inicio + ateDomingo);
-    let diasTrabalhados = 0;
-    for (let dia = inicio; dia <= fim; dia += 1) {
-      if (new Date(ano, mes, dia).getDay() !== 0) diasTrabalhados += 1;
-    }
-    semanas.push({ inicio, fim, diasTrabalhados });
-    inicio = fim + 1;
-  }
-  return semanas;
-}
 
 const chaveMes = (ano: number, mes: number) => `${ano}-${String(mes + 1).padStart(2, '0')}`;
 const nomeLoja = (nome: string) => `LOJA ${nome.split('—').at(-1)?.trim().toLocaleUpperCase('pt-BR') || nome.toLocaleUpperCase('pt-BR')}`;
@@ -197,6 +174,20 @@ export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({
   };
 
   const metaTotal = lojas.reduce((total, loja) => total + loja.meta, 0);
+  const metasSemanaisPorLoja = Object.fromEntries(lojas.map((loja) => [
+    loja.id,
+    calcularMetasSemanais({
+      metaMensal: loja.meta,
+      semanas,
+      realizados: dados?.mes === referencia ? semanas.map((semana) => realizadoNaSemana(loja, semana)) : undefined,
+      ano,
+      mes,
+      hoje,
+    }),
+  ]));
+  const metasTotaisSemanais = semanas.map((_, indice) =>
+    lojas.reduce((total, loja) => total + Math.round(metasSemanaisPorLoja[loja.id][indice] * 100), 0) / 100
+  );
   // Fonte única para toda a parte inferior: soma exatamente as mesmas
   // células semanais exibidas no quadro superior. Assim não existe risco de
   // o resumo mensal divergir por usar outro campo ou outra consulta.
@@ -322,9 +313,9 @@ export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({
                   <tr key={loja.id} className="border-b border-neutral-200 odd:bg-white even:bg-neutral-50/70 hover:bg-yellow-50/60">
                     <td className="border-r border-neutral-200 px-2 py-3 text-center"><span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-yellow-400 font-black text-black">{indice + 1}</span></td>
                     <td className="border-r border-neutral-200 px-4 py-3 font-black text-neutral-900">{nomeLoja(loja.nome)}</td>
-                    {semanas.map((semana) => (
+                    {semanas.map((semana, indiceSemana) => (
                       <React.Fragment key={semana.inicio}>
-                        <td className="border-r border-neutral-200 px-3 py-3 text-right font-bold tabular-nums text-neutral-700">{numero(diasTrabalhados ? loja.meta * semana.diasTrabalhados / diasTrabalhados : 0)}</td>
+                        <td className="border-r border-neutral-200 px-3 py-3 text-right font-bold tabular-nums text-neutral-700">{numero(metasSemanaisPorLoja[loja.id][indiceSemana])}</td>
                         <td className="border-r border-neutral-300 px-3 py-3 text-right font-black tabular-nums text-emerald-700">{dados ? numero(realizadoNaSemana(loja, semana)) : '—'}</td>
                       </React.Fragment>
                     ))}
@@ -338,9 +329,9 @@ export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({
             <tfoot className="font-black">
               <tr className="border-t-2 border-yellow-400 bg-neutral-100">
                 <td colSpan={2} className="border-r border-neutral-300 px-4 py-3 text-right">Total Semana</td>
-                {semanas.map((semana) => (
+                {semanas.map((semana, indiceSemana) => (
                   <React.Fragment key={semana.inicio}>
-                    <td className="border-r border-neutral-200 px-3 py-3 text-right tabular-nums">{numero(diasTrabalhados ? metaTotal * semana.diasTrabalhados / diasTrabalhados : 0)}</td>
+                    <td className="border-r border-neutral-200 px-3 py-3 text-right tabular-nums">{numero(metasTotaisSemanais[indiceSemana])}</td>
                     <td className="border-r border-neutral-300 px-3 py-3 text-right tabular-nums text-emerald-700">{dados ? numero(lojas.reduce((total, loja) => total + realizadoNaSemana(loja, semana), 0)) : '—'}</td>
                   </React.Fragment>
                 ))}
@@ -352,15 +343,18 @@ export const GestaoMetasMensais: React.FC<GestaoMetasMensaisProps> = ({
                 <td colSpan={2} className="border-r border-neutral-700 px-4 py-3 text-right">Total Acumulado</td>
                 {semanas.map((semana, indice) => {
                   const anteriores = semanas.slice(0, indice + 1);
-                  const diasAcumulados = anteriores.reduce((total, item) => total + item.diasTrabalhados, 0);
+                  const metaAcumulada = metasTotaisSemanais.slice(0, indice + 1).reduce((total, valor) => total + Math.round(valor * 100), 0) / 100;
                   const realizadoAcumulado = lojas.reduce((total, loja) => total + anteriores.reduce((soma, item) => soma + realizadoNaSemana(loja, item), 0), 0);
-                  return <React.Fragment key={semana.inicio}><td className="border-r border-neutral-700 px-3 py-3 text-right text-yellow-400">{numero(diasTrabalhados ? metaTotal * diasAcumulados / diasTrabalhados : 0)}</td><td className="border-r border-neutral-700 px-3 py-3 text-right text-emerald-400">{dados ? numero(realizadoAcumulado) : '—'}</td></React.Fragment>;
+                  return <React.Fragment key={semana.inicio}><td className="border-r border-neutral-700 px-3 py-3 text-right text-yellow-400">{numero(metaAcumulada)}</td><td className="border-r border-neutral-700 px-3 py-3 text-right text-emerald-400">{dados ? numero(realizadoAcumulado) : '—'}</td></React.Fragment>;
                 })}
                 <td colSpan={3} className="px-3 py-3 text-right text-yellow-400">Meta mensal {moeda(metaTotal)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
+        <p className="border-t border-neutral-200 px-4 py-3 text-[11px] text-neutral-500">
+          A cada semana encerrada, o saldo da meta mensal é dividido igualmente entre as semanas restantes, incluindo a semana atual. As metas das semanas encerradas são mantidas no histórico.
+        </p>
       </section>
 
       {exibirDistribuicao && <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
