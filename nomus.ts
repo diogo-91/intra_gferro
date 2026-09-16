@@ -3,8 +3,9 @@
 // - GET /pedidos: cada pedido já traz "valorTotal" pronto no cabeçalho
 //   (string em formato BR, ex.: "32.468,04") — não precisa recalcular pelos itens.
 // - O período do Dashboard de Vendas usa a data de emissão do pedido. Entram
-//   somente pedidos integralmente liberados: todos os itens precisam estar no
-//   status 2 (Liberado).
+//   somente pedidos totalmente processados: todos os itens precisam estar no
+//   status 2 (Liberado) ou 4 (Atendido Totalmente), podendo misturar os dois
+//   entre si (ver STATUS_ITENS_CONSIDERADOS_NAS_VENDAS).
 // - Paginação: parâmetro "pagina", 50 registros por página.
 // - GET /vendedores: cada vendedor tem "id" e "nome".
 // - GET /contasReceber e /contasPagar: mesmo formato de registro pros dois —
@@ -876,6 +877,8 @@ function periodoEhFechado(chave: string): boolean {
 
 const PEDIDOS_EXCLUIDOS_DAS_VENDAS = new Set(['1737', '1738']);
 const STATUS_ITEM_LIBERADO = 2;
+const STATUS_ITEM_ATENDIDO_TOTALMENTE = 4;
+const STATUS_ITENS_CONSIDERADOS_NAS_VENDAS = new Set([STATUS_ITEM_LIBERADO, STATUS_ITEM_ATENDIDO_TOTALMENTE]);
 
 function filtrarPedidosConsideradosNasVendas(pedidos: Pedido[]): Pedido[] {
   const pedidosUnicos = new Map<string, Pedido>();
@@ -884,14 +887,16 @@ function filtrarPedidosConsideradosNasVendas(pedidos: Pedido[]): Pedido[] {
     const codigo = chaveCodigoPedido(pedido.codigoPedido);
     if (codigo && PEDIDOS_EXCLUIDOS_DAS_VENDAS.has(codigo)) continue;
 
-    // O cabeçalho não expõe status na API. Para reproduzir "Liberado" sem
-    // aceitar pedidos mistos, o pedido precisa ter ao menos um item e todos
-    // os itens devem estar no status 2. Status 4 (Atendido totalmente) e
-    // qualquer outro status ficam fora de todos os indicadores de vendas.
+    // O cabeçalho não expõe status na API. Pra reproduzir "Liberado ou
+    // Atendido Totalmente" sem aceitar pedidos mistos, o pedido precisa ter
+    // ao menos um item e todos os itens devem estar no status 2 (Liberado)
+    // ou 4 (Atendido Totalmente) — podendo misturar os dois entre si. Status
+    // 1 (Aguardando Liberação), 3 (Atendido Parcialmente) e qualquer outro
+    // ficam fora de todos os indicadores de vendas.
     const itens = pedido.itensPedido || [];
-    const pedidoIntegralmenteLiberado = itens.length > 0
-      && itens.every((item) => item.status === STATUS_ITEM_LIBERADO);
-    if (!pedidoIntegralmenteLiberado) continue;
+    const pedidoConsideradoNasVendas = itens.length > 0
+      && itens.every((item) => item.status != null && STATUS_ITENS_CONSIDERADOS_NAS_VENDAS.has(item.status));
+    if (!pedidoConsideradoNasVendas) continue;
 
     // Evita somar duas vezes o mesmo pedido se a API o repetir entre páginas.
     // Em uma eventual duplicidade de cadastro, preserva o registro de maior id.

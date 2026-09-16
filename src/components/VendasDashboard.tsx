@@ -29,7 +29,7 @@ const montarQueryPeriodo = (periodo: Periodo, mes: string | null, dataInicio: st
 };
 
 const chaveCacheRankingLocal = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) =>
-  `gferro:ranking-v10-emissao-somente-liberados:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+  `gferro:ranking-v11-liberados-ou-atendidos:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 const salvarRankingLocal = (
   periodo: Periodo,
@@ -96,7 +96,7 @@ const chaveCachePedidosVendedorLocal = (
   mes: string | null,
   dataInicio: string,
   dataFim: string
-) => `gferro:pedidos-vendedor-v8-emissao-somente-liberados:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
+) => `gferro:pedidos-vendedor-v9-liberados-ou-atendidos:${nome}:${periodo}:${periodo === 'mes' ? mes || 'atual' : ''}:${dataInicio}:${dataFim}`;
 
 interface CachePedidosVendedorLocal {
   pedidos: PedidoVendedorDetalhe[];
@@ -1028,7 +1028,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
           <span className="text-xs font-bold uppercase tracking-widest text-yellow-600">Dashboard • Vendas</span>
           <h1 className="text-2xl font-black text-neutral-900 mt-1">Painel de Vendas</h1>
           <p className="text-neutral-500 text-sm mt-1">
-            Somente pedidos integralmente liberados, vendedores e desempenho comercial da GFERRO.
+            Somente pedidos Liberados ou Atendidos Totalmente, vendedores e desempenho comercial da GFERRO.
           </p>
         </div>
 
