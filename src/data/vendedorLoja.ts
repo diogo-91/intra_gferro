@@ -40,6 +40,7 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'SAMUEL WOLFGAN SILVA': 'paulo',
   'Elson Marcelo Braga da Silva': 'paulo',
   'SUMAIA LUCENA': 'paulo',
+  'Tatiane Cristina de Moraes': 'paulo',
 
   'MARIA DE FATIMA DE SOUZA CAMPOS': 'correa',
   'Telma Carlos Gomes de Camargo': 'correa',
