@@ -25,7 +25,7 @@ import * as lojasFotos from './lojasFotos';
 import { LOJAS, lojaDoVendedor, type LojaId } from './src/data/vendedorLoja';
 import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
-import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, removerUsuario } from './usuarios';
+import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinirSenhaUsuario, removerUsuario } from './usuarios';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -249,6 +249,16 @@ async function startServer() {
       res.json(await atualizarPermissoesUsuario(req.params.id, { modulos, submodulos }));
     } catch (error: any) {
       res.status(error.status || 500).json({ error: error.message || 'Não foi possível atualizar os acessos.' });
+    }
+  });
+  app.patch('/api/usuarios/:id/senha', exigirAdministrador, async (req, res) => {
+    try {
+      const { senha } = req.body || {};
+      if (typeof senha !== 'string') return res.status(400).json({ error: 'Informe a nova senha.' });
+      await redefinirSenhaUsuario(req.params.id, senha);
+      res.status(204).end();
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Não foi possível redefinir a senha.' });
     }
   });
   app.use('/api', exigirPermissaoDeModulo);

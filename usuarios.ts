@@ -102,6 +102,15 @@ export async function atualizarPermissoesUsuario(id: string, dados: { modulos: u
   return publico(atualizado);
 }
 
+export async function redefinirSenhaUsuario(id: string, novaSenha: string) {
+  if (novaSenha.length < 8) throw Object.assign(new Error('A senha deve ter pelo menos 8 caracteres.'), { status: 400 });
+  const usuarios = await carregar();
+  const usuario = usuarios.find((item) => item.id === id);
+  if (!usuario) throw Object.assign(new Error('Usuário não encontrado.'), { status: 404 });
+  const atualizado: UsuarioArmazenado = { ...usuario, senhaHash: await gerarHash(novaSenha) };
+  await persistir(usuarios.map((item) => item.id === id ? atualizado : item));
+}
+
 export async function removerUsuario(id: string) {
   const usuarios = await carregar();
   if (!usuarios.some((usuario) => usuario.id === id)) throw Object.assign(new Error('Usuário não encontrado.'), { status: 404 });

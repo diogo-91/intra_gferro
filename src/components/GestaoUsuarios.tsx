@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Building2, Check, Loader2, Pencil, ShieldCheck, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { AlertTriangle, Building2, Check, KeyRound, Loader2, Pencil, ShieldCheck, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { MODULOS, ModuloId, SubmoduloId, TODOS_SUBMODULOS } from '../modulos';
 
 interface Usuario { id: string; nome: string; email: string; modulos: ModuloId[]; submodulos: SubmoduloId[]; criadoEm: string }
@@ -16,6 +16,8 @@ export const GestaoUsuarios: React.FC = () => {
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
   const [usuarioEditando, setUsuarioEditando] = useState<Usuario | null>(null);
+  const [novaSenha, setNovaSenha] = useState('');
+  const [redefinindoSenha, setRedefinindoSenha] = useState(false);
 
   const carregar = async () => {
     const res = await fetch('/api/usuarios');
@@ -49,7 +51,7 @@ export const GestaoUsuarios: React.FC = () => {
   };
 
   const limparFormulario = () => {
-    setNome(''); setEmail(''); setSenha(''); setModulos([]); setSubmodulos([]); setUsuarioEditando(null);
+    setNome(''); setEmail(''); setSenha(''); setNovaSenha(''); setModulos([]); setSubmodulos([]); setUsuarioEditando(null);
   };
 
   const editar = (usuario: Usuario) => {
@@ -57,6 +59,7 @@ export const GestaoUsuarios: React.FC = () => {
     setNome(usuario.nome);
     setEmail(usuario.email);
     setSenha('');
+    setNovaSenha('');
     setModulos([...usuario.modulos]);
     setSubmodulos([...(usuario.submodulos ?? [])]);
     setErro(''); setSucesso('');
@@ -82,6 +85,16 @@ export const GestaoUsuarios: React.FC = () => {
     } catch (e: any) { setErro(e.message); } finally { setSalvando(false); }
   };
 
+  const redefinirSenha = async () => {
+    if (!usuarioEditando) return;
+    setRedefinindoSenha(true); setErro(''); setSucesso('');
+    try {
+      const res = await fetch(`/api/usuarios/${usuarioEditando.id}/senha`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ senha: novaSenha }) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Não foi possível redefinir a senha.');
+      setNovaSenha(''); setSucesso(`Senha de ${usuarioEditando.nome} redefinida com sucesso.`);
+    } catch (e: any) { setErro(e.message); } finally { setRedefinindoSenha(false); }
+  };
+
   const remover = async (usuario: Usuario) => {
     if (!window.confirm(`Remover o acesso de ${usuario.nome}?`)) return;
     const res = await fetch(`/api/usuarios/${usuario.id}`, { method: 'DELETE' });
@@ -99,6 +112,10 @@ export const GestaoUsuarios: React.FC = () => {
           <label className="text-xs font-bold text-neutral-600">E-mail<input required type="email" disabled={!!usuarioEditando} value={email} onChange={(e)=>setEmail(e.target.value)} className="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-yellow-500 disabled:bg-neutral-100" placeholder="usuario@gferro.com.br"/></label>
         </div>
         {!usuarioEditando && <label className="text-xs font-bold text-neutral-600 block">Senha inicial<input required type="password" minLength={8} value={senha} onChange={(e)=>setSenha(e.target.value)} className="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-yellow-500" placeholder="Mínimo de 8 caracteres"/></label>}
+        {usuarioEditando && <div className="rounded-xl border border-neutral-200 p-4 space-y-3">
+          <label className="text-xs font-bold text-neutral-600 block">Nova senha<input type="password" minLength={8} autoComplete="new-password" value={novaSenha} onChange={(e)=>setNovaSenha(e.target.value)} className="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-yellow-500" placeholder="Mínimo de 8 caracteres"/></label>
+          <button type="button" onClick={redefinirSenha} disabled={redefinindoSenha || novaSenha.length < 8} className="flex items-center justify-center gap-2 rounded-xl border border-neutral-300 hover:border-yellow-500 px-4 py-2.5 text-xs font-bold text-neutral-700 disabled:opacity-50">{redefinindoSenha ? <Loader2 className="h-4 w-4 animate-spin"/> : <KeyRound className="h-4 w-4"/>}Redefinir senha</button>
+        </div>}
         <fieldset><div className="flex items-center justify-between mb-3"><legend className="text-xs font-bold text-neutral-600">Módulos e submódulos liberados</legend><button type="button" onClick={alternarTodos} className="text-xs font-bold text-yellow-700 hover:underline">{modulos.length === MODULOS.length && submodulos.length === TODOS_SUBMODULOS.length ? 'Desmarcar todos' : 'Selecionar todos'}</button></div>
           <div className="grid sm:grid-cols-2 gap-2">{MODULOS.map((modulo) => {
             const selecionado = modulos.includes(modulo.id);
@@ -116,7 +133,7 @@ export const GestaoUsuarios: React.FC = () => {
         <div className="flex gap-2">{usuarioEditando && <button type="button" onClick={limparFormulario} className="flex items-center justify-center gap-2 rounded-xl border border-neutral-300 px-4 py-3 text-sm font-bold text-neutral-600"><X className="h-4 w-4"/>Cancelar</button>}<button disabled={salvando} className="flex flex-1 justify-center items-center gap-2 rounded-xl bg-yellow-400 hover:bg-yellow-300 py-3 font-black text-sm disabled:opacity-60">{salvando?<Loader2 className="w-4 h-4 animate-spin"/>:usuarioEditando?<Pencil className="w-4 h-4"/>:<UserPlus className="w-4 h-4"/>}{usuarioEditando ? 'Salvar acessos' : 'Cadastrar usuário'}</button></div>
       </form>
       <section className="bg-white border border-neutral-200 rounded-2xl shadow-sm overflow-hidden"><div className="p-5 border-b border-neutral-100 flex items-center gap-2 font-bold"><Users className="w-5 h-5 text-yellow-500"/>Usuários cadastrados <span className="ml-auto text-xs bg-neutral-100 rounded-full px-2 py-1">{usuarios.length}</span></div>
-        {carregando?<div className="p-8 flex justify-center"><Loader2 className="animate-spin"/></div>:usuarios.length===0?<p className="p-8 text-center text-sm text-neutral-400">Nenhum usuário cadastrado ainda.</p>:<div className="divide-y divide-neutral-100">{usuarios.map((usuario)=><div key={usuario.id} className="p-4 flex gap-3"><div className="w-9 h-9 rounded-full bg-yellow-100 text-yellow-800 font-black flex items-center justify-center shrink-0">{usuario.nome.charAt(0).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="text-sm font-bold truncate">{usuario.nome}</p><p className="text-xs text-neutral-500 truncate">{usuario.email}</p><p className="text-[11px] text-neutral-400 mt-1">{usuario.modulos.length} módulo(s) · {(usuario.submodulos ?? []).length} submódulo(s)</p></div><div className="flex shrink-0"><button onClick={()=>editar(usuario)} title="Editar acessos" className="p-2 text-neutral-400 hover:text-yellow-700"><Pencil className="w-4 h-4"/></button><button onClick={()=>remover(usuario)} title="Remover usuário" className="p-2 text-neutral-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button></div></div>)}</div>}
+        {carregando?<div className="p-8 flex justify-center"><Loader2 className="animate-spin"/></div>:usuarios.length===0?<p className="p-8 text-center text-sm text-neutral-400">Nenhum usuário cadastrado ainda.</p>:<div className="divide-y divide-neutral-100">{usuarios.map((usuario)=><div key={usuario.id} className="p-4 flex gap-3"><div className="w-9 h-9 rounded-full bg-yellow-100 text-yellow-800 font-black flex items-center justify-center shrink-0">{usuario.nome.charAt(0).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="text-sm font-bold truncate">{usuario.nome}</p><p className="text-xs text-neutral-500 truncate">{usuario.email}</p><p className="text-[11px] text-neutral-400 mt-1">{usuario.modulos.length} módulo(s) · {(usuario.submodulos ?? []).length} submódulo(s)</p></div><div className="flex shrink-0"><button onClick={()=>editar(usuario)} title="Editar acessos e senha" className="p-2 text-neutral-400 hover:text-yellow-700"><Pencil className="w-4 h-4"/></button><button onClick={()=>remover(usuario)} title="Remover usuário" className="p-2 text-neutral-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button></div></div>)}</div>}
       </section>
     </div>
   </div>;
