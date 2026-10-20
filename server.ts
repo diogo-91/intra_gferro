@@ -26,7 +26,7 @@ import { LOJAS, lojaDoVendedor, type LojaId } from './src/data/vendedorLoja';
 import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinirSenhaUsuario, removerUsuario } from './usuarios';
-import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoContaNomus, montarLinhasProgramacao, removerContaProgramacao } from './programacaoContas';
+import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoContaNomus, montarLinhasPeriodo, montarLinhasProgramacao, removerContaProgramacao, validarPeriodo } from './programacaoContas';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -986,6 +986,12 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
   // intranet, protegido pela permissão do módulo "programacao".
   app.get('/api/programacao', async (req, res) => {
     try {
+      // Período personalizado (De/Até), podendo cruzar meses.
+      if (req.query.inicio !== undefined || req.query.fim !== undefined) {
+        const periodo = validarPeriodo(req.query.inicio, req.query.fim);
+        const { contas, atualizadoEm } = await montarLinhasPeriodo(periodo, getResumoFinanceiro);
+        return res.json({ mes: periodo.meses[0], inicio: periodo.inicio, fim: periodo.fim, atualizadoEm, contas });
+      }
       const hoje = new Date();
       const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
       const mes = typeof req.query.mes === 'string' ? req.query.mes : mesAtual;

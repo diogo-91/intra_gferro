@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ClipboardList, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Clock3, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import type { LinhaProgramacao, ProgramacaoConta, RespostaProgramacao } from '../types';
 import { chaveDia, formatDataIsoParaBr } from '../utils/format';
 
@@ -9,9 +9,20 @@ type Direcao = 'asc' | 'desc';
 interface FormularioConta {
   nome: string;
   data: string;
+  valor: string; // texto digitado (ex.: "1.234,56"); vazio = sem valor
   autorizado: boolean;
   pago: boolean;
 }
+
+// "1.234,56" / "1234,56" / "1234.56" -> 1234.56; vazio -> null; inválido -> NaN.
+function lerValorDigitado(texto: string): number | null {
+  const limpo = texto.replace(/R\$|\s/g, '');
+  if (!limpo) return null;
+  const normalizado = limpo.includes(',') ? limpo.replace(/\./g, '').replace(',', '.') : limpo;
+  return /^\d+(\.\d+)?$/.test(normalizado) ? Number(normalizado) : NaN;
+}
+
+const valorParaCampo = (valor: number | null | undefined) => (valor != null ? String(valor).replace('.', ',') : '');
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -66,6 +77,8 @@ const ESTILO_PAGAMENTO = {
 
 const ProgramacaoContasConteudo: React.FC = () => {
   const [mes, setMes] = useState(() => mesDe(new Date()));
+  // Período personalizado (De/Até): quando definido, substitui a navegação por mês.
+  const [periodo, setPeriodo] = useState<{ inicio: string; fim: string } | null>(null);
   const [linhas, setLinhas] = useState<LinhaProgramacao[]>([]);
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -74,42 +87,55 @@ const ProgramacaoContasConteudo: React.FC = () => {
   const [busca, setBusca] = useState('');
   const [ordenacao, setOrdenacao] = useState<{ campo: CampoOrdenacao; direcao: Direcao }>({ campo: 'data', direcao: 'desc' });
   const [modal, setModal] = useState<{ conta: ProgramacaoConta | null } | null>(null);
-  const [formulario, setFormulario] = useState<FormularioConta>({ nome: '', data: '', autorizado: false, pago: false });
+  const [formulario, setFormulario] = useState<FormularioConta>({ nome: '', data: '', valor: '', autorizado: false, pago: false });
   const [salvando, setSalvando] = useState(false);
   const [erroModal, setErroModal] = useState('');
   const [contasManuais, setContasManuais] = useState<Record<string, ProgramacaoConta>>({});
 
-  // Resposta de um mês que já deixou de ser o exibido (usuário navegou) é descartada.
-  const mesExibido = useRef(mes);
-  mesExibido.current = mes;
+  // O que a tela está consultando: um mês ou um período De/Até.
+  const consulta = periodo ? `inicio=${periodo.inicio}&fim=${periodo.fim}` : `mes=${mes}`;
 
-  const buscar = useCallback(async (mesBuscado: string, silencioso: boolean) => {
+  // Resposta de uma consulta que já deixou de ser a exibida (usuário navegou) é descartada.
+  const consultaExibida = useRef(consulta);
+  consultaExibida.current = consulta;
+
+  const buscar = useCallback(async (consultaBuscada: string, silencioso: boolean) => {
     if (silencioso) setAtualizando(true); else setCarregando(true);
     try {
-      const dados: RespostaProgramacao = await lerResposta(await fetch(`/api/programacao?mes=${mesBuscado}`));
+      const dados: RespostaProgramacao = await lerResposta(await fetch(`/api/programacao?${consultaBuscada}`));
       if (!Array.isArray(dados?.contas)) throw new Error(ERRO_RESPOSTA_INVALIDA);
-      if (mesExibido.current !== mesBuscado) return;
+      if (consultaExibida.current !== consultaBuscada) return;
       setLinhas(dados.contas);
       setAtualizadoEm(dados.atualizadoEm);
       setErro('');
     } catch (e: any) {
-      if (mesExibido.current === mesBuscado) setErro(e.message);
+      if (consultaExibida.current === consultaBuscada) setErro(e.message);
     } finally {
-      if (mesExibido.current === mesBuscado) {
+      if (consultaExibida.current === consultaBuscada) {
         setCarregando(false);
         setAtualizando(false);
       }
     }
   }, []);
 
-  // Carrega ao trocar de mês e acompanha o Nomus a cada minuto, sem piscar a tela.
+  // Carrega ao trocar de mês/período e acompanha o Nomus a cada minuto, sem piscar a tela.
   useEffect(() => {
     let ativo = true;
     setLinhas([]);
-    buscar(mes, false);
-    const intervalo = setInterval(() => { if (ativo) buscar(mes, true); }, 60_000);
+    buscar(consulta, false);
+    const intervalo = setInterval(() => { if (ativo) buscar(consulta, true); }, 60_000);
     return () => { ativo = false; clearInterval(intervalo); };
-  }, [mes, buscar]);
+  }, [consulta, buscar]);
+
+  // Datas sempre formam um intervalo válido: escolher só uma delas vale para aquele dia.
+  const definirInicio = (valor: string) => {
+    if (!valor) return setPeriodo(null);
+    setPeriodo((atual) => ({ inicio: valor, fim: atual && atual.fim >= valor ? atual.fim : valor }));
+  };
+  const definirFim = (valor: string) => {
+    if (!valor) return setPeriodo(null);
+    setPeriodo((atual) => ({ inicio: atual && atual.inicio <= valor ? atual.inicio : valor, fim: valor }));
+  };
 
   const linhasVisiveis = useMemo(() => {
     const termo = normalizar(busca.trim());
@@ -127,12 +153,18 @@ const ProgramacaoContasConteudo: React.FC = () => {
     });
   }, [linhas, busca, ordenacao]);
 
+  // KPIs sempre sobre o que está na tabela (período/mês + busca).
   const resumo = useMemo(() => {
+    const pagas = linhasVisiveis.filter((linha) => linha.pago);
     const abertas = linhasVisiveis.filter((linha) => !linha.pago);
+    const somar = (lista: LinhaProgramacao[]) => lista.reduce((soma, linha) => soma + (linha.valor ?? 0), 0);
     return {
       total: linhasVisiveis.length,
-      emAberto: abertas.reduce((soma, linha) => soma + (linha.valor ?? 0), 0),
-      naoAutorizado: abertas.filter((linha) => !linha.autorizado).reduce((soma, linha) => soma + (linha.valor ?? 0), 0),
+      quantidadePagas: pagas.length,
+      quantidadeAbertas: abertas.length,
+      valorPago: somar(pagas),
+      valorNaoPago: somar(abertas),
+      naoAutorizado: somar(abertas.filter((linha) => !linha.autorizado)),
     };
   }, [linhasVisiveis]);
 
@@ -142,7 +174,7 @@ const ProgramacaoContasConteudo: React.FC = () => {
       : { campo, direcao: campo === 'data' || campo === 'valor' ? 'desc' : 'asc' });
 
   const abrirNova = () => {
-    setFormulario({ nome: '', data: chaveDia(new Date()), autorizado: false, pago: false });
+    setFormulario({ nome: '', data: chaveDia(new Date()), valor: '', autorizado: false, pago: false });
     setErroModal('');
     setModal({ conta: null });
   };
@@ -150,10 +182,10 @@ const ProgramacaoContasConteudo: React.FC = () => {
   // Só contas manuais são editáveis; os dados completos delas vêm da própria linha.
   const abrirEdicao = (linha: LinhaProgramacao) => {
     const conta: ProgramacaoConta = contasManuais[linha.chave] ?? {
-      id: linha.id!, data: linha.data, nome: linha.nome, criador: linha.criador ?? '',
+      id: linha.id!, data: linha.data, nome: linha.nome, criador: linha.criador ?? '', valor: linha.valor,
       autorizado: linha.autorizado, pago: linha.pago, criadoEm: '', atualizadoEm: '',
     };
-    setFormulario({ nome: conta.nome, data: conta.data, autorizado: conta.autorizado, pago: conta.pago });
+    setFormulario({ nome: conta.nome, data: conta.data, valor: valorParaCampo(conta.valor), autorizado: conta.autorizado, pago: conta.pago });
     setErroModal('');
     setModal({ conta });
   };
@@ -161,18 +193,21 @@ const ProgramacaoContasConteudo: React.FC = () => {
   const salvar = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!modal) return;
+    const valor = lerValorDigitado(formulario.valor);
+    if (Number.isNaN(valor)) { setErroModal('Informe um valor válido, por exemplo 1.234,56.'); return; }
     setSalvando(true); setErroModal('');
     try {
       const conta = modal.conta;
       const salva: ProgramacaoConta = await lerResposta(await fetch(conta ? `/api/programacao/${conta.id}` : '/api/programacao', {
         method: conta ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formulario),
+        body: JSON.stringify({ nome: formulario.nome, data: formulario.data, valor, autorizado: formulario.autorizado, pago: formulario.pago }),
       }));
       setContasManuais((atuais) => ({ ...atuais, [`manual-${salva.id}`]: salva }));
       setModal(null);
+      // No modo mês, acompanha o mês da conta salva; no período personalizado, só recarrega.
       const mesDaConta = salva.data.slice(0, 7);
-      if (mesDaConta !== mes) setMes(mesDaConta); else await buscar(mes, true);
+      if (!periodo && mesDaConta !== mes) setMes(mesDaConta); else await buscar(consulta, true);
     } catch (e: any) {
       setErroModal(e.message);
     } finally {
@@ -267,26 +302,66 @@ const ProgramacaoContasConteudo: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1.5 bg-neutral-50 p-1 rounded-full border border-neutral-200">
-          <button type="button" onClick={() => setMes(deslocarMes(mes, -1))} aria-label="Mês anterior" className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 hover:text-yellow-600 hover:bg-neutral-100 transition-all">
-            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
-          </button>
-          <span className="px-2 text-xs font-black text-neutral-900 min-w-[120px] text-center">{rotuloMes(mes)}</span>
-          <button type="button" onClick={() => setMes(deslocarMes(mes, 1))} aria-label="Próximo mês" className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 hover:text-yellow-600 hover:bg-neutral-100 transition-all">
-            <ChevronRight className="w-4 h-4" aria-hidden="true" />
-          </button>
+        {!periodo && (
+          <>
+            <div className="flex items-center gap-1.5 bg-neutral-50 p-1 rounded-full border border-neutral-200">
+              <button type="button" onClick={() => setMes(deslocarMes(mes, -1))} aria-label="Mês anterior" className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 hover:text-yellow-600 hover:bg-neutral-100 transition-all">
+                <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+              </button>
+              <span className="px-2 text-xs font-black text-neutral-900 min-w-[120px] text-center">{rotuloMes(mes)}</span>
+              <button type="button" onClick={() => setMes(deslocarMes(mes, 1))} aria-label="Próximo mês" className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 hover:text-yellow-600 hover:bg-neutral-100 transition-all">
+                <ChevronRight className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+            <button type="button" onClick={() => setMes(mesAtual)} disabled={mes === mesAtual} className="px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">Hoje</button>
+          </>
+        )}
+        <div role="group" aria-label="Período personalizado" className={`flex flex-wrap items-center gap-2 rounded-full border px-3 py-1 ${periodo ? 'border-yellow-400 bg-yellow-50' : 'border-neutral-200 bg-white'}`}>
+          <label className="flex items-center gap-1.5 text-xs font-bold text-neutral-600">
+            De
+            <input type="date" value={periodo?.inicio ?? ''} onChange={(e) => definirInicio(e.target.value)} className="rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs font-normal text-neutral-800 outline-none focus:border-yellow-500" />
+          </label>
+          <label className="flex items-center gap-1.5 text-xs font-bold text-neutral-600">
+            Até
+            <input type="date" value={periodo?.fim ?? ''} min={periodo?.inicio} onChange={(e) => definirFim(e.target.value)} className="rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs font-normal text-neutral-800 outline-none focus:border-yellow-500" />
+          </label>
+          {periodo && (
+            <button type="button" onClick={() => setPeriodo(null)} className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-yellow-800 hover:bg-yellow-100 transition-all">
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
+              Limpar período
+            </button>
+          )}
         </div>
-        <button type="button" onClick={() => setMes(mesAtual)} disabled={mes === mesAtual} className="px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">Hoje</button>
-        <button type="button" onClick={() => buscar(mes, true)} disabled={carregando || atualizando} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">
+        <button type="button" onClick={() => buscar(consulta, true)} disabled={carregando || atualizando} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">
           <RefreshCw className={`w-3.5 h-3.5 ${atualizando ? 'animate-spin' : ''}`} aria-hidden="true" />
           Atualizar
         </button>
         {!carregando && (
           <p className="text-xs text-neutral-500 sm:ml-auto">
-            {resumo.total} {resumo.total === 1 ? 'conta' : 'contas'} · Em aberto <strong className="text-neutral-800">{formatarValor(resumo.emAberto)}</strong> · Aguardando autorização <strong className="text-red-600">{formatarValor(resumo.naoAutorizado)}</strong>
+            {periodo ? `${formatDataIsoParaBr(periodo.inicio)} a ${formatDataIsoParaBr(periodo.fim)} · ` : ''}
+            {resumo.total} {resumo.total === 1 ? 'conta' : 'contas'} · Aguardando autorização <strong className="text-red-600">{formatarValor(resumo.naoAutorizado)}</strong>
             {atualizadoEm && <span className="text-neutral-400"> · Nomus atualizado às {new Date(atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
           </p>
         )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 flex flex-col gap-1.5">
+          <span className="flex items-center gap-1.5 text-xs text-emerald-700/80 font-medium">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+            Pago
+          </span>
+          <span className="text-xl font-black text-emerald-900 tabular-nums">{carregando ? '—' : formatarValor(resumo.valorPago)}</span>
+          <span className="text-[11px] text-emerald-700/70">{carregando ? '' : `${resumo.quantidadePagas} ${resumo.quantidadePagas === 1 ? 'conta' : 'contas'}`}</span>
+        </div>
+        <div className="rounded-2xl bg-red-50 border border-red-100 p-4 flex flex-col gap-1.5">
+          <span className="flex items-center gap-1.5 text-xs text-red-700/80 font-medium">
+            <Clock3 className="w-3.5 h-3.5 text-red-600" aria-hidden="true" />
+            Não pago
+          </span>
+          <span className="text-xl font-black text-red-900 tabular-nums">{carregando ? '—' : formatarValor(resumo.valorNaoPago)}</span>
+          <span className="text-[11px] text-red-700/70">{carregando ? '' : `${resumo.quantidadeAbertas} ${resumo.quantidadeAbertas === 1 ? 'conta' : 'contas'}`}</span>
+        </div>
       </div>
 
       {erro && (
@@ -389,6 +464,9 @@ const ProgramacaoContasConteudo: React.FC = () => {
             </label>
             <label className="block text-xs font-bold text-neutral-600">Data
               <input required type="date" value={formulario.data} onChange={(e) => setFormulario({ ...formulario, data: e.target.value })} className="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm font-normal outline-none focus:border-yellow-500" />
+            </label>
+            <label className="block text-xs font-bold text-neutral-600">Valor (R$) <span className="font-normal text-neutral-400">— opcional</span>
+              <input inputMode="decimal" value={formulario.valor} onChange={(e) => setFormulario({ ...formulario, valor: e.target.value })} placeholder="Ex.: 1.234,56" className="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm font-normal outline-none focus:border-yellow-500" />
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs font-bold text-neutral-600">Pagamento

@@ -717,6 +717,8 @@ export interface LinhaProgramacao {
 
 export interface RespostaProgramacao {
   mes: string; // AAAA-MM
+  inicio?: string; // aaaa-mm-dd — presente quando o filtro é um período personalizado
+  fim?: string; // aaaa-mm-dd
   atualizadoEm: string; // ISO
   contas: LinhaProgramacao[];
 }
@@ -727,6 +729,7 @@ export interface ProgramacaoConta {
   data: string; // aaaa-mm-dd
   nome: string;
   criador: string;
+  valor?: number | null; // R$, opcional
   autorizado: boolean; // coluna "Pagamento": Autorizado / Não autorizado
   pago: boolean; // coluna "Status": Pago / Não pago
   criadoEm: string; // ISO

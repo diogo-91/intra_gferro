@@ -49,6 +49,13 @@ function validarData(valor: unknown): string {
   return valor;
 }
 
+// Valor da conta em R$: opcional (vazio/null = sem valor), nunca negativo, 2 casas.
+function validarValor(valor: unknown): number | null {
+  if (valor === null || valor === undefined || valor === '') return null;
+  if (typeof valor !== 'number' || !Number.isFinite(valor) || valor < 0 || valor > 1_000_000_000) throw erro('Informe um valor válido.', 400);
+  return Math.round(valor * 100) / 100;
+}
+
 function validarBooleano(valor: unknown, campo: string): boolean {
   if (typeof valor !== 'boolean') throw erro(`Valor inválido para ${campo}.`, 400);
   return valor;
@@ -59,7 +66,7 @@ export async function listarContasProgramacao(): Promise<ProgramacaoConta[]> {
 }
 
 export async function criarContaProgramacao(
-  dados: { nome: unknown; data: unknown; autorizado?: unknown; pago?: unknown },
+  dados: { nome: unknown; data: unknown; valor?: unknown; autorizado?: unknown; pago?: unknown },
   criador: string
 ): Promise<ProgramacaoConta> {
   const agora = new Date().toISOString();
@@ -67,6 +74,7 @@ export async function criarContaProgramacao(
     id: randomUUID(),
     nome: validarNome(dados.nome),
     data: validarData(dados.data),
+    valor: validarValor(dados.valor),
     criador,
     autorizado: dados.autorizado === undefined ? false : validarBooleano(dados.autorizado, 'pagamento'),
     pago: dados.pago === undefined ? false : validarBooleano(dados.pago, 'status'),
@@ -79,7 +87,7 @@ export async function criarContaProgramacao(
 
 export async function atualizarContaProgramacao(
   id: string,
-  dados: { nome?: unknown; data?: unknown; autorizado?: unknown; pago?: unknown }
+  dados: { nome?: unknown; data?: unknown; valor?: unknown; autorizado?: unknown; pago?: unknown }
 ): Promise<ProgramacaoConta> {
   const contas = await carregar();
   const atual = contas.find((conta) => conta.id === id);
@@ -88,6 +96,7 @@ export async function atualizarContaProgramacao(
     ...atual,
     nome: dados.nome === undefined ? atual.nome : validarNome(dados.nome),
     data: dados.data === undefined ? atual.data : validarData(dados.data),
+    valor: dados.valor === undefined ? (atual.valor ?? null) : validarValor(dados.valor),
     autorizado: dados.autorizado === undefined ? atual.autorizado : validarBooleano(dados.autorizado, 'pagamento'),
     pago: dados.pago === undefined ? atual.pago : validarBooleano(dados.pago, 'status'),
     atualizadoEm: new Date().toISOString(),
@@ -193,7 +202,7 @@ export async function montarLinhasProgramacao(resumo: ResumoFinanceiro, mes: str
       data: conta.data,
       nome: conta.nome,
       criador: conta.criador,
-      valor: null,
+      valor: conta.valor ?? null,
       autorizado: conta.autorizado,
       autorizadoPor: null,
       autorizacaoEditavel: true,
@@ -201,4 +210,41 @@ export async function montarLinhasProgramacao(resumo: ResumoFinanceiro, mes: str
     }));
 
   return [...abertas, ...pagas, ...manuais].sort((a, b) => b.data.localeCompare(a.data) || a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+// ---- Período personalizado (De/Até), podendo cruzar meses ----
+
+export const MAX_MESES_PERIODO = 6;
+
+export function validarPeriodo(inicio: unknown, fim: unknown): { inicio: string; fim: string; meses: string[] } {
+  const ini = validarData(inicio);
+  const f = validarData(fim);
+  if (ini > f) throw erro('A data inicial deve ser anterior ou igual à data final.', 400);
+  const meses: string[] = [];
+  const [anoIni, mesIni] = ini.split('-').map(Number);
+  const [anoFim, mesFim] = f.split('-').map(Number);
+  const limite = new Date(anoFim, mesFim - 1, 1);
+  for (let cursor = new Date(anoIni, mesIni - 1, 1); cursor <= limite; cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)) {
+    meses.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`);
+    if (meses.length > MAX_MESES_PERIODO) throw erro(`O período pode abranger no máximo ${MAX_MESES_PERIODO} meses.`, 400);
+  }
+  return { inicio: ini, fim: f, meses };
+}
+
+// Junta os meses do período (um resumo financeiro por mês, em cache) e fica só com os dias pedidos.
+export async function montarLinhasPeriodo(
+  periodo: { inicio: string; fim: string; meses: string[] },
+  obterResumo: (mes: string) => Promise<ResumoFinanceiro>
+): Promise<{ contas: LinhaProgramacao[]; atualizadoEm: string }> {
+  const contas: LinhaProgramacao[] = [];
+  const atualizacoes: string[] = [];
+  for (const mes of periodo.meses) {
+    const resumo = await obterResumo(mes);
+    atualizacoes.push(resumo.atualizadoEm);
+    contas.push(...(await montarLinhasProgramacao(resumo, mes)));
+  }
+  const filtradas = contas
+    .filter((linha) => linha.data >= periodo.inicio && linha.data <= periodo.fim)
+    .sort((a, b) => b.data.localeCompare(a.data) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  return { contas: filtradas, atualizadoEm: atualizacoes.sort()[0] };
 }
