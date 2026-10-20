@@ -2,6 +2,7 @@ export type TabType =
   | 'dashboard'
   | 'vendas'
   | 'financeiro'
+  | 'programacao'
   | 'producao'
   | 'gestao'
   | 'informativos'
@@ -696,4 +697,16 @@ export interface NotificationItem {
   time: string;
   unread: boolean;
   type: 'seguranca' | 'rh' | 'comunicado' | 'chamado';
+}
+
+// Programação de contas (Financeiro > Programação)
+export interface ProgramacaoConta {
+  id: string;
+  data: string; // aaaa-mm-dd
+  nome: string;
+  criador: string;
+  autorizado: boolean; // coluna "Pagamento": Autorizado / Não autorizado
+  pago: boolean; // coluna "Status": Pago / Não pago
+  criadoEm: string; // ISO
+  atualizadoEm: string; // ISO
 }

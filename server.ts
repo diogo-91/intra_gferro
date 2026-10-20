@@ -26,6 +26,7 @@ import { LOJAS, lojaDoVendedor, type LojaId } from './src/data/vendedorLoja';
 import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinirSenhaUsuario, removerUsuario } from './usuarios';
+import { atualizarContaProgramacao, criarContaProgramacao, listarContasProgramacao, removerContaProgramacao } from './programacaoContas';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -1005,6 +1006,42 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
       if (typeof setor !== 'string' || !setor.trim()) {
         return res.status(400).json({ error: 'Informe o setor do funcionário.' });
       }
+  // Programação de contas (Financeiro > Programação) — dado próprio da
+  // intranet, protegido pela permissão do módulo "programacao".
+  app.get('/api/programacao', async (_req, res) => {
+    try {
+      res.json(await listarContasProgramacao());
+    } catch (error: any) {
+      console.error('Erro ao listar programação de contas:', error);
+      res.status(error.status || 500).json({ error: error.message || 'Erro ao listar as contas.' });
+    }
+  });
+  app.post('/api/programacao', async (req, res) => {
+    try {
+      const sessao = await obterSessao(req);
+      if (!sessao) return res.status(401).json({ error: 'Não autenticado.' });
+      const criador = sessao.nome || nomePorEmail(sessao.email);
+      res.status(201).json(await criarContaProgramacao(req.body || {}, criador));
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Erro ao cadastrar a conta.' });
+    }
+  });
+  app.patch('/api/programacao/:id', async (req, res) => {
+    try {
+      res.json(await atualizarContaProgramacao(req.params.id, req.body || {}));
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Erro ao atualizar a conta.' });
+    }
+  });
+  app.delete('/api/programacao/:id', async (req, res) => {
+    try {
+      await removerContaProgramacao(req.params.id);
+      res.status(204).end();
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Erro ao remover a conta.' });
+    }
+  });
+
       const novo = await cadastrarFuncionario({
         nome: nome.trim(),
         cargo: cargo.trim(),

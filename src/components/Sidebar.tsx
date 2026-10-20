@@ -36,7 +36,7 @@ interface SidebarProps {
   administrador: boolean;
 }
 
-type NavLeaf = { id: TabType; label: string; icon: React.FC<{ className?: string }>; badge?: string };
+type NavLeaf = { id: TabType; label: string; icon: React.FC<{ className?: string }>; badge?: string; nested?: boolean };
 type NavGroup = { id: 'dashboard'; label: string; icon: React.FC<{ className?: string }>; children: NavLeaf[] };
 type NavEntry = NavLeaf | NavGroup;
 
@@ -84,6 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'financeiro', label: 'Financeiro', icon: Wallet },
         { id: 'producao', label: 'Produção', icon: Factory },
         { id: 'gestao', label: 'Gestão', icon: Target },
+        { id: 'programacao', label: 'Programação', icon: ClipboardList, nested: true },
       ],
     },
   ];
@@ -263,7 +264,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             key={child.id}
                             id={`sidebar-tab-${child.id}`}
                             onClick={() => handleSelectTab(child.id)}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition-all ${
+                            className={`w-full flex items-center gap-3 ${child.nested ? 'pl-8 pr-3' : 'px-3'} py-2.5 rounded-xl font-medium text-xs transition-all ${
                               isActive
                                 ? 'bg-yellow-400 text-black font-bold shadow-lg shadow-yellow-400/20'
                                 : 'text-neutral-400 hover:text-yellow-400 hover:bg-white/5'

@@ -27,6 +27,7 @@ export const MODULOS = [
   { id: 'ia-assistente', nome: 'Ideias e Sugestões' },
   { id: 'vendas', nome: 'Dashboard de Vendas', submodulos: SUBMODULOS_VENDAS },
   { id: 'financeiro', nome: 'Dashboard Financeiro' },
+  { id: 'programacao', nome: 'Financeiro — Programação de contas' },
   { id: 'producao', nome: 'Produção' },
   { id: 'gestao', nome: 'Dashboard de Gestão' },
 ] as const satisfies ReadonlyArray<{ id: TabType; nome: string; submodulos?: readonly Submodulo[] }>;

@@ -210,7 +210,7 @@ export function exigirAdministrador(req: Request, res: Response, next: NextFunct
 }
 
 const MODULO_POR_ROTA: Array<[string, ModuloId]> = [
-  ['/api/vendas', 'vendas'], ['/api/financeiro', 'financeiro'], ['/api/producao', 'producao'],
+  ['/api/vendas', 'vendas'], ['/api/financeiro', 'financeiro'], ['/api/programacao', 'programacao'], ['/api/producao', 'producao'],
   ['/api/rh', 'pessoas'], ['/api/chat-interno', 'chat'], ['/api/chat', 'ia-assistente'], ['/api/sac', 'servicos'],
   ['/api/enquetes', 'informativos'],
   ['/api/qualidade', 'qualidade'],

@@ -27,6 +27,7 @@ import { ChatInterno } from './components/ChatInterno';
 import { DepartamentosApp } from './components/DepartamentosApp';
 import { VendasDashboard } from './components/VendasDashboard';
 import { ProgramacaoFinanceira } from './components/ProgramacaoFinanceira';
+import { ProgramacaoContas } from './components/ProgramacaoContas';
 import { Producao } from './components/Producao';
 import { AIAssistantModal } from './components/AIAssistantModal';
 import { NovoComunicadoModal } from './components/NovoComunicadoModal';
@@ -279,6 +280,8 @@ export default function App() {
           {activeTab === 'financeiro' && <ProgramacaoFinanceira />}
 
           {activeTab === 'producao' && <Producao />}
+          {activeTab === 'programacao' && <ProgramacaoContas />}
+
 
           {activeTab === 'gestao' && <GestaoMetasMensais podeEditar={!!sessao?.administrador} />}
 
