@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ClipboardList, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
-import type { ProgramacaoConta } from '../types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ClipboardList, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import type { LinhaProgramacao, ProgramacaoConta, RespostaProgramacao } from '../types';
 import { chaveDia, formatDataIsoParaBr } from '../utils/format';
 
-type CampoOrdenacao = 'data' | 'nome' | 'criador' | 'autorizado' | 'pago';
+type CampoOrdenacao = 'data' | 'nome' | 'criador' | 'valor' | 'autorizado' | 'pago';
 type Direcao = 'asc' | 'desc';
 
 interface FormularioConta {
@@ -13,7 +13,23 @@ interface FormularioConta {
   pago: boolean;
 }
 
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+
+const formatarValor = (valor: number) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const mesDe = (data: Date) => `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+
+function deslocarMes(mes: string, delta: number): string {
+  const [ano, numero] = mes.split('-').map(Number);
+  return mesDe(new Date(ano, numero - 1 + delta, 1));
+}
+
+function rotuloMes(mes: string): string {
+  const [ano, numero] = mes.split('-').map(Number);
+  return `${MESES[numero - 1]} ${ano}`;
+}
 
 const ERRO_RESPOSTA_INVALIDA = 'O servidor não respondeu como esperado. Atualize a página; se continuar, o servidor ainda não foi atualizado com esta funcionalidade.';
 
@@ -49,8 +65,11 @@ const ESTILO_PAGAMENTO = {
 } as const;
 
 const ProgramacaoContasConteudo: React.FC = () => {
-  const [contas, setContas] = useState<ProgramacaoConta[]>([]);
+  const [mes, setMes] = useState(() => mesDe(new Date()));
+  const [linhas, setLinhas] = useState<LinhaProgramacao[]>([]);
+  const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState('');
   const [busca, setBusca] = useState('');
   const [ordenacao, setOrdenacao] = useState<{ campo: CampoOrdenacao; direcao: Direcao }>({ campo: 'data', direcao: 'desc' });
@@ -58,37 +77,69 @@ const ProgramacaoContasConteudo: React.FC = () => {
   const [formulario, setFormulario] = useState<FormularioConta>({ nome: '', data: '', autorizado: false, pago: false });
   const [salvando, setSalvando] = useState(false);
   const [erroModal, setErroModal] = useState('');
+  const [contasManuais, setContasManuais] = useState<Record<string, ProgramacaoConta>>({});
 
-  useEffect(() => {
-    fetch('/api/programacao')
-      .then(lerResposta)
-      .then((dados) => {
-        if (!Array.isArray(dados)) throw new Error(ERRO_RESPOSTA_INVALIDA);
-        setContas(dados);
-      })
-      .catch((e) => setErro(e.message))
-      .finally(() => setCarregando(false));
+  // Resposta de um mês que já deixou de ser o exibido (usuário navegou) é descartada.
+  const mesExibido = useRef(mes);
+  mesExibido.current = mes;
+
+  const buscar = useCallback(async (mesBuscado: string, silencioso: boolean) => {
+    if (silencioso) setAtualizando(true); else setCarregando(true);
+    try {
+      const dados: RespostaProgramacao = await lerResposta(await fetch(`/api/programacao?mes=${mesBuscado}`));
+      if (!Array.isArray(dados?.contas)) throw new Error(ERRO_RESPOSTA_INVALIDA);
+      if (mesExibido.current !== mesBuscado) return;
+      setLinhas(dados.contas);
+      setAtualizadoEm(dados.atualizadoEm);
+      setErro('');
+    } catch (e: any) {
+      if (mesExibido.current === mesBuscado) setErro(e.message);
+    } finally {
+      if (mesExibido.current === mesBuscado) {
+        setCarregando(false);
+        setAtualizando(false);
+      }
+    }
   }, []);
 
-  const contasVisiveis = useMemo(() => {
+  // Carrega ao trocar de mês e acompanha o Nomus a cada minuto, sem piscar a tela.
+  useEffect(() => {
+    let ativo = true;
+    setLinhas([]);
+    buscar(mes, false);
+    const intervalo = setInterval(() => { if (ativo) buscar(mes, true); }, 60_000);
+    return () => { ativo = false; clearInterval(intervalo); };
+  }, [mes, buscar]);
+
+  const linhasVisiveis = useMemo(() => {
     const termo = normalizar(busca.trim());
-    const filtradas = termo ? contas.filter((conta) => normalizar(conta.nome).includes(termo)) : contas;
+    const filtradas = termo ? linhas.filter((linha) => normalizar(linha.nome).includes(termo)) : linhas;
     const fator = ordenacao.direcao === 'asc' ? 1 : -1;
     return [...filtradas].sort((a, b) => {
       switch (ordenacao.campo) {
         case 'data': return fator * a.data.localeCompare(b.data);
         case 'nome': return fator * a.nome.localeCompare(b.nome, 'pt-BR');
-        case 'criador': return fator * a.criador.localeCompare(b.criador, 'pt-BR');
+        case 'criador': return fator * (a.criador ?? '').localeCompare(b.criador ?? '', 'pt-BR');
+        case 'valor': return fator * ((a.valor ?? -1) - (b.valor ?? -1));
         case 'autorizado': return fator * (Number(a.autorizado) - Number(b.autorizado));
         case 'pago': return fator * (Number(a.pago) - Number(b.pago));
       }
     });
-  }, [contas, busca, ordenacao]);
+  }, [linhas, busca, ordenacao]);
+
+  const resumo = useMemo(() => {
+    const abertas = linhasVisiveis.filter((linha) => !linha.pago);
+    return {
+      total: linhasVisiveis.length,
+      emAberto: abertas.reduce((soma, linha) => soma + (linha.valor ?? 0), 0),
+      naoAutorizado: abertas.filter((linha) => !linha.autorizado).reduce((soma, linha) => soma + (linha.valor ?? 0), 0),
+    };
+  }, [linhasVisiveis]);
 
   const alternarOrdenacao = (campo: CampoOrdenacao) =>
     setOrdenacao((atual) => atual.campo === campo
       ? { campo, direcao: atual.direcao === 'asc' ? 'desc' : 'asc' }
-      : { campo, direcao: campo === 'data' ? 'desc' : 'asc' });
+      : { campo, direcao: campo === 'data' || campo === 'valor' ? 'desc' : 'asc' });
 
   const abrirNova = () => {
     setFormulario({ nome: '', data: chaveDia(new Date()), autorizado: false, pago: false });
@@ -96,7 +147,12 @@ const ProgramacaoContasConteudo: React.FC = () => {
     setModal({ conta: null });
   };
 
-  const abrirEdicao = (conta: ProgramacaoConta) => {
+  // Só contas manuais são editáveis; os dados completos delas vêm da própria linha.
+  const abrirEdicao = (linha: LinhaProgramacao) => {
+    const conta: ProgramacaoConta = contasManuais[linha.chave] ?? {
+      id: linha.id!, data: linha.data, nome: linha.nome, criador: linha.criador ?? '',
+      autorizado: linha.autorizado, pago: linha.pago, criadoEm: '', atualizadoEm: '',
+    };
     setFormulario({ nome: conta.nome, data: conta.data, autorizado: conta.autorizado, pago: conta.pago });
     setErroModal('');
     setModal({ conta });
@@ -113,8 +169,10 @@ const ProgramacaoContasConteudo: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formulario),
       }));
-      setContas((atuais) => conta ? atuais.map((item) => (item.id === salva.id ? salva : item)) : [...atuais, salva]);
+      setContasManuais((atuais) => ({ ...atuais, [`manual-${salva.id}`]: salva }));
       setModal(null);
+      const mesDaConta = salva.data.slice(0, 7);
+      if (mesDaConta !== mes) setMes(mesDaConta); else await buscar(mes, true);
     } catch (e: any) {
       setErroModal(e.message);
     } finally {
@@ -123,44 +181,57 @@ const ProgramacaoContasConteudo: React.FC = () => {
   };
 
   // Seletor "Pagamento" direto na tabela: atualiza na hora e volta atrás se o servidor recusar.
-  const alterarAutorizacao = async (conta: ProgramacaoConta, autorizado: boolean) => {
+  const alterarAutorizacao = async (linha: LinhaProgramacao, autorizado: boolean) => {
     setErro('');
-    setContas((atuais) => atuais.map((item) => (item.id === conta.id ? { ...item, autorizado } : item)));
+    const aplicar = (alvo: LinhaProgramacao, valores: Partial<LinhaProgramacao>) =>
+      setLinhas((atuais) => atuais.map((item) => (item.chave === alvo.chave ? { ...item, ...valores } : item)));
+    aplicar(linha, { autorizado });
     try {
-      const salva: ProgramacaoConta = await lerResposta(await fetch(`/api/programacao/${conta.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ autorizado }),
-      }));
-      setContas((atuais) => atuais.map((item) => (item.id === salva.id ? salva : item)));
+      if (linha.origem === 'nomus') {
+        const resposta = await lerResposta(await fetch(`/api/programacao/nomus/${linha.contaNomusId}/autorizacao`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ autorizado }),
+        }));
+        aplicar(linha, { autorizado: resposta.autorizado, autorizadoPor: resposta.autorizadoPor });
+      } else {
+        await lerResposta(await fetch(`/api/programacao/${linha.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ autorizado }),
+        }));
+      }
     } catch (e: any) {
-      setContas((atuais) => atuais.map((item) => (item.id === conta.id ? conta : item)));
+      aplicar(linha, { autorizado: linha.autorizado, autorizadoPor: linha.autorizadoPor });
       setErro(e.message);
     }
   };
 
-  const remover = async (conta: ProgramacaoConta) => {
-    if (!window.confirm(`Remover a conta "${conta.nome}"?`)) return;
+  const remover = async (linha: LinhaProgramacao) => {
+    if (!window.confirm(`Remover a conta "${linha.nome}"?`)) return;
     setErro('');
     try {
-      await lerResposta(await fetch(`/api/programacao/${conta.id}`, { method: 'DELETE' }));
-      setContas((atuais) => atuais.filter((item) => item.id !== conta.id));
+      await lerResposta(await fetch(`/api/programacao/${linha.id}`, { method: 'DELETE' }));
+      setLinhas((atuais) => atuais.filter((item) => item.chave !== linha.chave));
     } catch (e: any) {
       setErro(e.message);
     }
   };
 
-  const colunas: Array<{ campo: CampoOrdenacao; titulo: string }> = [
+  const colunas: Array<{ campo: CampoOrdenacao; titulo: string; alinhar?: 'right' }> = [
     { campo: 'data', titulo: 'Data' },
     { campo: 'nome', titulo: 'Nome da conta' },
     { campo: 'criador', titulo: 'Criador da conta' },
+    { campo: 'valor', titulo: 'Valor', alinhar: 'right' },
     { campo: 'autorizado', titulo: 'Pagamento' },
     { campo: 'pago', titulo: 'Status' },
   ];
 
+  const mesAtual = mesDe(new Date());
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <span className="w-12 h-12 shrink-0 rounded-2xl bg-yellow-100 text-yellow-700 flex items-center justify-center">
             <ClipboardList className="w-6 h-6" aria-hidden="true" />
@@ -172,7 +243,7 @@ const ProgramacaoContasConteudo: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 sm:ml-auto sm:items-center">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 lg:ml-auto sm:items-center">
           <label className="relative block">
             <span className="sr-only">Buscar por nome da conta</span>
             <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" aria-hidden="true" />
@@ -195,6 +266,29 @@ const ProgramacaoContasConteudo: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5 bg-neutral-50 p-1 rounded-full border border-neutral-200">
+          <button type="button" onClick={() => setMes(deslocarMes(mes, -1))} aria-label="Mês anterior" className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 hover:text-yellow-600 hover:bg-neutral-100 transition-all">
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <span className="px-2 text-xs font-black text-neutral-900 min-w-[120px] text-center">{rotuloMes(mes)}</span>
+          <button type="button" onClick={() => setMes(deslocarMes(mes, 1))} aria-label="Próximo mês" className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-500 hover:text-yellow-600 hover:bg-neutral-100 transition-all">
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
+        <button type="button" onClick={() => setMes(mesAtual)} disabled={mes === mesAtual} className="px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">Hoje</button>
+        <button type="button" onClick={() => buscar(mes, true)} disabled={carregando || atualizando} className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">
+          <RefreshCw className={`w-3.5 h-3.5 ${atualizando ? 'animate-spin' : ''}`} aria-hidden="true" />
+          Atualizar
+        </button>
+        {!carregando && (
+          <p className="text-xs text-neutral-500 sm:ml-auto">
+            {resumo.total} {resumo.total === 1 ? 'conta' : 'contas'} · Em aberto <strong className="text-neutral-800">{formatarValor(resumo.emAberto)}</strong> · Aguardando autorização <strong className="text-red-600">{formatarValor(resumo.naoAutorizado)}</strong>
+            {atualizadoEm && <span className="text-neutral-400"> · Nomus atualizado às {new Date(atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
+          </p>
+        )}
+      </div>
+
       {erro && (
         <div role="alert" className="flex gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
           <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
@@ -204,10 +298,10 @@ const ProgramacaoContasConteudo: React.FC = () => {
 
       <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr>
-                {colunas.map(({ campo, titulo }) => {
+                {colunas.map(({ campo, titulo, alinhar }) => {
                   const ativa = ordenacao.campo === campo;
                   const Icone = !ativa ? ArrowUpDown : ordenacao.direcao === 'asc' ? ArrowUp : ArrowDown;
                   return (
@@ -215,9 +309,9 @@ const ProgramacaoContasConteudo: React.FC = () => {
                       key={campo}
                       scope="col"
                       aria-sort={ativa ? (ordenacao.direcao === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      className="text-left px-5 py-4 font-extrabold text-neutral-900"
+                      className={`px-5 py-4 font-extrabold text-neutral-900 ${alinhar === 'right' ? 'text-right' : 'text-left'}`}
                     >
-                      <button type="button" onClick={() => alternarOrdenacao(campo)} className="flex items-center gap-2 hover:text-yellow-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 rounded">
+                      <button type="button" onClick={() => alternarOrdenacao(campo)} className={`flex items-center gap-2 hover:text-yellow-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 rounded ${alinhar === 'right' ? 'ml-auto' : ''}`}>
                         {titulo}
                         <Icone className={`w-3.5 h-3.5 ${ativa ? 'text-yellow-600' : 'text-neutral-400'}`} aria-hidden="true" />
                       </button>
@@ -229,40 +323,50 @@ const ProgramacaoContasConteudo: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {carregando ? (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-neutral-500"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-yellow-600" aria-hidden="true" />Carregando contas...</td></tr>
-              ) : contasVisiveis.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-neutral-500">{contas.length === 0 ? 'Nenhuma conta cadastrada ainda. Clique em "Nova conta" para começar.' : 'Nenhuma conta encontrada para essa busca.'}</td></tr>
-              ) : contasVisiveis.map((conta) => (
-                <tr key={conta.id} className="hover:bg-neutral-50/60">
-                  <td className="px-5 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">{formatDataIsoParaBr(conta.data)}</td>
-                  <td className="px-5 py-3.5 text-neutral-900 min-w-[180px]">{conta.nome}</td>
-                  <td className="px-5 py-3.5 text-neutral-700">{conta.criador}</td>
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-neutral-500"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-yellow-600" aria-hidden="true" />Consultando as contas no Nomus... (na primeira vez do mês pode levar alguns minutos)</td></tr>
+              ) : linhasVisiveis.length === 0 ? (
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-neutral-500">{linhas.length === 0 ? `Nenhuma conta encontrada em ${rotuloMes(mes)}.` : 'Nenhuma conta encontrada para essa busca.'}</td></tr>
+              ) : linhasVisiveis.map((linha) => (
+                <tr key={linha.chave} className="hover:bg-neutral-50/60">
+                  <td className="px-5 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">{formatDataIsoParaBr(linha.data)}</td>
+                  <td className="px-5 py-3.5 text-neutral-900 min-w-[200px]">
+                    {linha.nome}
+                    {linha.origem === 'manual' && <span className="ml-2 align-middle rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-500">Manual</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-neutral-700" title={linha.criador ? undefined : 'O Nomus não informa quem criou a conta a pagar'}>{linha.criador ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-right tabular-nums text-neutral-900 whitespace-nowrap">{linha.valor !== null ? formatarValor(linha.valor) : '—'}</td>
                   <td className="px-5 py-3.5">
                     <select
-                      aria-label={`Pagamento da conta ${conta.nome}`}
-                      value={conta.autorizado ? 'sim' : 'nao'}
-                      onChange={(e) => alterarAutorizacao(conta, e.target.value === 'sim')}
-                      className={`w-44 rounded-lg border px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-400 ${ESTILO_PAGAMENTO[String(conta.autorizado) as 'true' | 'false']}`}
+                      aria-label={`Pagamento da conta ${linha.nome}`}
+                      value={linha.autorizado ? 'sim' : 'nao'}
+                      disabled={!linha.autorizacaoEditavel}
+                      onChange={(e) => alterarAutorizacao(linha, e.target.value === 'sim')}
+                      className={`w-44 rounded-lg border px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-70 ${ESTILO_PAGAMENTO[String(linha.autorizado) as 'true' | 'false']}`}
                     >
                       <option value="sim">Autorizado</option>
                       <option value="nao">Não autorizado</option>
                     </select>
+                    {linha.autorizadoPor && <span className="block mt-1 text-[11px] text-neutral-400">por {linha.autorizadoPor}</span>}
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium ${conta.pago ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                      <span className={`w-2.5 h-2.5 rounded-full ${conta.pago ? 'bg-emerald-500' : 'bg-red-500'}`} aria-hidden="true" />
-                      {conta.pago ? 'Pago' : 'Não pago'}
+                    <span className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium ${linha.pago ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                      <span className={`w-2.5 h-2.5 rounded-full ${linha.pago ? 'bg-emerald-500' : 'bg-red-500'}`} aria-hidden="true" />
+                      {linha.pago ? 'Pago' : 'Não pago'}
                     </span>
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => abrirEdicao(conta)} title="Editar conta" aria-label={`Editar conta ${conta.nome}`} className="w-10 h-10 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-                        <Pencil className="w-4 h-4" aria-hidden="true" />
-                      </button>
-                      <button type="button" onClick={() => remover(conta)} title="Remover conta" aria-label={`Remover conta ${conta.nome}`} className="w-10 h-10 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
-                        <Trash2 className="w-4 h-4" aria-hidden="true" />
-                      </button>
-                    </div>
+                    {linha.origem === 'manual' ? (
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => abrirEdicao(linha)} title="Editar conta" aria-label={`Editar conta ${linha.nome}`} className="w-10 h-10 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+                          <Pencil className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => remover(linha)} title="Remover conta" aria-label={`Remover conta ${linha.nome}`} className="w-10 h-10 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-neutral-400" title="Conta vinda do Nomus — só é alterada no próprio Nomus">Nomus</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -278,6 +382,7 @@ const ProgramacaoContasConteudo: React.FC = () => {
               <h2 id="titulo-modal-conta" className="text-lg font-black text-neutral-900">{modal.conta ? 'Editar conta' : 'Nova conta'}</h2>
               <button type="button" onClick={() => setModal(null)} aria-label="Fechar" className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"><X className="w-5 h-5" /></button>
             </div>
+            <p className="text-xs text-neutral-500">Use para contas que ainda não estão no Nomus. As contas do Nomus aparecem na lista automaticamente.</p>
 
             <label className="block text-xs font-bold text-neutral-600">Nome da conta
               <input required minLength={2} maxLength={120} autoFocus value={formulario.nome} onChange={(e) => setFormulario({ ...formulario, nome: e.target.value })} placeholder="Ex.: Fornecedor ABC" className="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm font-normal outline-none focus:border-yellow-500" />

@@ -6,9 +6,10 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';
-import type { ProgramacaoConta } from './src/types';
+import type { LinhaProgramacao, ProgramacaoConta, ResumoFinanceiro } from './src/types';
 
 const ARQUIVO = path.join(process.cwd(), 'data', 'programacao-contas.json');
+const ARQUIVO_AUTORIZACOES = path.join(process.cwd(), 'data', 'programacao-autorizacoes.json');
 
 let cache: ProgramacaoConta[] | null = null;
 
@@ -99,4 +100,105 @@ export async function removerContaProgramacao(id: string): Promise<void> {
   const contas = await carregar();
   if (!contas.some((conta) => conta.id === id)) throw erro('Conta não encontrada.', 404);
   await persistir(contas.filter((conta) => conta.id !== id));
+}
+
+// ---- Contas a pagar do Nomus: autorização guardada na intranet ----
+// O Nomus não tem o conceito de "pagamento autorizado", então a autorização de
+// cada conta em aberto fica num arquivo próprio, indexada pelo id da conta.
+
+export interface AutorizacaoConta {
+  autorizado: boolean;
+  por: string;
+  em: string; // ISO
+}
+
+let cacheAutorizacoes: Record<string, AutorizacaoConta> | null = null;
+
+async function carregarAutorizacoes(): Promise<Record<string, AutorizacaoConta>> {
+  if (cacheAutorizacoes) return cacheAutorizacoes;
+  try {
+    const dados = JSON.parse(await readFile(ARQUIVO_AUTORIZACOES, 'utf-8'));
+    cacheAutorizacoes = dados && typeof dados === 'object' && !Array.isArray(dados) ? dados : {};
+  } catch {
+    cacheAutorizacoes = {};
+  }
+  return cacheAutorizacoes!;
+}
+
+export async function definirAutorizacaoContaNomus(contaId: string, autorizado: boolean, por: string): Promise<AutorizacaoConta> {
+  if (!/^\d+$/.test(contaId)) throw erro('Conta inválida.', 400);
+  const autorizacao: AutorizacaoConta = { autorizado: validarBooleano(autorizado, 'pagamento'), por, em: new Date().toISOString() };
+  const todas = { ...(await carregarAutorizacoes()), [contaId]: autorizacao };
+  cacheAutorizacoes = todas;
+  await mkdir(path.dirname(ARQUIVO_AUTORIZACOES), { recursive: true });
+  await writeFile(ARQUIVO_AUTORIZACOES, JSON.stringify(todas, null, 2), 'utf-8');
+  return autorizacao;
+}
+
+// "dd/mm/aaaa" (formato do resumo financeiro) -> "aaaa-mm-dd".
+function dataBrParaIso(data: string): string {
+  const [dia, mes, ano] = data.split(' ')[0].split('/');
+  return `${ano}-${mes}-${dia}`;
+}
+
+// Junta, para o mês escolhido: contas a pagar em aberto do Nomus (Não pago),
+// pagamentos já realizados no Nomus (Pago) e as contas cadastradas à mão.
+export async function montarLinhasProgramacao(resumo: ResumoFinanceiro, mes: string): Promise<LinhaProgramacao[]> {
+  const autorizacoes = await carregarAutorizacoes();
+  const noMes = (dataIso: string) => dataIso.startsWith(`${mes}-`);
+
+  const abertas: LinhaProgramacao[] = resumo.contasPagar
+    .map((conta) => ({ conta, data: dataBrParaIso(conta.vencimento) }))
+    .filter(({ data }) => noMes(data))
+    .map(({ conta, data }) => {
+      const aut = autorizacoes[conta.id];
+      return {
+        chave: `nomus-pagar-${conta.id}`,
+        origem: 'nomus' as const,
+        contaNomusId: conta.id,
+        data,
+        nome: conta.fornecedor,
+        criador: null,
+        valor: conta.valor,
+        autorizado: aut?.autorizado ?? false,
+        autorizadoPor: aut?.autorizado ? aut.por : null,
+        autorizacaoEditavel: true,
+        pago: false,
+      };
+    });
+
+  const pagas: LinhaProgramacao[] = resumo.contasConcluidas
+    .filter((conta) => conta.tipo === 'pagar')
+    .map((conta) => ({ conta, data: dataBrParaIso(conta.dataBaixa) }))
+    .filter(({ data }) => noMes(data))
+    .map(({ conta, data }) => ({
+      chave: `nomus-pago-${conta.id}`,
+      origem: 'nomus' as const,
+      data,
+      nome: conta.pessoa,
+      criador: null,
+      valor: conta.valor,
+      autorizado: true,
+      autorizadoPor: null,
+      autorizacaoEditavel: false,
+      pago: true,
+    }));
+
+  const manuais: LinhaProgramacao[] = (await listarContasProgramacao())
+    .filter((conta) => noMes(conta.data))
+    .map((conta) => ({
+      chave: `manual-${conta.id}`,
+      origem: 'manual' as const,
+      id: conta.id,
+      data: conta.data,
+      nome: conta.nome,
+      criador: conta.criador,
+      valor: null,
+      autorizado: conta.autorizado,
+      autorizadoPor: null,
+      autorizacaoEditavel: true,
+      pago: conta.pago,
+    }));
+
+  return [...abertas, ...pagas, ...manuais].sort((a, b) => b.data.localeCompare(a.data) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }

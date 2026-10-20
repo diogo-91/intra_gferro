@@ -699,6 +699,28 @@ export interface NotificationItem {
   type: 'seguranca' | 'rh' | 'comunicado' | 'chamado';
 }
 
+// Linha da tabela de Programação: conta a pagar vinda do Nomus ou conta manual.
+export interface LinhaProgramacao {
+  chave: string; // 'nomus-pagar-<id>' | 'nomus-pago-<id>' | 'manual-<id>'
+  origem: 'nomus' | 'manual';
+  id?: string; // id da conta manual
+  contaNomusId?: string; // id da conta a pagar no Nomus (só linhas em aberto)
+  data: string; // aaaa-mm-dd
+  nome: string;
+  criador: string | null; // só contas manuais — o Nomus não informa quem criou a conta a pagar
+  valor: number | null;
+  autorizado: boolean; // coluna "Pagamento"
+  autorizadoPor: string | null;
+  autorizacaoEditavel: boolean; // false para pagamentos já realizados no Nomus
+  pago: boolean; // coluna "Status"
+}
+
+export interface RespostaProgramacao {
+  mes: string; // AAAA-MM
+  atualizadoEm: string; // ISO
+  contas: LinhaProgramacao[];
+}
+
 // Programação de contas (Financeiro > Programação)
 export interface ProgramacaoConta {
   id: string;

@@ -26,7 +26,7 @@ import { LOJAS, lojaDoVendedor, type LojaId } from './src/data/vendedorLoja';
 import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinirSenhaUsuario, removerUsuario } from './usuarios';
-import { atualizarContaProgramacao, criarContaProgramacao, listarContasProgramacao, removerContaProgramacao } from './programacaoContas';
+import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoContaNomus, montarLinhasProgramacao, removerContaProgramacao } from './programacaoContas';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -982,38 +982,33 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
     }
   });
 
-  // Cadastro de funcionários do módulo RH — dado próprio da intranet (ver
-  // comentário em funcionarios.ts sobre por que não vem do Nomus).
-  app.get('/api/rh/funcionarios', async (_req, res) => {
-    try {
-      const lista = await listarFuncionarios();
-      res.json(lista);
-    } catch (error: any) {
-      console.error('Erro ao listar funcionários:', error);
-      res.status(500).json({ error: 'Erro ao listar funcionários', details: error.message });
-    }
-  });
-
-  app.post('/api/rh/funcionarios', async (req, res) => {
-    try {
-      const { nome, cargo, setor, email, telefone, dataAdmissao, dataNascimento, status } = req.body || {};
-      if (typeof nome !== 'string' || !nome.trim()) {
-        return res.status(400).json({ error: 'Informe o nome do funcionário.' });
-      }
-      if (typeof cargo !== 'string' || !cargo.trim()) {
-        return res.status(400).json({ error: 'Informe o cargo do funcionário.' });
-      }
-      if (typeof setor !== 'string' || !setor.trim()) {
-        return res.status(400).json({ error: 'Informe o setor do funcionário.' });
-      }
   // Programação de contas (Financeiro > Programação) — dado próprio da
   // intranet, protegido pela permissão do módulo "programacao".
-  app.get('/api/programacao', async (_req, res) => {
+  app.get('/api/programacao', async (req, res) => {
     try {
-      res.json(await listarContasProgramacao());
+      const hoje = new Date();
+      const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+      const mes = typeof req.query.mes === 'string' ? req.query.mes : mesAtual;
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) {
+        return res.status(400).json({ error: 'mes inválido (use o formato AAAA-MM)' });
+      }
+      // Contas a pagar vêm do mesmo resumo (em cache) do painel Financeiro.
+      const resumo = await getResumoFinanceiro(mes);
+      res.json({ mes, atualizadoEm: resumo.atualizadoEm, contas: await montarLinhasProgramacao(resumo, mes) });
     } catch (error: any) {
       console.error('Erro ao listar programação de contas:', error);
       res.status(error.status || 500).json({ error: error.message || 'Erro ao listar as contas.' });
+    }
+  });
+  app.patch('/api/programacao/nomus/:contaId/autorizacao', async (req, res) => {
+    try {
+      const sessao = await obterSessao(req);
+      if (!sessao) return res.status(401).json({ error: 'Não autenticado.' });
+      const por = sessao.nome || nomePorEmail(sessao.email);
+      const autorizacao = await definirAutorizacaoContaNomus(req.params.contaId, req.body?.autorizado, por);
+      res.json({ contaId: req.params.contaId, autorizado: autorizacao.autorizado, autorizadoPor: autorizacao.autorizado ? autorizacao.por : null });
+    } catch (error: any) {
+      res.status(error.status || 500).json({ error: error.message || 'Erro ao salvar a autorização.' });
     }
   });
   app.post('/api/programacao', async (req, res) => {
@@ -1042,6 +1037,30 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
     }
   });
 
+  // Cadastro de funcionários do módulo RH — dado próprio da intranet (ver
+  // comentário em funcionarios.ts sobre por que não vem do Nomus).
+  app.get('/api/rh/funcionarios', async (_req, res) => {
+    try {
+      const lista = await listarFuncionarios();
+      res.json(lista);
+    } catch (error: any) {
+      console.error('Erro ao listar funcionários:', error);
+      res.status(500).json({ error: 'Erro ao listar funcionários', details: error.message });
+    }
+  });
+
+  app.post('/api/rh/funcionarios', async (req, res) => {
+    try {
+      const { nome, cargo, setor, email, telefone, dataAdmissao, dataNascimento, status } = req.body || {};
+      if (typeof nome !== 'string' || !nome.trim()) {
+        return res.status(400).json({ error: 'Informe o nome do funcionário.' });
+      }
+      if (typeof cargo !== 'string' || !cargo.trim()) {
+        return res.status(400).json({ error: 'Informe o cargo do funcionário.' });
+      }
+      if (typeof setor !== 'string' || !setor.trim()) {
+        return res.status(400).json({ error: 'Informe o setor do funcionário.' });
+      }
       const novo = await cadastrarFuncionario({
         nome: nome.trim(),
         cargo: cargo.trim(),
