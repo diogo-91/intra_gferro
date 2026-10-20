@@ -27,6 +27,7 @@ import { ChatInterno } from './components/ChatInterno';
 import { DepartamentosApp } from './components/DepartamentosApp';
 import { VendasDashboard } from './components/VendasDashboard';
 import { ProgramacaoFinanceira } from './components/ProgramacaoFinanceira';
+import { ProgramacaoContas } from './components/ProgramacaoContas';
 import { Producao } from './components/Producao';
 import { AIAssistantModal } from './components/AIAssistantModal';
 import { NovoComunicadoModal } from './components/NovoComunicadoModal';
@@ -39,6 +40,9 @@ import { nomeDoEmail } from './utils/format';
 import type { ModuloId, SubmoduloId } from './modulos';
 
 interface Sessao { email: string; nome?: string; administrador: boolean; modulos: ModuloId[]; submodulos: SubmoduloId[] }
+
+// "Programação" é uma tela do Financeiro: usa a permissão desse módulo.
+const moduloDaAba = (aba: TabType) => (aba === 'programacao' ? 'financeiro' : aba) as ModuloId;
 
 export default function App() {
   // Autenticação — verifica o cookie de sessão (ver auth.ts) antes de
@@ -71,7 +75,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('informativos');
 
   useEffect(() => {
-    if (!sessao || sessao.administrador || sessao.modulos.includes(activeTab as ModuloId)) return;
+    if (!sessao || sessao.administrador || sessao.modulos.includes(moduloDaAba(activeTab))) return;
     setActiveTab(sessao.modulos[0] || 'informativos');
   }, [sessao, activeTab]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,7 +90,7 @@ export default function App() {
   const [departments] = useState<Department[]>(initialDepartments);
   const [selectedDeptId, setSelectedDeptId] = useState<string>(initialDepartments[0]?.id ?? '');
   const [notifications, setNotifications] = useState<NotificationItem[]>(notificationsList);
-  const acessoAbaAtiva = !!sessao && (sessao.administrador || sessao.modulos.includes(activeTab as ModuloId));
+  const acessoAbaAtiva = !!sessao && (sessao.administrador || sessao.modulos.includes(moduloDaAba(activeTab)));
 
   // Modals & Panels
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
@@ -278,8 +282,9 @@ export default function App() {
 
           {activeTab === 'financeiro' && <ProgramacaoFinanceira />}
 
-          {activeTab === 'producao' && <Producao />}
+          {activeTab === 'programacao' && <ProgramacaoContas />}
 
+          {activeTab === 'producao' && <Producao />}
 
           {activeTab === 'gestao' && <GestaoMetasMensais podeEditar={!!sessao?.administrador} />}
 

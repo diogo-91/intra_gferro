@@ -36,7 +36,7 @@ interface SidebarProps {
   administrador: boolean;
 }
 
-type NavLeaf = { id: TabType; label: string; icon: React.FC<{ className?: string }>; badge?: string };
+type NavLeaf = { id: TabType; label: string; icon: React.FC<{ className?: string }>; badge?: string; subitens?: NavLeaf[] };
 type NavGroup = { id: 'dashboard'; label: string; icon: React.FC<{ className?: string }>; children: NavLeaf[] };
 type NavEntry = NavLeaf | NavGroup;
 
@@ -65,7 +65,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   modulos,
   administrador,
 }) => {
-  const permitido = (id: TabType) => administrador || modulos.includes(id as ModuloId);
+  // "Programação" é uma tela do Financeiro: usa a permissão desse módulo.
+  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' ? 'financeiro' : id) as ModuloId);
   const navItems: NavEntry[] = [
     { id: 'informativos', label: 'Informativos Internos', icon: Megaphone },
     { id: 'comunicados', label: 'Comunicados & Feed', icon: Newspaper },
@@ -81,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       children: [
         { id: 'vendas', label: 'Vendas', icon: TrendingUp },
-        { id: 'financeiro', label: 'Financeiro', icon: Wallet },
+        { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }] },
         { id: 'producao', label: 'Produção', icon: Factory },
         { id: 'gestao', label: 'Gestão', icon: Target },
       ],
@@ -89,11 +90,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const dashboardGroup = navItems.find(isGroup)!;
-  const isInDashboardGroup = dashboardGroup.children.some((c) => c.id === activeTab);
+  const contemAba = (item: NavLeaf) => item.id === activeTab || !!item.subitens?.some((sub) => sub.id === activeTab);
+  const isInDashboardGroup = dashboardGroup.children.some(contemAba);
   const isInDepartamentosGroup = activeTab === 'departamentos';
 
   const [dashboardExpanded, setDashboardExpanded] = useState(isInDashboardGroup);
   const [departamentosExpanded, setDepartamentosExpanded] = useState(isInDepartamentosGroup);
+  // Itens do Dashboard com submenu (hoje só o Financeiro): recolhidos à mão pelo usuário.
+  const [subitensRecolhidos, setSubitensRecolhidos] = useState<Set<string>>(() => new Set());
 
   const handleSelectTab = (tab: TabType) => {
     if (tab === 'ia-assistente') {
@@ -228,7 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             if (isGroup(item)) {
               const filhosPermitidos = item.children.filter((child) => permitido(child.id));
               if (filhosPermitidos.length === 0) return null;
-              const groupActive = filhosPermitidos.some((c) => c.id === activeTab);
+              const groupActive = filhosPermitidos.some(contemAba);
 
               return (
                 <div key={item.id}>
@@ -257,6 +261,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {filhosPermitidos.map((child) => {
                         const ChildIcon = child.icon;
                         const isActive = activeTab === child.id;
+
+                        if (child.subitens) {
+                          const noSubitem = child.subitens.some((sub) => sub.id === activeTab);
+                          const subitensVisiveis = noSubitem || !subitensRecolhidos.has(child.id);
+                          const pintado = isActive && !subitensVisiveis;
+
+                          return (
+                            <div key={child.id}>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  id={`sidebar-tab-${child.id}`}
+                                  onClick={() => {
+                                    handleSelectTab(child.id);
+                                    setSubitensRecolhidos((prev) => { const novo = new Set(prev); novo.delete(child.id); return novo; });
+                                  }}
+                                  className={`flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition-all ${
+                                    isActive
+                                      ? 'bg-yellow-400 text-black font-bold shadow-lg shadow-yellow-400/20'
+                                      : 'text-neutral-400 hover:text-yellow-400 hover:bg-white/5'
+                                  }`}
+                                >
+                                  <ChildIcon className={`w-4 h-4 shrink-0 ${isActive ? 'text-black' : 'text-neutral-500'}`} />
+                                  <span className="truncate">{child.label}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  id={`sidebar-toggle-${child.id}`}
+                                  aria-label={subitensVisiveis ? `Recolher submenu de ${child.label}` : `Expandir submenu de ${child.label}`}
+                                  aria-expanded={subitensVisiveis}
+                                  onClick={() => setSubitensRecolhidos((prev) => { const novo = new Set(prev); if (novo.has(child.id)) novo.delete(child.id); else novo.add(child.id); return novo; })}
+                                  className="p-2 rounded-lg text-neutral-500 hover:text-yellow-400 hover:bg-white/5 transition-all"
+                                >
+                                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${subitensVisiveis ? 'rotate-180' : ''} ${pintado ? 'text-black' : ''}`} />
+                                </button>
+                              </div>
+
+                              {subitensVisiveis && (
+                                <div className="mt-1 ml-4 pl-3 border-l border-white/10 space-y-1">
+                                  {child.subitens.filter((sub) => permitido(sub.id)).map((sub) => {
+                                    const SubIcon = sub.icon;
+                                    const subAtivo = activeTab === sub.id;
+
+                                    return (
+                                      <button
+                                        key={sub.id}
+                                        id={`sidebar-tab-${sub.id}`}
+                                        onClick={() => handleSelectTab(sub.id)}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition-all ${
+                                          subAtivo
+                                            ? 'bg-yellow-400 text-black font-bold shadow-lg shadow-yellow-400/20'
+                                            : 'text-neutral-400 hover:text-yellow-400 hover:bg-white/5'
+                                        }`}
+                                      >
+                                        <SubIcon className={`w-4 h-4 shrink-0 ${subAtivo ? 'text-black' : 'text-neutral-500'}`} />
+                                        <span className="truncate">{sub.label}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
 
                         return (
                           <button
