@@ -1592,6 +1592,7 @@ interface ContaFinanceiraRaw {
 // já vem resolvido, sem precisar do catálogo estático em classificacoesFinanceiras.ts.
 interface RecebimentoRaw {
   id: number;
+  idContaReceber?: number;
   idPessoa?: number;
   nomePessoa?: string;
   idClassificacaoFinanceira?: number;
@@ -1605,12 +1606,47 @@ interface RecebimentoRaw {
 // da conta como um todo. Fonte oficial de "dinheiro pago" (Saiu do Caixa).
 interface PagamentoRaw {
   id: number;
+  idContaPagar?: number;
   idPessoa?: number;
   nomePessoa?: string;
   idClassificacaoFinanceira?: number;
   nomeClassificacaoFinanceira?: string;
   dataPagamento: string; // "DD/MM/AAAA HH:mm:ss"
   valorPago?: string | number;
+}
+
+function recebimentoParaConcluida(r: RecebimentoRaw): ContaConcluida {
+  return {
+    id: String(r.id),
+    tipo: 'receber',
+    pessoa: r.nomePessoa || `Cliente #${r.idPessoa ?? r.id}`,
+    categoria: r.nomeClassificacaoFinanceira || 'Sem classificação',
+    grupo: r.nomeClassificacaoFinanceira ? grupoDaClassificacaoPorNome(r.nomeClassificacaoFinanceira) : undefined,
+    valor: parseNum(r.valorRecebido),
+    dataBaixa: r.dataRecebimento.split(' ')[0],
+  };
+}
+
+function pagamentoParaConcluida(p: PagamentoRaw): ContaConcluida {
+  return {
+    id: String(p.id),
+    tipo: 'pagar',
+    pessoa: p.nomePessoa || `Fornecedor #${p.idPessoa ?? p.id}`,
+    categoria: p.nomeClassificacaoFinanceira || 'Sem classificação',
+    grupo: p.nomeClassificacaoFinanceira ? grupoDaClassificacaoPorNome(p.nomeClassificacaoFinanceira) : undefined,
+    valor: parseNum(p.valorPago),
+    dataBaixa: p.dataPagamento.split(' ')[0],
+  };
+}
+
+function calcularTotaisAbertos(contasReceber: ContaReceber[], contasPagar: ContaPagar[]) {
+  const totalReceber = contasReceber.reduce((soma, c) => soma + c.valor, 0);
+  const totalPagar = contasPagar.reduce((soma, c) => soma + c.valor, 0);
+  const valorVencidoReceber = contasReceber
+    .filter((c) => c.status === 'Vencida')
+    .reduce((soma, c) => soma + c.valor, 0);
+  const inadimplencia = totalReceber > 0 ? (valorVencidoReceber / totalReceber) * 100 : 0;
+  return { totalReceber, totalPagar, valorVencidoReceber, inadimplencia };
 }
 
 const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -1780,34 +1816,13 @@ async function montarResumoFinanceiro(mesReferencia: Date): Promise<ResumoFinanc
   const contasConcluidas: ContaConcluida[] = [
     ...recebimentos
       .filter((r) => mesmoMes(parseDataBrApi(r.dataRecebimento), inicioMesAtual))
-      .map((r): ContaConcluida => ({
-        id: String(r.id),
-        tipo: 'receber',
-        pessoa: r.nomePessoa || `Cliente #${r.idPessoa ?? r.id}`,
-        categoria: r.nomeClassificacaoFinanceira || 'Sem classificação',
-        grupo: r.nomeClassificacaoFinanceira ? grupoDaClassificacaoPorNome(r.nomeClassificacaoFinanceira) : undefined,
-        valor: parseNum(r.valorRecebido),
-        dataBaixa: r.dataRecebimento.split(' ')[0],
-      })),
+      .map(recebimentoParaConcluida),
     ...pagamentos
       .filter((p) => mesmoMes(parseDataBrApi(p.dataPagamento), inicioMesAtual))
-      .map((p): ContaConcluida => ({
-        id: String(p.id),
-        tipo: 'pagar',
-        pessoa: p.nomePessoa || `Fornecedor #${p.idPessoa ?? p.id}`,
-        categoria: p.nomeClassificacaoFinanceira || 'Sem classificação',
-        grupo: p.nomeClassificacaoFinanceira ? grupoDaClassificacaoPorNome(p.nomeClassificacaoFinanceira) : undefined,
-        valor: parseNum(p.valorPago),
-        dataBaixa: p.dataPagamento.split(' ')[0],
-      })),
+      .map(pagamentoParaConcluida),
   ];
 
-  const totalReceber = contasReceber.reduce((soma, c) => soma + c.valor, 0);
-  const totalPagar = contasPagar.reduce((soma, c) => soma + c.valor, 0);
-  const valorVencidoReceber = contasReceber
-    .filter((c) => c.status === 'Vencida')
-    .reduce((soma, c) => soma + c.valor, 0);
-  const inadimplencia = totalReceber > 0 ? (valorVencidoReceber / totalReceber) * 100 : 0;
+  const { totalReceber, totalPagar, valorVencidoReceber, inadimplencia } = calcularTotaisAbertos(contasReceber, contasPagar);
 
   // Faturamento = valorReceber (não o saldo em aberto) de tudo que foi gerado
   // na competência do mês, recebido ou não — reconhecimento contábil da
@@ -1860,6 +1875,120 @@ async function montarResumoFinanceiro(mesReferencia: Date): Promise<ResumoFinanc
   };
 }
 
+// A varredura completa leva vários minutos (limite de requisições do Nomus) e
+// só reinicia depois do TTL, então uma conta paga agora poderia seguir como
+// "em aberto" (vermelha) por 20+ minutos. Esta atualização rápida olha só as
+// baixas dos últimos dias (poucas páginas), confere no Nomus a situação atual
+// das contas que elas quitaram e corrige o cache do mês corrente na hora.
+const INTERVALO_BAIXAS_RECENTES_MS = 2 * 60 * 1000;
+const DIAS_JANELA_BAIXAS_RECENTES = 2;
+const MAX_CONTAS_CONFERIDAS_POR_CICLO = 40;
+const ultimaChecagemBaixasPorMes = new Map<string, number>();
+const baixasRecentesEmAndamento = new Set<string>();
+
+async function aplicarBaixasRecentes(chave: string, mesReferencia: Date): Promise<void> {
+  const { baseUrl, apiKey } = getConfig();
+  const base = cacheResumoFinanceiroPorMes.get(chave);
+  if (!base || !baseUrl || !apiKey) return;
+
+  const hoje = new Date();
+  const hoje0h = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const inicioMes = new Date(mesReferencia.getFullYear(), mesReferencia.getMonth(), 1);
+  const inicioJanela = new Date(hoje0h);
+  inicioJanela.setDate(inicioJanela.getDate() - (DIAS_JANELA_BAIXAS_RECENTES - 1));
+  const desde = inicioJanela > inicioMes ? inicioJanela : inicioMes;
+
+  const recebimentos = await coletarTudo<RecebimentoRaw>('recebimentos', baseUrl, apiKey, comFiltroEmpresa(intervaloQuery('dataRecebimento', desde, hoje)));
+  const pagamentos = await coletarTudo<PagamentoRaw>('pagamentos', baseUrl, apiKey, comFiltroEmpresa(intervaloQuery('dataPagamento', desde, hoje)));
+
+  const jaConcluidas = new Set(base.resumo.contasConcluidas.map((c) => `${c.tipo}:${c.id}`));
+  let novosRecebimentos = recebimentos.filter((r) => mesmoMes(parseDataBrApi(r.dataRecebimento), inicioMes) && !jaConcluidas.has(`receber:${r.id}`));
+  let novosPagamentos = pagamentos.filter((p) => mesmoMes(parseDataBrApi(p.dataPagamento), inicioMes) && !jaConcluidas.has(`pagar:${p.id}`));
+  if (novosRecebimentos.length === 0 && novosPagamentos.length === 0) return;
+
+  // Só confere no Nomus as contas que ainda estão abertas no cache. O que passar
+  // do limite por ciclo fica de fora agora (e é tratado no ciclo seguinte).
+  const abertasPagar = new Set(base.resumo.contasPagar.map((c) => c.id));
+  const abertasReceber = new Set(base.resumo.contasReceber.map((c) => c.id));
+  const idsPagar = [...new Set(novosPagamentos.map((p) => p.idContaPagar).filter((id): id is number => id != null && abertasPagar.has(String(id))))];
+  const idsReceber = [...new Set(novosRecebimentos.map((r) => r.idContaReceber).filter((id): id is number => id != null && abertasReceber.has(String(id))))];
+  const conferirPagar = idsPagar.slice(0, MAX_CONTAS_CONFERIDAS_POR_CICLO);
+  const conferirReceber = idsReceber.slice(0, Math.max(0, MAX_CONTAS_CONFERIDAS_POR_CICLO - conferirPagar.length));
+  const adiadasPagar = new Set(idsPagar.slice(conferirPagar.length));
+  const adiadasReceber = new Set(idsReceber.slice(conferirReceber.length));
+  novosPagamentos = novosPagamentos.filter((p) => p.idContaPagar == null || !adiadasPagar.has(p.idContaPagar));
+  novosRecebimentos = novosRecebimentos.filter((r) => r.idContaReceber == null || !adiadasReceber.has(r.idContaReceber));
+
+  const situacao = async (endpoint: 'contasPagar' | 'contasReceber', ids: number[]) => {
+    const quitadas = new Set<string>();
+    const saldos = new Map<string, number>();
+    const falhas = new Set<number>();
+    for (const id of ids) {
+      try {
+        const conta = (await fetchComRetry(`${baseUrl}/${endpoint}/${id}`, apiKey)) as ContaFinanceiraRaw;
+        if (conta.status === true) quitadas.add(String(id));
+        else saldos.set(String(id), Math.abs(parseNum(conta.saldoReceber)));
+      } catch (err) {
+        console.error(`[nomus] não consegui conferir ${endpoint}/${id}:`, err);
+        falhas.add(id);
+      }
+    }
+    return { quitadas, saldos, falhas };
+  };
+  const pagar = await situacao('contasPagar', conferirPagar);
+  const receber = await situacao('contasReceber', conferirReceber);
+
+  // Falhou ao conferir a conta: não registra a baixa agora, pra tentar de novo no próximo ciclo.
+  novosPagamentos = novosPagamentos.filter((p) => p.idContaPagar == null || !pagar.falhas.has(p.idContaPagar));
+  novosRecebimentos = novosRecebimentos.filter((r) => r.idContaReceber == null || !receber.falhas.has(r.idContaReceber));
+  if (novosRecebimentos.length === 0 && novosPagamentos.length === 0) return;
+
+  const contasPagar = base.resumo.contasPagar
+    .filter((c) => !pagar.quitadas.has(c.id))
+    .map((c) => (pagar.saldos.has(c.id) ? { ...c, valor: pagar.saldos.get(c.id)! } : c));
+  const contasReceber = base.resumo.contasReceber
+    .filter((c) => !receber.quitadas.has(c.id))
+    .map((c) => (receber.saldos.has(c.id) ? { ...c, valor: receber.saldos.get(c.id)! } : c));
+
+  const fluxoCaixa = base.resumo.fluxoCaixa.map((mes) => ({ ...mes }));
+  const mesCorrente = fluxoCaixa[fluxoCaixa.length - 1];
+  mesCorrente.receitas += novosRecebimentos.reduce((soma, r) => soma + parseNum(r.valorRecebido), 0);
+  mesCorrente.despesas += novosPagamentos.reduce((soma, p) => soma + parseNum(p.valorPago), 0);
+
+  const resumo: ResumoFinanceiro = {
+    ...base.resumo,
+    ...calcularTotaisAbertos(contasReceber, contasPagar),
+    contasReceber,
+    contasPagar,
+    contasConcluidas: [
+      ...base.resumo.contasConcluidas,
+      ...novosRecebimentos.map(recebimentoParaConcluida),
+      ...novosPagamentos.map(pagamentoParaConcluida),
+    ],
+    fluxoCaixa,
+    saldoMes: mesCorrente.receitas - mesCorrente.despesas,
+    atualizadoEm: new Date().toISOString(),
+  };
+
+  // Se uma varredura completa terminou enquanto isso, o cache dela é mais novo
+  // que a base usada aqui — descarta este ajuste em vez de sobrescrevê-la.
+  if (cacheResumoFinanceiroPorMes.get(chave)?.atualizadoEm !== base.atualizadoEm) return;
+  cacheResumoFinanceiroPorMes.set(chave, { atualizadoEm: base.atualizadoEm, resumo });
+  persistirCacheResumosNoDisco(cacheResumoFinanceiroPorMes);
+  console.log(`[nomus] baixas recentes aplicadas em ${chave}: ${novosPagamentos.length} pagamento(s), ${novosRecebimentos.length} recebimento(s)`);
+}
+
+function agendarBaixasRecentes(chave: string, mesReferencia: Date): void {
+  if (baixasRecentesEmAndamento.has(chave)) return;
+  const agora = Date.now();
+  if (agora - (ultimaChecagemBaixasPorMes.get(chave) ?? 0) < INTERVALO_BAIXAS_RECENTES_MS) return;
+  ultimaChecagemBaixasPorMes.set(chave, agora);
+  baixasRecentesEmAndamento.add(chave);
+  aplicarBaixasRecentes(chave, mesReferencia)
+    .catch((err) => console.error(`[nomus] falha ao aplicar baixas recentes de ${chave}:`, err))
+    .finally(() => baixasRecentesEmAndamento.delete(chave));
+}
+
 // mes: "AAAA-MM" — omitido cai no mês corrente.
 //
 // Stale-while-revalidate: uma vez que um mês foi buscado ao menos uma vez,
@@ -1898,6 +2027,8 @@ async function getResumoFinanceiroCacheado(mes?: string): Promise<ResumoFinancei
         });
       cacheResumoFinanceiroEmAndamentoPorMes.set(chave, atualizacao);
     }
+    // Só o mês corrente recebe baixas novas; meses passados já estão fechados.
+    if (mesmoMes(mesReferencia, hoje)) agendarBaixasRecentes(chave, mesReferencia);
     return cacheado.resumo;
   }
 
