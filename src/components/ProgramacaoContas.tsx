@@ -15,10 +15,32 @@ interface FormularioConta {
 
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
+const ERRO_RESPOSTA_INVALIDA = 'O servidor não respondeu como esperado. Atualize a página; se continuar, o servidor ainda não foi atualizado com esta funcionalidade.';
+
 async function lerResposta(res: Response) {
   const corpo = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) throw new Error(corpo?.error || 'Não foi possível concluir a operação.');
+  if (res.status !== 204 && corpo === null) throw new Error(ERRO_RESPOSTA_INVALIDA);
   return corpo;
+}
+
+interface PropsLimite { children: React.ReactNode }
+interface EstadoLimite { falhou: boolean }
+
+class LimiteDeErro extends React.Component<PropsLimite, EstadoLimite> {
+  // O projeto não tem @types/react, então props/state precisam ser declarados à mão.
+  declare props: PropsLimite;
+  state: EstadoLimite = { falhou: false };
+  static getDerivedStateFromError(): EstadoLimite { return { falhou: true }; }
+  render() {
+    if (!this.state.falhou) return this.props.children;
+    return (
+      <div role="alert" className="flex gap-2 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+        <AlertTriangle className="w-5 h-5 shrink-0" aria-hidden="true" />
+        Não foi possível exibir a programação de contas. Atualize a página e tente novamente.
+      </div>
+    );
+  }
 }
 
 const ESTILO_PAGAMENTO = {
@@ -26,7 +48,7 @@ const ESTILO_PAGAMENTO = {
   false: 'border-red-300 bg-red-50 text-red-600',
 } as const;
 
-export const ProgramacaoContas: React.FC = () => {
+const ProgramacaoContasConteudo: React.FC = () => {
   const [contas, setContas] = useState<ProgramacaoConta[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -40,7 +62,10 @@ export const ProgramacaoContas: React.FC = () => {
   useEffect(() => {
     fetch('/api/programacao')
       .then(lerResposta)
-      .then(setContas)
+      .then((dados) => {
+        if (!Array.isArray(dados)) throw new Error(ERRO_RESPOSTA_INVALIDA);
+        setContas(dados);
+      })
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
   }, []);
@@ -290,3 +315,9 @@ export const ProgramacaoContas: React.FC = () => {
     </div>
   );
 };
+
+export const ProgramacaoContas: React.FC = () => (
+  <LimiteDeErro>
+    <ProgramacaoContasConteudo />
+  </LimiteDeErro>
+);

@@ -28,7 +28,9 @@ import {
   ArrowLeft,
   FileDown,
   BarChart3,
+  ClipboardList,
 } from 'lucide-react';
+import { ProgramacaoContas } from './ProgramacaoContas';
 import { ContaReceber, ContaPagar, ContaConcluida, DreFinanceira, DreLinha, ResumoFinanceiro } from '../types';
 import { formatCurrency, parseDataBr, chaveDia } from '../utils/format';
 import { GRUPOS_CLASSIFICACAO_FINANCEIRA } from '../data/classificacoesFinanceiras';
@@ -806,7 +808,7 @@ export const ProgramacaoFinanceira: React.FC = () => {
 
   // ---- Relatório Detalhado do dia (entrou/saiu + composição de Matéria Prima) ----
   // Tela cheia própria (view === 'relatorio-detalhado'), com "Voltar ao Painel".
-  const [view, setView] = useState<'painel' | 'relatorio-detalhado' | 'dre' | 'dre-detalhada'>('painel');
+  const [view, setView] = useState<'painel' | 'relatorio-detalhado' | 'dre' | 'dre-detalhada' | 'programacao'>('painel');
   const [dre, setDre] = useState<DreFinanceira | null>(null);
   const [dreCarregando, setDreCarregando] = useState(false);
   const [dreErro, setDreErro] = useState<string | null>(null);
@@ -1018,6 +1020,22 @@ export const ProgramacaoFinanceira: React.FC = () => {
     );
   }
 
+  if (view === 'programacao') {
+    return (
+      <div className="space-y-6">
+        <button
+          type="button"
+          onClick={() => setView('painel')}
+          className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Voltar ao Painel</span>
+        </button>
+        <ProgramacaoContas />
+      </div>
+    );
+  }
+
   if (view === 'relatorio-detalhado') {
     return (
       <div className="space-y-6">
@@ -1138,6 +1156,14 @@ export const ProgramacaoFinanceira: React.FC = () => {
         >
           <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" />
           DRE
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('programacao')}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-yellow-300 bg-yellow-50 text-xs font-extrabold text-yellow-900 hover:bg-yellow-100 transition-all"
+        >
+          <ClipboardList className="w-3.5 h-3.5" aria-hidden="true" />
+          Programação
         </button>
         <button
           type="button"

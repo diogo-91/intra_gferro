@@ -2,7 +2,6 @@ export type TabType =
   | 'dashboard'
   | 'vendas'
   | 'financeiro'
-  | 'programacao'
   | 'producao'
   | 'gestao'
   | 'informativos'
