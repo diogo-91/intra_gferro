@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store, Building2, Wallet, Users, Package, Clock3, X, ShoppingBag } from 'lucide-react';
+import { Trophy, ArrowLeft, RefreshCw, AlertTriangle, FileDown, Store, Building2, Wallet, Users, Package, PackageSearch, Clock3, X, ShoppingBag } from 'lucide-react';
 import { VendedorRanking, ResumoVendas, PedidoVendedorDetalhe } from '../types';
 import { RankingFilters, Periodo, periodos, SeletorMesEspecifico, SeletorIntervaloDatas } from './RankingFilters';
 import { RankingEmptyState } from './RankingEmptyState';
@@ -8,12 +8,25 @@ import { RankingTable } from './RankingTable';
 import { VendasResumo } from './VendasResumo';
 import { ComparativoMensalVendas } from './ComparativoMensalVendas';
 import { GestaoMetasMensais } from './GestaoMetasMensais';
+import { PedidosLoja } from './PedidosLoja';
 import { LOJAS, lojaDoVendedor } from '../data/vendedorLoja';
 import type { SubmoduloId } from '../modulos';
 import { submoduloLojaVendas } from '../modulos';
-import { formatCurrency, formatInteiro, formatNomeVendedor } from '../utils/format';
+import { formatCurrency, formatDataIsoParaBr, formatInteiro, formatNomeVendedor } from '../utils/format';
 
-type VendasView = 'painel' | 'ranking' | 'loja' | 'gestao';
+type VendasView = 'painel' | 'ranking' | 'loja' | 'gestao' | 'pedidos';
+
+const MESES_EXTENSO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+// Texto do período escolhido nos filtros, pra mostrar na relação de pedidos da loja.
+const rotuloPeriodoVendas = (periodo: Periodo, mes: string | null, dataInicio: string, dataFim: string) => {
+  if (dataInicio && dataFim) return `${formatDataIsoParaBr(dataInicio)} a ${formatDataIsoParaBr(dataFim)}`;
+  if (periodo === 'dia') return 'hoje';
+  if (periodo === 'semana') return 'semana atual';
+  if (!mes) return 'mês atual';
+  const [ano, numero] = mes.split('-').map(Number);
+  return `${MESES_EXTENSO[numero - 1]} de ${ano}`;
+};
 
 interface VendasDashboardProps {
   podeEditarGestao?: boolean;
@@ -904,6 +917,19 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     );
   }
 
+  if (view === 'pedidos' && lojaSelecionada) {
+    const lojaDosPedidos = LOJAS.find((l) => l.id === lojaSelecionada);
+    return (
+      <PedidosLoja
+        lojaId={lojaSelecionada}
+        lojaNome={lojaDosPedidos?.nome ?? 'Loja'}
+        consulta={`periodo=${periodo}${mesQuery}`}
+        rotuloPeriodo={rotuloPeriodoVendas(periodo, mes, dataInicio, dataFim)}
+        onVoltar={() => setView('loja')}
+      />
+    );
+  }
+
   if (view === 'loja' && lojaSelecionada) {
     const loja = LOJAS.find((l) => l.id === lojaSelecionada);
     return (
@@ -928,6 +954,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {podeVerGestao && <button type="button" onClick={() => setView('gestao')} className="inline-flex items-center gap-2 rounded-full border border-yellow-300 bg-yellow-50 px-4 py-2 text-xs font-bold text-yellow-900"><Building2 className="h-4 w-4"/>Gestão</button>}
+            <button type="button" onClick={() => setView('pedidos')} className="inline-flex items-center gap-2 rounded-full border border-yellow-300 bg-yellow-50 px-4 py-2 text-xs font-bold text-yellow-900"><PackageSearch className="h-4 w-4"/>Pedidos</button>
             {podeVerRanking && <button type="button" onClick={() => setView('ranking')} className="inline-flex items-center gap-2 rounded-full bg-yellow-400 px-4 py-2 text-xs font-bold text-black"><Trophy className="h-4 w-4"/>Ranking de Vendedores</button>}
             {resumoLoja && !resumoLojaLoading && (
               <span className="text-neutral-500 text-[11px] shrink-0 sm:text-right">

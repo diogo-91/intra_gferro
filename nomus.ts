@@ -909,11 +909,16 @@ function filtrarPedidosConsideradosNasVendas(pedidos: Pedido[]): Pedido[] {
 }
 
 async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<Pedido[]> {
+  return filtrarPedidosConsideradosNasVendas(await getPedidosBrutosDoPeriodo(periodo, mes, intervalo));
+}
+
+// Todos os pedidos emitidos no período, de qualquer status (cache em memória/disco).
+async function getPedidosBrutosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<Pedido[]> {
   const chave = chavePedidos(periodo, mes, intervalo);
   const agora = Date.now();
   const cacheado = cachePedidosPorPeriodo.get(chave);
   if (cacheado && (periodoEhFechado(chave) || agora - cacheado.atualizadoEm < CACHE_TTL_MS)) {
-    return filtrarPedidosConsideradosNasVendas(cacheado.pedidos);
+    return cacheado.pedidos;
   }
 
   let emAndamento = cachePedidosEmAndamento.get(chave);
@@ -938,7 +943,40 @@ async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: I
   }
 
   const resultado = cacheado ?? (await emAndamento);
-  return filtrarPedidosConsideradosNasVendas(resultado.pedidos);
+  return resultado.pedidos;
+}
+
+// Pedidos de uma loja (de qualquer status) emitidos no período, pra relação de
+// prazos. Mesma regra de loja do resumo (vendedor -> loja), mesma exclusão de
+// pedidos inválidos e de duplicados — só não filtra por status.
+export async function getPedidosBrutosDaLoja(
+  periodo: Periodo,
+  lojaId: string,
+  mes?: string,
+  intervalo?: IntervaloVendas
+): Promise<{ pedidos: Array<{ pedido: Pedido; vendedor: string }>; atualizadoEm: string; fechamentoOficial?: boolean }> {
+  if (periodoEhFechamentoAgosto2026(periodo, mes, intervalo)) {
+    return { pedidos: [], atualizadoEm: ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026, fechamentoOficial: true };
+  }
+  const [brutos, vendedores] = await Promise.all([getPedidosBrutosDoPeriodo(periodo, mes, intervalo), getVendedores()]);
+  const nomes = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
+
+  const unicos = new Map<string, Pedido>();
+  for (const pedido of brutos) {
+    const codigo = chaveCodigoPedido(pedido.codigoPedido);
+    if (codigo && PEDIDOS_EXCLUIDOS_DAS_VENDAS.has(codigo)) continue;
+    const chaveUnica = codigo || `id:${pedido.id}`;
+    const existente = unicos.get(chaveUnica);
+    if (!existente || pedido.id > existente.id) unicos.set(chaveUnica, pedido);
+  }
+
+  const pedidos = [...unicos.values()].flatMap((pedido) => {
+    if (pedido.idPessoaVendedor == null) return [];
+    const nome = nomes.get(pedido.idPessoaVendedor);
+    return nome != null && lojaDoVendedor(nome) === lojaId ? [{ pedido, vendedor: nome }] : [];
+  });
+  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
+  return { pedidos, atualizadoEm: new Date(atualizadoEm).toISOString() };
 }
 
 function parseDataPedido(data?: string): Date | null {

@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { atualizarDadosVendas, atualizarRankingVendas, atualizarResumosVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getComparativoMensalVendas, getGestaoMetasMensais, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
+import { atualizarDadosVendas, atualizarRankingVendas, atualizarResumosVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getPedidosBrutosDaLoja, getComparativoMensalVendas, getGestaoMetasMensais, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -27,6 +27,7 @@ import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinirSenhaUsuario, removerUsuario } from './usuarios';
 import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoContaNomus, montarLinhasPeriodo, montarLinhasProgramacao, removerContaProgramacao, validarPeriodo } from './programacaoContas';
+import { montarLinhasPedidosLoja, type RespostaPedidosLoja } from './src/pedidosLoja';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -170,7 +171,7 @@ function rotuloMesFinanceiro(mesReferencia: string): string {
 
 function validarMesQuery(mes: unknown): string | undefined {
   if (mes === undefined) return undefined;
-  if (typeof mes !== 'string' || !/^\d{4}-\d{2}$/.test(mes)) {
+  if (typeof mes !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) {
     throw Object.assign(new Error('mes inválido (use o formato AAAA-MM)'), { status: 400 });
   }
   return mes;
@@ -635,6 +636,37 @@ Contexto da GFERRO:
       res.json(resultado);
     } catch (error: any) {
       console.error('Erro ao buscar resumo de vendas por loja no Nomus:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
+    }
+  });
+
+  // Relação de pedidos da loja com a situação de prazo (atrasado, vence em breve...).
+  app.get('/api/vendas/lojas/:lojaId/pedidos', async (req, res) => {
+    try {
+      const sessao = await obterSessaoVendas(req);
+      const { lojaId } = req.params;
+      if (!LOJAS.some((l) => l.id === lojaId)) {
+        return res.status(400).json({ error: 'Loja desconhecida.' });
+      }
+      if (!podeVerLoja(sessao, lojaId)) {
+        return res.status(403).json({ error: 'Você não possui acesso a esta loja.' });
+      }
+      const periodo = (req.query.periodo as string) || 'mes';
+      if (!['dia', 'semana', 'mes'].includes(periodo)) {
+        return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
+      }
+      const mes = validarMesQuery(req.query.mes);
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      const { pedidos, atualizadoEm, fechamentoOficial } = await getPedidosBrutosDaLoja(periodo as Periodo, lojaId, mes, intervalo);
+      const resposta: RespostaPedidosLoja = {
+        lojaId,
+        atualizadoEm,
+        ...(fechamentoOficial ? { fechamentoOficial } : {}),
+        pedidos: montarLinhasPedidosLoja(pedidos),
+      };
+      res.json(resposta);
+    } catch (error: any) {
+      console.error('Erro ao buscar pedidos da loja no Nomus:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
     }
   });
