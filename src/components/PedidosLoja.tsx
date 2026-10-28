@@ -90,7 +90,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
     try {
       const dados: RespostaPedidosLoja = await lerResposta(await fetch(urlBuscada));
       if (!Array.isArray(dados?.pedidos)) throw new Error(ERRO_RESPOSTA_INVALIDA);
-      ultimasRelacoes.set(urlBuscada, dados);
+      if (!dados.carregando) ultimasRelacoes.set(urlBuscada, dados);
       if (urlExibida.current !== urlBuscada) return;
       setResposta(dados);
       setErro('');
@@ -118,7 +118,9 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
   const pedidos = resposta?.pedidos ?? [];
 
   // O servidor consulta o PCP em segundo plano: enquanto faltar prazo Gferro, pergunta de novo em poucos segundos.
-  const aguardandoPrazoGferro = pedidos.some((pedido) => pedido.prazoGferroPendente);
+  // Também repete enquanto o servidor lê um período novo no Nomus (resposta "carregando").
+  const consultandoNomus = carregando || resposta?.carregando === true;
+  const aguardandoPrazoGferro = resposta?.carregando === true || pedidos.some((pedido) => pedido.prazoGferroPendente);
   useEffect(() => {
     if (!aguardandoPrazoGferro) return;
     const espera = setTimeout(() => buscar(urlExibida.current, true), 8_000);
@@ -205,7 +207,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
               className="w-full sm:w-72 rounded-xl border border-neutral-200 bg-white pl-10 pr-4 py-2.5 text-sm outline-none focus:border-yellow-500"
             />
           </label>
-          <button type="button" onClick={() => buscar(url, true)} disabled={carregando || atualizando} className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">
+          <button type="button" onClick={() => buscar(url, true)} disabled={consultandoNomus || atualizando} className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-600 disabled:opacity-40 transition-all">
             <RefreshCw className={`w-3.5 h-3.5 ${atualizando ? 'animate-spin' : ''}`} aria-hidden="true" />
             Atualizar
           </button>
@@ -227,7 +229,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
         </div>
       )}
 
-      {!carregando && resposta && !resposta.fechamentoOficial && (
+      {!consultandoNomus && resposta && !resposta.fechamentoOficial && (
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por situação">
           <button
             type="button"
@@ -286,7 +288,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
-              {carregando ? (
+              {consultandoNomus ? (
                 <tr><td colSpan={8} className="px-5 py-12 text-center text-neutral-500"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-yellow-600" aria-hidden="true" />Consultando os pedidos no Nomus... (na primeira vez do período pode levar alguns minutos)</td></tr>
               ) : visiveis.length === 0 ? (
                 <tr><td colSpan={8} className="px-5 py-12 text-center text-neutral-500">{pedidos.length === 0 ? 'Nenhum pedido encontrado nesse período.' : 'Nenhum pedido encontrado para esse filtro.'}</td></tr>

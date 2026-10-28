@@ -25,6 +25,7 @@ export interface RespostaPedidosLoja {
   lojaId: string;
   atualizadoEm: string; // ISO
   fechamentoOficial?: boolean; // período fechado à mão: não há pedidos individuais
+  carregando?: boolean; // o servidor ainda está lendo o período no Nomus (primeira vez): pergunte de novo em instantes
   pedidos: PedidoLojaLinha[];
 }
 

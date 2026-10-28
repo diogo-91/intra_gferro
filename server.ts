@@ -658,11 +658,12 @@ Contexto da GFERRO:
       }
       const mes = validarMesQuery(req.query.mes);
       const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
-      const { pedidos, atualizadoEm, fechamentoOficial } = await getPedidosBrutosDaLoja(periodo as Periodo, lojaId, mes, intervalo);
+      const { pedidos, atualizadoEm, fechamentoOficial, carregando } = await getPedidosBrutosDaLoja(periodo as Periodo, lojaId, mes, intervalo);
       const resposta: RespostaPedidosLoja = {
         lojaId,
         atualizadoEm,
         ...(fechamentoOficial ? { fechamentoOficial } : {}),
+        ...(carregando ? { carregando } : {}),
         pedidos: await anexarPrazoGferro(montarLinhasPedidosLoja(pedidos)),
       };
       res.json(resposta);

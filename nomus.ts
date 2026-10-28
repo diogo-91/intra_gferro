@@ -960,10 +960,19 @@ export async function getPedidosBrutosDaLoja(
   lojaId: string,
   mes?: string,
   intervalo?: IntervaloVendas
-): Promise<{ pedidos: Array<{ pedido: Pedido; vendedor: string }>; atualizadoEm: string; fechamentoOficial?: boolean }> {
-  if (periodoEhFechamentoAgosto2026(periodo, mes, intervalo)) {
-    return { pedidos: [], atualizadoEm: ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026, fechamentoOficial: true };
+): Promise<{ pedidos: Array<{ pedido: Pedido; vendedor: string }>; atualizadoEm: string; fechamentoOficial?: boolean; carregando?: boolean }> {
+  // Agosto/2026 tem totais de vendas lançados à mão, mas os pedidos continuam no Nomus: a relação de prazos
+  // lista todos eles como nos demais meses (só os totais do painel seguem o fechamento oficial).
+
+  // Período que ainda não foi lido: a varredura no Nomus leva minutos, mais do que um pedido HTTP aguenta
+  // (o proxy derruba). Dispara a leitura em segundo plano e responde "carregando"; a tela pergunta de novo.
+  if (!cachePedidosPorPeriodo.has(chavePedidos(periodo, mes, intervalo))) {
+    getPedidosBrutosDoPeriodo(periodo, mes, intervalo, TTL_PEDIDOS_DA_LOJA_MS).catch((erro) =>
+      console.error('[nomus] falha ao ler os pedidos do período para a relação da loja:', erro?.message ?? erro)
+    );
+    return { pedidos: [], atualizadoEm: new Date().toISOString(), carregando: true };
   }
+
   const [brutos, vendedores] = await Promise.all([getPedidosBrutosDoPeriodo(periodo, mes, intervalo, TTL_PEDIDOS_DA_LOJA_MS), getVendedores()]);
   const nomes = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
 
