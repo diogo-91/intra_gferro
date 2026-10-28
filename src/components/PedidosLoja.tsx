@@ -9,6 +9,8 @@ interface PedidosLojaProps {
   /** Parâmetros do período da loja, no mesmo formato da tela (ex.: "periodo=mes&mes=2026-10"). */
   consulta: string;
   rotuloPeriodo: string;
+  /** Controles de período (mês, dia, semana, De/Até), renderizados abaixo do título. */
+  filtrosPeriodo?: React.ReactNode;
   onVoltar: () => void;
 }
 
@@ -66,7 +68,7 @@ class LimiteDeErro extends React.Component<{ children: React.ReactNode }, { falh
   }
 }
 
-const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, consulta, rotuloPeriodo, onVoltar }) => {
+const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, consulta, rotuloPeriodo, filtrosPeriodo, onVoltar }) => {
   const [resposta, setResposta] = useState<RespostaPedidosLoja | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
@@ -192,6 +194,8 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
           </button>
         </div>
       </div>
+
+      {filtrosPeriodo}
 
       {erro && (
         <div role="alert" className="flex gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">

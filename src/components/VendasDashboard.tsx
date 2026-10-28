@@ -917,6 +917,48 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     );
   }
 
+  // Filtros de período da loja (Dia/Semana/Mês, mês específico, De/Até). Compartilhados
+  // entre o resumo da loja e a relação de pedidos: o período escolhido vale nas duas telas.
+  const filtrosPeriodoLoja = (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      <div
+        role="group"
+        aria-label="Período do resumo da loja"
+        className="flex items-center gap-1.5 bg-neutral-50 p-1 rounded-full border border-neutral-200 w-fit"
+      >
+        {periodos.map((p) => {
+          const selecionado = periodo === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={selecionado}
+              onClick={() => {
+                setPeriodo(p.id);
+                setDataInicio('');
+                setDataFim('');
+              }}
+              className={`px-3.5 py-1.5 rounded-full text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                selecionado ? 'bg-yellow-400 text-black font-bold' : 'text-neutral-500 font-medium hover:text-neutral-900'
+              }`}
+            >
+              {p.label}
+              {selecionado && <span className="sr-only"> (selecionado)</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      <SeletorMesEspecifico periodo={periodo} mes={mes} setMes={setMes} />
+      <SeletorIntervaloDatas
+        dataInicio={dataInicio}
+        dataFim={dataFim}
+        setDataInicio={setDataInicio}
+        setDataFim={setDataFim}
+      />
+    </div>
+  );
+
   if (view === 'pedidos' && lojaSelecionada) {
     const lojaDosPedidos = LOJAS.find((l) => l.id === lojaSelecionada);
     return (
@@ -925,6 +967,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
         lojaNome={lojaDosPedidos?.nome ?? 'Loja'}
         consulta={`periodo=${periodo}${mesQuery}`}
         rotuloPeriodo={rotuloPeriodoVendas(periodo, mes, dataInicio, dataFim)}
+        filtrosPeriodo={filtrosPeriodoLoja}
         onVoltar={() => setView('loja')}
       />
     );
@@ -965,43 +1008,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div
-            role="group"
-            aria-label="Período do resumo da loja"
-            className="flex items-center gap-1.5 bg-neutral-50 p-1 rounded-full border border-neutral-200 w-fit"
-          >
-            {periodos.map((p) => {
-              const selecionado = periodo === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  aria-pressed={selecionado}
-                  onClick={() => {
-                    setPeriodo(p.id);
-                    setDataInicio('');
-                    setDataFim('');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-full text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
-                    selecionado ? 'bg-yellow-400 text-black font-bold' : 'text-neutral-500 font-medium hover:text-neutral-900'
-                  }`}
-                >
-                  {p.label}
-                  {selecionado && <span className="sr-only"> (selecionado)</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          <SeletorMesEspecifico periodo={periodo} mes={mes} setMes={setMes} />
-          <SeletorIntervaloDatas
-            dataInicio={dataInicio}
-            dataFim={dataFim}
-            setDataInicio={setDataInicio}
-            setDataFim={setDataFim}
-          />
-        </div>
+        {filtrosPeriodoLoja}
 
         <VendasResumo
           resumo={resumoLoja}
