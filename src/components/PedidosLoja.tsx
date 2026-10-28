@@ -26,6 +26,10 @@ async function lerResposta(res: Response) {
   return corpo;
 }
 
+// Última relação carregada de cada consulta (loja + período): ao voltar a uma tela já vista ela aparece na
+// hora e o servidor só atualiza por baixo, sem a tela de "Consultando...".
+const ultimasRelacoes = new Map<string, RespostaPedidosLoja>();
+
 const formatarValor = (valor: number) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
@@ -86,6 +90,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
     try {
       const dados: RespostaPedidosLoja = await lerResposta(await fetch(urlBuscada));
       if (!Array.isArray(dados?.pedidos)) throw new Error(ERRO_RESPOSTA_INVALIDA);
+      ultimasRelacoes.set(urlBuscada, dados);
       if (urlExibida.current !== urlBuscada) return;
       setResposta(dados);
       setErro('');
@@ -102,8 +107,10 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
   // Carrega ao abrir e acompanha o Nomus a cada minuto, sem piscar a tela.
   useEffect(() => {
     let ativo = true;
-    setResposta(null);
-    buscar(url, false);
+    const guardada = ultimasRelacoes.get(url) ?? null;
+    setResposta(guardada);
+    if (guardada) setCarregando(false);
+    buscar(url, guardada !== null);
     const intervalo = setInterval(() => { if (ativo) buscar(url, true); }, 60_000);
     return () => { ativo = false; clearInterval(intervalo); };
   }, [url, buscar]);

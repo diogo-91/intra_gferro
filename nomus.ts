@@ -913,11 +913,11 @@ async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: I
 }
 
 // Todos os pedidos emitidos no período, de qualquer status (cache em memória/disco).
-async function getPedidosBrutosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<Pedido[]> {
+async function getPedidosBrutosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas, ttlMs: number = CACHE_TTL_MS): Promise<Pedido[]> {
   const chave = chavePedidos(periodo, mes, intervalo);
   const agora = Date.now();
   const cacheado = cachePedidosPorPeriodo.get(chave);
-  if (cacheado && (periodoEhFechado(chave) || agora - cacheado.atualizadoEm < CACHE_TTL_MS)) {
+  if (cacheado && (periodoEhFechado(chave) || agora - cacheado.atualizadoEm < ttlMs)) {
     return cacheado.pedidos;
   }
 
@@ -946,6 +946,12 @@ async function getPedidosBrutosDoPeriodo(periodo: Periodo, mes?: string, interva
   return resultado.pedidos;
 }
 
+// A relação de pedidos da loja reaproveita o que já está guardado por mais tempo que
+// o painel: cada releitura de um período é uma varredura lenta no Nomus, e a tela
+// consulta o servidor a cada minuto. O mês corrente continua fresco pelo job de
+// atualização; meses fechados nunca expiram (ver periodoEhFechado).
+const TTL_PEDIDOS_DA_LOJA_MS = 15 * 60 * 1000;
+
 // Pedidos de uma loja (de qualquer status) emitidos no período, pra relação de
 // prazos. Mesma regra de loja do resumo (vendedor -> loja), mesma exclusão de
 // pedidos inválidos e de duplicados — só não filtra por status.
@@ -958,7 +964,7 @@ export async function getPedidosBrutosDaLoja(
   if (periodoEhFechamentoAgosto2026(periodo, mes, intervalo)) {
     return { pedidos: [], atualizadoEm: ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026, fechamentoOficial: true };
   }
-  const [brutos, vendedores] = await Promise.all([getPedidosBrutosDoPeriodo(periodo, mes, intervalo), getVendedores()]);
+  const [brutos, vendedores] = await Promise.all([getPedidosBrutosDoPeriodo(periodo, mes, intervalo, TTL_PEDIDOS_DA_LOJA_MS), getVendedores()]);
   const nomes = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
 
   const unicos = new Map<string, Pedido>();
