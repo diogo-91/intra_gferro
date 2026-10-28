@@ -28,6 +28,7 @@ import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdmin
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinirSenhaUsuario, removerUsuario } from './usuarios';
 import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoContaNomus, montarLinhasPeriodo, montarLinhasProgramacao, removerContaProgramacao, validarPeriodo } from './programacaoContas';
 import { montarLinhasPedidosLoja, type RespostaPedidosLoja } from './src/pedidosLoja';
+import { anexarPrazoGferro } from './prazoGferro';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -662,7 +663,7 @@ Contexto da GFERRO:
         lojaId,
         atualizadoEm,
         ...(fechamentoOficial ? { fechamentoOficial } : {}),
-        pedidos: montarLinhasPedidosLoja(pedidos),
+        pedidos: await anexarPrazoGferro(montarLinhasPedidosLoja(pedidos)),
       };
       res.json(resposta);
     } catch (error: any) {

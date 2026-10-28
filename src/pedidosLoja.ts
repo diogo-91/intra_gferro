@@ -17,6 +17,8 @@ export interface PedidoLojaLinha {
   etapa: string; // fase do pedido no Nomus (Aguardando liberação, Liberado...)
   prazo: string | null; // aaaa-mm-dd — próxima data de entrega ainda pendente
   diasParaPrazo: number | null; // negativo = dias de atraso
+  prazoGferro?: string | null; // aaaa-mm-dd — prazo de entrega combinado no PCP (preenchido pelo servidor)
+  prazoGferroPendente?: boolean; // true enquanto o PCP ainda não respondeu para este pedido
 }
 
 export interface RespostaPedidosLoja {

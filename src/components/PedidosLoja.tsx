@@ -14,7 +14,7 @@ interface PedidosLojaProps {
   onVoltar: () => void;
 }
 
-type CampoOrdenacao = 'urgencia' | 'codigo' | 'vendedor' | 'emissao' | 'prazo' | 'valor';
+type CampoOrdenacao = 'urgencia' | 'codigo' | 'vendedor' | 'emissao' | 'prazo' | 'prazoGferro' | 'valor';
 type Direcao = 'asc' | 'desc';
 
 const ERRO_RESPOSTA_INVALIDA = 'O servidor não respondeu como esperado. Atualize a página; se continuar, o servidor ainda não foi atualizado com esta funcionalidade.';
@@ -110,6 +110,14 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
 
   const pedidos = resposta?.pedidos ?? [];
 
+  // O servidor consulta o PCP em segundo plano: enquanto faltar prazo Gferro, pergunta de novo em poucos segundos.
+  const aguardandoPrazoGferro = pedidos.some((pedido) => pedido.prazoGferroPendente);
+  useEffect(() => {
+    if (!aguardandoPrazoGferro) return;
+    const espera = setTimeout(() => buscar(urlExibida.current, true), 8_000);
+    return () => clearTimeout(espera);
+  }, [aguardandoPrazoGferro, resposta, buscar]);
+
   const contagem = useMemo(() => {
     const total: Record<SituacaoPrazo, number> = { 'atrasado': 0, 'vence-em-breve': 0, 'no-prazo': 0, 'concluido': 0, 'cancelado': 0, 'sem-prazo': 0 };
     for (const pedido of pedidos) total[pedido.situacao] += 1;
@@ -130,6 +138,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
         case 'vendedor': return fator * a.vendedor.localeCompare(b.vendedor, 'pt-BR');
         case 'emissao': return fator * a.dataEmissao.localeCompare(b.dataEmissao);
         case 'prazo': return fator * ((a.prazo ?? '9999-12-31').localeCompare(b.prazo ?? '9999-12-31'));
+        case 'prazoGferro': return fator * ((a.prazoGferro ?? '9999-12-31').localeCompare(b.prazoGferro ?? '9999-12-31'));
         case 'valor': return fator * (a.valorTotal - b.valorTotal);
         default: return 0;
       }
@@ -150,6 +159,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
     { campo: 'vendedor', titulo: 'Vendedor' },
     { campo: 'emissao', titulo: 'Emissão' },
     { campo: 'prazo', titulo: 'Prazo de entrega' },
+    { campo: 'prazoGferro', titulo: 'Prazo de entrega Gferro' },
     { campo: 'valor', titulo: 'Valor', alinhar: 'right' },
     { campo: 'urgencia', titulo: 'Situação' },
   ];
@@ -245,7 +255,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
 
       <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="w-full min-w-[1080px] text-sm">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr>
                 {colunas.map(({ campo, titulo, alinhar }) => {
@@ -270,9 +280,9 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {carregando ? (
-                <tr><td colSpan={7} className="px-5 py-12 text-center text-neutral-500"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-yellow-600" aria-hidden="true" />Consultando os pedidos no Nomus... (na primeira vez do período pode levar alguns minutos)</td></tr>
+                <tr><td colSpan={8} className="px-5 py-12 text-center text-neutral-500"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-yellow-600" aria-hidden="true" />Consultando os pedidos no Nomus... (na primeira vez do período pode levar alguns minutos)</td></tr>
               ) : visiveis.length === 0 ? (
-                <tr><td colSpan={7} className="px-5 py-12 text-center text-neutral-500">{pedidos.length === 0 ? 'Nenhum pedido encontrado nesse período.' : 'Nenhum pedido encontrado para esse filtro.'}</td></tr>
+                <tr><td colSpan={8} className="px-5 py-12 text-center text-neutral-500">{pedidos.length === 0 ? 'Nenhum pedido encontrado nesse período.' : 'Nenhum pedido encontrado para esse filtro.'}</td></tr>
               ) : visiveis.map((pedido) => {
                 const estilo = ESTILO[pedido.situacao];
                 return (
@@ -281,6 +291,13 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
                     <td className="px-5 py-3.5 text-neutral-700">{pedido.vendedor}</td>
                     <td className="px-5 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">{pedido.dataEmissao ? formatDataIsoParaBr(pedido.dataEmissao) : '—'}</td>
                     <td className="px-5 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">{pedido.prazo ? formatDataIsoParaBr(pedido.prazo) : '—'}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">
+                      {pedido.prazoGferro
+                        ? formatDataIsoParaBr(pedido.prazoGferro)
+                        : pedido.prazoGferroPendente
+                          ? <span className="text-neutral-400" title="Consultando o PCP...">Consultando...</span>
+                          : '—'}
+                    </td>
                     <td className="px-5 py-3.5 text-right whitespace-nowrap tabular-nums text-neutral-900">{formatarValor(pedido.valorTotal)}</td>
                     <td className="px-5 py-3.5">
                       <span className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold ${estilo.selo}`}>
