@@ -1,17 +1,16 @@
-// Prazo de entrega GFERRO: a data que o PCP (sistema Gferro-PCP) combinou com o
-// cliente. Nasce do prazo do Nomus + margem de produção e pode ser negociado pelo PCP,
-// por isso é diferente do prazo que vem dos itens do pedido no Nomus.
+// Prazo de entrega GFERRO: o prazo de entrega que aparece na tela "Controle de pedidos"
+// do PCP (sistema Gferro-PCP), combinado com o cliente. Nasce do prazo do Nomus + margem
+// de produção e o PCP pode ajustar, por isso difere do prazo dos itens do pedido no Nomus.
 //
-// Fonte principal: a Programação do PCP, GET /api/programacao, que traz o prazo vigente
-// (negociado, ou o original quando não há negociação) de todos os pedidos de uma vez — o
-// mesmo que a tela do PCP mostra. Se o PCP tiver ACCESS_TOKEN, defina PCP_TOKEN aqui com
-// o código de perfil "consulta" (somente leitura) dele; se não tiver, não precisa de nada.
+// Fonte principal: GET /api/pedidos do PCP, a mesma lista da tela, com todos os pedidos de
+// uma vez. Se o PCP tiver ACCESS_TOKEN, defina PCP_TOKEN aqui com o código dele; se não
+// tiver, não precisa de nada. A resposta traz nome e telefone de clientes: só o número e o
+// prazo são guardados.
 //
-// Se a Programação não responder, e para pedidos que ela não tem: a consulta pública do PCP
-// (GET /api/publico/pedido?pedido=N), que não exige código e devolve só o prazo. Ela
-// aceita 60 consultas por minuto por IP e um pedido por vez, então as consultas rodam em
-// segundo plano, uma a uma, e o resultado fica guardado em memória e em disco
-// (data/prazo-gferro.json).
+// Se a lista não responder, e para pedidos que ela não tem: a consulta pública do PCP
+// (GET /api/publico/pedido?pedido=N), que devolve o mesmo prazo, um pedido por vez, com
+// limite de 60 consultas por minuto por IP. Essas consultas rodam em segundo plano, uma a
+// uma, e o resultado fica em memória e em disco (data/prazo-gferro.json).
 
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import path from 'path';
@@ -21,8 +20,8 @@ const PCP_URL = (process.env.PCP_URL || 'https://pcp-pcp.matojc.easypanel.host')
 const PCP_TOKEN = (process.env.PCP_TOKEN || '').trim();
 const ARQUIVO = path.join(process.cwd(), 'data', 'prazo-gferro.json');
 
-const TTL_PROGRAMACAO_MS = 5 * 60_000;
-const TIMEOUT_PROGRAMACAO_MS = 60_000;
+const TTL_LISTA_MS = 5 * 60_000;
+const TIMEOUT_LISTA_MS = 60_000;
 
 const TTL_COM_PRAZO_MS = 30 * 60_000; // prazo mudou no PCP? relê a cada 30 min
 const TTL_SEM_PRAZO_MS = 10 * 60_000; // pedido ainda não entrou no PCP: tenta de novo logo
@@ -125,42 +124,42 @@ async function processarFila(): Promise<void> {
   }
 }
 
-// ---- Programação do PCP (fonte principal) ----
+// ---- Lista de pedidos do PCP (fonte principal) ----
 
-let programacao: { prazos: Map<number, string | null>; carregadoEm: number } | null = null;
-let carregandoProgramacao: Promise<void> | null = null;
+let listaPcp: { prazos: Map<number, string | null>; carregadoEm: number } | null = null;
+let carregandoLista: Promise<void> | null = null;
 
-async function lerProgramacao(): Promise<void> {
+async function lerListaPcp(): Promise<void> {
   try {
-    // visao=todos + antigos=1: sem isso o PCP esconde pedidos finalizados e muito atrasados.
-    const resposta = await fetch(`${PCP_URL}/api/programacao?visao=todos&antigos=1`, {
+    // finalizados=1 + antigos=1: sem isso o PCP esconde pedidos finalizados e muito atrasados.
+    const resposta = await fetch(`${PCP_URL}/api/pedidos?finalizados=1&antigos=1`, {
       headers: PCP_TOKEN ? { 'x-pcp-token': PCP_TOKEN } : {}, // PCP sem ACCESS_TOKEN não pede código
-      signal: AbortSignal.timeout(TIMEOUT_PROGRAMACAO_MS),
+      signal: AbortSignal.timeout(TIMEOUT_LISTA_MS),
     });
     if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
     const dados: any = await resposta.json();
-    if (!Array.isArray(dados?.itens)) throw new Error('resposta sem itens');
+    if (!Array.isArray(dados?.pedidos)) throw new Error('resposta sem pedidos');
     const prazos = new Map<number, string | null>();
-    for (const item of dados.itens) {
-      const numero = Number(item?.numeroPedido);
-      if (!numero || prazos.has(numero)) continue; // o prazo é do pedido: todos os itens trazem o mesmo
-      prazos.set(numero, /^\d{4}-\d{2}-\d{2}$/.test(item.prazoVigente ?? '') ? item.prazoVigente : null);
+    for (const pedido of dados.pedidos) {
+      const numero = Number(pedido?.numero);
+      if (!numero) continue;
+      prazos.set(numero, /^\d{4}-\d{2}-\d{2}$/.test(pedido.prazoEntrega ?? '') ? pedido.prazoEntrega : null);
     }
-    programacao = { prazos, carregadoEm: Date.now() };
+    listaPcp = { prazos, carregadoEm: Date.now() };
   } catch (e: any) {
-    console.error('Não foi possível ler a Programação do PCP:', e.message);
-    if (programacao) programacao.carregadoEm = Date.now() - TTL_PROGRAMACAO_MS + REPETIR_APOS_FALHA_MS; // mantém a última leitura e tenta de novo em breve
+    console.error('Não foi possível ler a lista de pedidos do PCP:', e.message);
+    if (listaPcp) listaPcp.carregadoEm = Date.now() - TTL_LISTA_MS + REPETIR_APOS_FALHA_MS; // mantém a última leitura e tenta de novo em breve
   } finally {
-    carregandoProgramacao = null;
+    carregandoLista = null;
   }
 }
 
 // Espera a primeira leitura; depois serve a anterior e atualiza em segundo plano.
-async function prazosDaProgramacao(): Promise<Map<number, string | null> | null> {
-  const vencida = !programacao || Date.now() - programacao.carregadoEm > TTL_PROGRAMACAO_MS;
-  if (vencida && !carregandoProgramacao) carregandoProgramacao = lerProgramacao();
-  if (!programacao) await carregandoProgramacao;
-  return programacao?.prazos ?? null;
+async function prazosDaLista(): Promise<Map<number, string | null> | null> {
+  const vencida = !listaPcp || Date.now() - listaPcp.carregadoEm > TTL_LISTA_MS;
+  if (vencida && !carregandoLista) carregandoLista = lerListaPcp();
+  if (!listaPcp) await carregandoLista;
+  return listaPcp?.prazos ?? null;
 }
 
 function precisaConsultar(numero: number, entrada: Entrada | undefined, agora: number): boolean {
@@ -176,13 +175,13 @@ function precisaConsultar(numero: number, entrada: Entrada | undefined, agora: n
  */
 export async function anexarPrazoGferro(linhas: PedidoLojaLinha[]): Promise<PedidoLojaLinha[]> {
   const entradas = await carregar();
-  const daProgramacao = await prazosDaProgramacao();
+  const daLista = await prazosDaLista();
   const agora = Date.now();
   const resultado = linhas.map((linha): PedidoLojaLinha => {
     if (linha.situacao === 'cancelado') return { ...linha, prazoGferro: null, prazoGferroPendente: false };
     const numero = numeroDoPedido(linha.codigo);
     if (numero === null) return { ...linha, prazoGferro: null, prazoGferroPendente: false };
-    if (daProgramacao?.has(numero)) return { ...linha, prazoGferro: daProgramacao.get(numero) ?? null, prazoGferroPendente: false };
+    if (daLista?.has(numero)) return { ...linha, prazoGferro: daLista.get(numero) ?? null, prazoGferroPendente: false };
     const entrada = entradas.get(numero);
     if (precisaConsultar(numero, entrada, agora)) {
       fila.push(numero);
