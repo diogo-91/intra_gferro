@@ -14,7 +14,7 @@ import type { SubmoduloId } from '../modulos';
 import { submoduloLojaVendas } from '../modulos';
 import { formatCurrency, formatDataIsoParaBr, formatInteiro, formatNomeVendedor } from '../utils/format';
 
-type VendasView = 'painel' | 'ranking' | 'loja' | 'gestao' | 'pedidos';
+type VendasView = 'painel' | 'ranking' | 'loja' | 'gestao' | 'pedidos' | 'pedidos-todos';
 
 const MESES_EXTENSO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
@@ -959,6 +959,20 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     </div>
   );
 
+  if (view === 'pedidos-todos' && podeVerGeral) {
+    return (
+      <PedidosLoja
+        lojaId={null}
+        lojaNome="Todas as lojas"
+        rotuloVoltar="Voltar ao Painel"
+        consulta={`periodo=${periodo}${mesQuery}`}
+        rotuloPeriodo={rotuloPeriodoVendas(periodo, mes, dataInicio, dataFim)}
+        filtrosPeriodo={filtrosPeriodoLoja}
+        onVoltar={() => setView('painel')}
+      />
+    );
+  }
+
   if (view === 'pedidos' && lojaSelecionada) {
     const lojaDosPedidos = LOJAS.find((l) => l.id === lojaSelecionada);
     return (
@@ -1075,6 +1089,14 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
           >
             <Building2 className="h-4 w-4" aria-hidden="true" />
             <span>Gestão</span>
+          </button>}
+          {podeVerGeral && <button
+            type="button"
+            onClick={() => setView('pedidos-todos')}
+            className="flex items-center gap-2 rounded-full border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-xs font-extrabold text-yellow-900 shadow-sm transition-all hover:bg-yellow-100 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
+          >
+            <PackageSearch className="h-4 w-4" aria-hidden="true" />
+            <span>Todos os pedidos</span>
           </button>}
           {podeVerRanking && <button
             type="button"

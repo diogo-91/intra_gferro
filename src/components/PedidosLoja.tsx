@@ -4,8 +4,11 @@ import { DIAS_ALERTA_PRAZO, type PedidoLojaLinha, type RespostaPedidosLoja, type
 import { formatDataIsoParaBr } from '../utils/format';
 
 interface PedidosLojaProps {
-  lojaId: string;
+  /** Id da loja; null lista os pedidos de todas as lojas, com a coluna Loja. */
+  lojaId: string | null;
   lojaNome: string;
+  /** Texto do botão de voltar (padrão: "Voltar à loja"). */
+  rotuloVoltar?: string;
   /** Parâmetros do período da loja, no mesmo formato da tela (ex.: "periodo=mes&mes=2026-10"). */
   consulta: string;
   rotuloPeriodo: string;
@@ -14,7 +17,7 @@ interface PedidosLojaProps {
   onVoltar: () => void;
 }
 
-type CampoOrdenacao = 'urgencia' | 'codigo' | 'vendedor' | 'emissao' | 'prazo' | 'prazoGferro' | 'valor';
+type CampoOrdenacao = 'urgencia' | 'codigo' | 'loja' | 'vendedor' | 'emissao' | 'prazo' | 'prazoGferro' | 'valor';
 type Direcao = 'asc' | 'desc';
 
 const ERRO_RESPOSTA_INVALIDA = 'O servidor não respondeu como esperado. Atualize a página; se continuar, o servidor ainda não foi atualizado com esta funcionalidade.';
@@ -27,8 +30,33 @@ async function lerResposta(res: Response) {
 }
 
 // Última relação carregada de cada consulta (loja + período): ao voltar a uma tela já vista ela aparece na
-// hora e o servidor só atualiza por baixo, sem a tela de "Consultando...".
-const ultimasRelacoes = new Map<string, RespostaPedidosLoja>();
+// hora e o servidor só atualiza por baixo, sem a tela de "Consultando...". Fica também no sessionStorage,
+// para sobreviver a um F5 (some ao fechar a aba, então não vaza para outro usuário do mesmo navegador).
+const CHAVE_RELACOES = 'gferro:pedidos-loja:v1';
+const MAX_RELACOES_GUARDADAS = 8;
+
+function lerRelacoesGuardadas(): Map<string, RespostaPedidosLoja> {
+  try {
+    const entradas = JSON.parse(sessionStorage.getItem(CHAVE_RELACOES) ?? '[]');
+    if (!Array.isArray(entradas)) return new Map();
+    return new Map(entradas.filter((e): e is [string, RespostaPedidosLoja] => Array.isArray(e) && typeof e[0] === 'string' && Array.isArray(e[1]?.pedidos)));
+  } catch {
+    return new Map();
+  }
+}
+
+const ultimasRelacoes = lerRelacoesGuardadas();
+
+function guardarRelacao(url: string, dados: RespostaPedidosLoja) {
+  ultimasRelacoes.delete(url);
+  ultimasRelacoes.set(url, dados);
+  while (ultimasRelacoes.size > MAX_RELACOES_GUARDADAS) ultimasRelacoes.delete(ultimasRelacoes.keys().next().value as string);
+  try {
+    sessionStorage.setItem(CHAVE_RELACOES, JSON.stringify([...ultimasRelacoes]));
+  } catch {
+    // sem armazenamento (modo privado, cota cheia): segue só com a memória
+  }
+}
 
 const formatarValor = (valor: number) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -72,7 +100,7 @@ class LimiteDeErro extends React.Component<{ children: React.ReactNode }, { falh
   }
 }
 
-const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, consulta, rotuloPeriodo, filtrosPeriodo, onVoltar }) => {
+const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, rotuloVoltar = 'Voltar à loja', consulta, rotuloPeriodo, filtrosPeriodo, onVoltar }) => {
   const [resposta, setResposta] = useState<RespostaPedidosLoja | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
@@ -81,7 +109,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
   const [busca, setBusca] = useState('');
   const [ordenacao, setOrdenacao] = useState<{ campo: CampoOrdenacao; direcao: Direcao }>({ campo: 'urgencia', direcao: 'asc' });
 
-  const url = `/api/vendas/lojas/${lojaId}/pedidos?${consulta}`;
+  const url = lojaId ? `/api/vendas/lojas/${lojaId}/pedidos?${consulta}` : `/api/vendas/pedidos?${consulta}`;
   const urlExibida = useRef(url);
   urlExibida.current = url;
 
@@ -90,7 +118,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
     try {
       const dados: RespostaPedidosLoja = await lerResposta(await fetch(urlBuscada));
       if (!Array.isArray(dados?.pedidos)) throw new Error(ERRO_RESPOSTA_INVALIDA);
-      if (!dados.carregando) ultimasRelacoes.set(urlBuscada, dados);
+      if (!dados.carregando) guardarRelacao(urlBuscada, dados);
       if (urlExibida.current !== urlBuscada) return;
       setResposta(dados);
       setErro('');
@@ -137,13 +165,14 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
     const termo = normalizar(busca.trim());
     const filtrados = pedidos.filter((pedido) =>
       (filtro === 'todos' || pedido.situacao === filtro)
-      && (!termo || normalizar(`${pedido.codigo} ${pedido.vendedor}`).includes(termo))
+      && (!termo || normalizar(`${pedido.codigo} ${pedido.vendedor} ${pedido.loja ?? ''}`).includes(termo))
     );
     if (ordenacao.campo === 'urgencia') return filtrados; // já vem ordenado pelo servidor
     const fator = ordenacao.direcao === 'asc' ? 1 : -1;
     return [...filtrados].sort((a, b) => {
       switch (ordenacao.campo) {
         case 'codigo': return fator * a.codigo.localeCompare(b.codigo, 'pt-BR');
+        case 'loja': return fator * (a.loja ?? '').localeCompare(b.loja ?? '', 'pt-BR');
         case 'vendedor': return fator * a.vendedor.localeCompare(b.vendedor, 'pt-BR');
         case 'emissao': return fator * a.dataEmissao.localeCompare(b.dataEmissao);
         case 'prazo': return fator * ((a.prazo ?? '9999-12-31').localeCompare(b.prazo ?? '9999-12-31'));
@@ -165,6 +194,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
 
   const colunas: Array<{ campo: CampoOrdenacao; titulo: string; alinhar?: 'right' }> = [
     { campo: 'codigo', titulo: 'Pedido' },
+    ...(lojaId === null ? [{ campo: 'loja' as const, titulo: 'Loja' }] : []),
     { campo: 'vendedor', titulo: 'Vendedor' },
     { campo: 'emissao', titulo: 'Emissão' },
     { campo: 'prazo', titulo: 'Prazo de entrega' },
@@ -181,7 +211,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
         className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-yellow-600 hover:border-yellow-400 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
       >
         <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
-        <span>Voltar à loja</span>
+        <span>{rotuloVoltar}</span>
       </button>
 
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
@@ -197,13 +227,13 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="relative block">
-            <span className="sr-only">Buscar por pedido ou vendedor</span>
+            <span className="sr-only">Buscar por pedido, vendedor{lojaId === null ? ' ou loja' : ''}</span>
             <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" aria-hidden="true" />
             <input
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por pedido ou vendedor..."
+              placeholder={lojaId === null ? 'Buscar por pedido, vendedor ou loja...' : 'Buscar por pedido ou vendedor...'}
               className="w-full sm:w-72 rounded-xl border border-neutral-200 bg-white pl-10 pr-4 py-2.5 text-sm outline-none focus:border-yellow-500"
             />
           </label>
@@ -264,7 +294,7 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
 
       <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-sm">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr>
                 {colunas.map(({ campo, titulo, alinhar }) => {
@@ -289,14 +319,15 @@ const PedidosLojaConteudo: React.FC<PedidosLojaProps> = ({ lojaId, lojaNome, con
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {consultandoNomus ? (
-                <tr><td colSpan={8} className="px-5 py-12 text-center text-neutral-500"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-yellow-600" aria-hidden="true" />Consultando os pedidos no Nomus... (na primeira vez do período pode levar alguns minutos)</td></tr>
+                <tr><td colSpan={lojaId === null ? 9 : 8} className="px-5 py-12 text-center text-neutral-500"><Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-yellow-600" aria-hidden="true" />Consultando os pedidos no Nomus... (na primeira vez do período pode levar alguns minutos)</td></tr>
               ) : visiveis.length === 0 ? (
-                <tr><td colSpan={8} className="px-5 py-12 text-center text-neutral-500">{pedidos.length === 0 ? 'Nenhum pedido encontrado nesse período.' : 'Nenhum pedido encontrado para esse filtro.'}</td></tr>
+                <tr><td colSpan={lojaId === null ? 9 : 8} className="px-5 py-12 text-center text-neutral-500">{pedidos.length === 0 ? 'Nenhum pedido encontrado nesse período.' : 'Nenhum pedido encontrado para esse filtro.'}</td></tr>
               ) : visiveis.map((pedido) => {
                 const estilo = ESTILO[pedido.situacao];
                 return (
                   <tr key={pedido.id} className="hover:bg-neutral-50/60">
                     <td className={`px-5 py-3.5 whitespace-nowrap font-bold text-neutral-900 border-l-4 ${estilo.borda}`}>{pedido.codigo}</td>
+                    {lojaId === null && <td className="px-5 py-3.5 text-neutral-700 whitespace-nowrap">{pedido.loja ?? '—'}</td>}
                     <td className="px-5 py-3.5 text-neutral-700">{pedido.vendedor}</td>
                     <td className="px-5 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">{pedido.dataEmissao ? formatDataIsoParaBr(pedido.dataEmissao) : '—'}</td>
                     <td className="px-5 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">{pedido.prazo ? formatDataIsoParaBr(pedido.prazo) : '—'}</td>

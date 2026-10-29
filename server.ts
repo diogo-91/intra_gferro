@@ -7,7 +7,7 @@ import multer from 'multer';
 import PDFDocument from 'pdfkit';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { atualizarDadosVendas, atualizarRankingVendas, atualizarResumosVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getPedidosBrutosDaLoja, getComparativoMensalVendas, getGestaoMetasMensais, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
+import { aquecerRelacaoDePedidos, atualizarDadosVendas, atualizarRankingVendas, atualizarResumosVendas, getRankingVendedores, getPedidosDoVendedor, getResumoVendas, getResumoVendasPorLoja, getPedidosBrutosDaLoja, getComparativoMensalVendas, getGestaoMetasMensais, getResumoFinanceiro, getDreFinanceira, Periodo, IntervaloVendas } from './nomus';
 import { getKanbanProducao, getRelatorioProducao, getPdfRelatorioProducaoUrl, getPlanejamentoProducao } from './producao';
 import { gerarPdfRankingVendedores } from './pdfRankingVendedores';
 import { gerarPdfResumoVendas } from './pdfResumoVendas';
@@ -669,6 +669,33 @@ Contexto da GFERRO:
       res.json(resposta);
     } catch (error: any) {
       console.error('Erro ao buscar pedidos da loja no Nomus:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
+    }
+  });
+
+  // Relação de pedidos de todas as lojas (com a loja de cada um) — só para quem vê o painel geral.
+  app.get('/api/vendas/pedidos', async (req, res) => {
+    try {
+      const sessao = await obterSessaoVendas(req);
+      exigirVendasGerais(sessao);
+      const periodo = (req.query.periodo as string) || 'mes';
+      if (!['dia', 'semana', 'mes'].includes(periodo)) {
+        return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
+      }
+      const mes = validarMesQuery(req.query.mes);
+      const intervalo = validarIntervaloVendas(req.query.inicio, req.query.fim);
+      const { pedidos, atualizadoEm, fechamentoOficial, carregando } = await getPedidosBrutosDaLoja(periodo as Periodo, null, mes, intervalo);
+      const nomesDasLojas = new Map<string, string>(LOJAS.map((l) => [l.id, l.nome]));
+      const resposta: RespostaPedidosLoja = {
+        lojaId: 'todas',
+        atualizadoEm,
+        ...(fechamentoOficial ? { fechamentoOficial } : {}),
+        ...(carregando ? { carregando } : {}),
+        pedidos: await anexarPrazoGferro(montarLinhasPedidosLoja(pedidos.map((p) => ({ ...p, loja: (p.loja && nomesDasLojas.get(p.loja)) || 'Sem loja' })))),
+      };
+      res.json(resposta);
+    } catch (error: any) {
+      console.error('Erro ao buscar todos os pedidos no Nomus:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
     }
   });
@@ -1470,6 +1497,11 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
     // Pequeno atraso para não disputar CPU/rede com a inicialização do app.
     const primeiroCiclo = setTimeout(atualizarVendasContinuamente, 10_000);
     primeiroCiclo.unref();
+
+    // Deixa os últimos 3 meses da relação de pedidos prontos (só lê o que ainda não está guardado), depois do
+    // primeiro ciclo do mês corrente para não disputar a fila do Nomus com os KPIs.
+    const aquecimentoPedidos = setTimeout(() => { void aquecerRelacaoDePedidos(3); }, 2 * 60 * 1000);
+    aquecimentoPedidos.unref();
   });
 }
 

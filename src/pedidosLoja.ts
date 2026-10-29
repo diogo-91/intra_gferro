@@ -12,6 +12,7 @@ export interface PedidoLojaLinha {
   codigo: string; // ex.: "PD 02208"
   dataEmissao: string; // aaaa-mm-dd
   vendedor: string;
+  loja?: string; // nome da loja do vendedor — só na relação de todos os pedidos
   valorTotal: number;
   situacao: SituacaoPrazo;
   etapa: string; // fase do pedido no Nomus (Aguardando liberação, Liberado...)
@@ -110,15 +111,16 @@ function lerValorBr(valor: unknown): number {
 const PESO_SITUACAO: Record<SituacaoPrazo, number> = { 'atrasado': 0, 'vence-em-breve': 1, 'no-prazo': 2, 'sem-prazo': 3, 'concluido': 4, 'cancelado': 5 };
 
 export function montarLinhasPedidosLoja(
-  pedidos: Array<{ pedido: PedidoNomusMinimo; vendedor: string }>,
+  pedidos: Array<{ pedido: PedidoNomusMinimo; vendedor: string; loja?: string }>,
   hoje: Date = new Date()
 ): PedidoLojaLinha[] {
   return pedidos
-    .map(({ pedido, vendedor }): PedidoLojaLinha => ({
+    .map(({ pedido, vendedor, loja }): PedidoLojaLinha => ({
       id: pedido.id,
       codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
       dataEmissao: dataBrParaIso(pedido.dataEmissao),
       vendedor,
+      ...(loja !== undefined ? { loja } : {}),
       valorTotal: lerValorBr(pedido.valorTotal),
       ...classificarPrazoPedido(pedido.itensPedido ?? [], hoje),
     }))

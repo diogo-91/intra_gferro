@@ -952,24 +952,46 @@ async function getPedidosBrutosDoPeriodo(periodo: Periodo, mes?: string, interva
 // atualização; meses fechados nunca expiram (ver periodoEhFechado).
 const TTL_PEDIDOS_DA_LOJA_MS = 15 * 60 * 1000;
 
+// Deixa lidos os últimos meses fechados (e a lista de vendedores) para a relação de pedidos abrir na hora:
+// sem isso, o primeiro acesso a cada mês levava minutos de varredura no Nomus. Um mês de cada vez, só o que
+// ainda não está guardado; meses fechados nunca expiram, então isso só trabalha na primeira vez.
+export async function aquecerRelacaoDePedidos(quantidadeDeMeses: number): Promise<void> {
+  try {
+    await getVendedores();
+    const hoje = new Date();
+    for (let i = 1; i <= quantidadeDeMeses; i++) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (cachePedidosPorPeriodo.has(chavePedidos('mes', mes))) continue;
+      await getPedidosBrutosDoPeriodo('mes', mes, undefined, TTL_PEDIDOS_DA_LOJA_MS);
+      console.log(`[nomus] pedidos de ${mes} guardados para a relação de pedidos`);
+    }
+  } catch (erro: any) {
+    console.error('[nomus] não foi possível pré-carregar os meses da relação de pedidos:', erro?.message ?? erro);
+  }
+}
+
 // Pedidos de uma loja (de qualquer status) emitidos no período, pra relação de
 // prazos. Mesma regra de loja do resumo (vendedor -> loja), mesma exclusão de
-// pedidos inválidos e de duplicados — só não filtra por status.
+// pedidos inválidos e de duplicados — só não filtra por status. Com lojaId null
+// traz os pedidos de todas as lojas (e os de vendedor sem loja), cada um com o id
+// da sua loja em `loja`.
 export async function getPedidosBrutosDaLoja(
   periodo: Periodo,
-  lojaId: string,
+  lojaId: string | null,
   mes?: string,
   intervalo?: IntervaloVendas
-): Promise<{ pedidos: Array<{ pedido: Pedido; vendedor: string }>; atualizadoEm: string; fechamentoOficial?: boolean; carregando?: boolean }> {
+): Promise<{ pedidos: Array<{ pedido: Pedido; vendedor: string; loja?: string }>; atualizadoEm: string; fechamentoOficial?: boolean; carregando?: boolean }> {
   // Agosto/2026 tem totais de vendas lançados à mão, mas os pedidos continuam no Nomus: a relação de prazos
   // lista todos eles como nos demais meses (só os totais do painel seguem o fechamento oficial).
 
-  // Período que ainda não foi lido: a varredura no Nomus leva minutos, mais do que um pedido HTTP aguenta
-  // (o proxy derruba). Dispara a leitura em segundo plano e responde "carregando"; a tela pergunta de novo.
-  if (!cachePedidosPorPeriodo.has(chavePedidos(periodo, mes, intervalo))) {
-    getPedidosBrutosDoPeriodo(periodo, mes, intervalo, TTL_PEDIDOS_DA_LOJA_MS).catch((erro) =>
-      console.error('[nomus] falha ao ler os pedidos do período para a relação da loja:', erro?.message ?? erro)
-    );
+  // Período (ou lista de vendedores) que ainda não foi lido: a varredura no Nomus leva minutos, mais do que um
+  // pedido HTTP aguenta (o proxy derruba). Dispara a leitura em segundo plano e responde "carregando"; a tela
+  // pergunta de novo.
+  if (!cachePedidosPorPeriodo.has(chavePedidos(periodo, mes, intervalo)) || !cacheVendedores) {
+    const falhou = (erro: any) => console.error('[nomus] falha ao ler os dados da relação de pedidos:', erro?.message ?? erro);
+    getPedidosBrutosDoPeriodo(periodo, mes, intervalo, TTL_PEDIDOS_DA_LOJA_MS).catch(falhou);
+    getVendedores().catch(falhou);
     return { pedidos: [], atualizadoEm: new Date().toISOString(), carregando: true };
   }
 
@@ -986,9 +1008,10 @@ export async function getPedidosBrutosDaLoja(
   }
 
   const pedidos = [...unicos.values()].flatMap((pedido) => {
-    if (pedido.idPessoaVendedor == null) return [];
-    const nome = nomes.get(pedido.idPessoaVendedor);
-    return nome != null && lojaDoVendedor(nome) === lojaId ? [{ pedido, vendedor: nome }] : [];
+    const nome = pedido.idPessoaVendedor != null ? nomes.get(pedido.idPessoaVendedor) : undefined;
+    const lojaDoPedido = nome != null ? lojaDoVendedor(nome) : undefined;
+    if (lojaId === null) return [{ pedido, vendedor: nome ?? 'Sem vendedor', loja: lojaDoPedido }];
+    return nome != null && lojaDoPedido === lojaId ? [{ pedido, vendedor: nome }] : [];
   });
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos(periodo, mes, intervalo))?.atualizadoEm ?? Date.now();
   return { pedidos, atualizadoEm: new Date(atualizadoEm).toISOString() };
