@@ -162,6 +162,7 @@ const formatCurrencyComCentavos = (valor: number) =>
 export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGestao = false, submodulos = [] }) => {
   const podeVerGeral = podeEditarGestao || submodulos.includes('vendas:geral');
   const podeVerGestao = podeEditarGestao || submodulos.includes('vendas:gestao');
+  const podeVerTodosPedidos = podeEditarGestao || submodulos.includes('vendas:pedidos');
   const podeVerRanking = podeEditarGestao || submodulos.includes('vendas:ranking');
   const lojasPermitidas = useMemo(
     () => podeEditarGestao ? [...LOJAS] : LOJAS.filter((loja) => submodulos.includes(submoduloLojaVendas(loja.id))),
@@ -959,7 +960,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
     </div>
   );
 
-  if (view === 'pedidos-todos' && podeVerGeral) {
+  if (view === 'pedidos-todos' && podeVerTodosPedidos) {
     return (
       <PedidosLoja
         lojaId={null}
@@ -1090,7 +1091,7 @@ export const VendasDashboard: React.FC<VendasDashboardProps> = ({ podeEditarGest
             <Building2 className="h-4 w-4" aria-hidden="true" />
             <span>Gestão</span>
           </button>}
-          {podeVerGeral && <button
+          {podeVerTodosPedidos && <button
             type="button"
             onClick={() => setView('pedidos-todos')}
             className="flex items-center gap-2 rounded-full border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-xs font-extrabold text-yellow-900 shadow-sm transition-all hover:bg-yellow-100 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"

@@ -43,6 +43,10 @@ function podeVerGestaoVendas(sessao: SessaoAutenticada) {
   return sessao.administrador || sessao.submodulos.includes('vendas:gestao');
 }
 
+function podeVerTodosPedidosVendas(sessao: SessaoAutenticada) {
+  return sessao.administrador || sessao.submodulos.includes('vendas:pedidos');
+}
+
 function podeVerRankingVendas(sessao: SessaoAutenticada) {
   return sessao.administrador || sessao.submodulos.includes('vendas:ranking');
 }
@@ -673,11 +677,13 @@ Contexto da GFERRO:
     }
   });
 
-  // Relação de pedidos de todas as lojas (com a loja de cada um) — só para quem vê o painel geral.
+  // Relação de pedidos de todas as lojas (com a loja de cada um) — exige a permissão "Todos os pedidos".
   app.get('/api/vendas/pedidos', async (req, res) => {
     try {
       const sessao = await obterSessaoVendas(req);
-      exigirVendasGerais(sessao);
+      if (!podeVerTodosPedidosVendas(sessao)) {
+        return res.status(403).json({ error: 'Você não possui acesso à relação de todos os pedidos.' });
+      }
       const periodo = (req.query.periodo as string) || 'mes';
       if (!['dia', 'semana', 'mes'].includes(periodo)) {
         return res.status(400).json({ error: 'periodo inválido (use dia, semana ou mes)' });
