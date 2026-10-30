@@ -3,6 +3,7 @@ export type TabType =
   | 'vendas'
   | 'financeiro'
   | 'programacao'
+  | 'saidas'
   | 'producao'
   | 'gestao'
   | 'informativos'

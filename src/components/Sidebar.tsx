@@ -14,6 +14,7 @@ import {
   Factory,
   UserCog,
   Headphones,
+  BarChart3,
   ClipboardList,
   Cpu,
   ChevronDown,
@@ -65,8 +66,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   modulos,
   administrador,
 }) => {
-  // "Programação" é uma tela do Financeiro: usa a permissão desse módulo.
-  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' ? 'financeiro' : id) as ModuloId);
+  // "Programação" e "Saídas" são telas do Financeiro: usam a permissão desse módulo.
+  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' || id === 'saidas' ? 'financeiro' : id) as ModuloId);
   const navItems: NavEntry[] = [
     { id: 'informativos', label: 'Informativos Internos', icon: Megaphone },
     { id: 'comunicados', label: 'Comunicados & Feed', icon: Newspaper },
@@ -82,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       children: [
         { id: 'vendas', label: 'Vendas', icon: TrendingUp },
-        { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }] },
+        { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }] },
         { id: 'producao', label: 'Produção', icon: Factory },
         { id: 'gestao', label: 'Gestão', icon: Target },
       ],

@@ -29,6 +29,7 @@ import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinir
 import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoContaNomus, montarLinhasPeriodo, montarLinhasProgramacao, removerContaProgramacao, validarPeriodo } from './programacaoContas';
 import { montarLinhasPedidosLoja, type RespostaPedidosLoja } from './src/pedidosLoja';
 import { anexarPrazoGferro } from './prazoGferro';
+import { agruparSaidas } from './src/saidasFinanceiras';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -835,6 +836,22 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao montar DRE no Nomus:', error);
       res.status(500).json({ error: 'Erro ao buscar dados da DRE no Nomus', details: error.message });
+    }
+  });
+
+  // Saídas do caixa por título da DRE: pagamentos feitos no período (De/Até, até 6 meses), do mesmo resumo
+  // em cache do painel Financeiro.
+  app.get('/api/financeiro/saidas', async (req, res) => {
+    try {
+      const periodo = validarPeriodo(req.query.inicio, req.query.fim);
+      const resumos = [];
+      for (const mes of periodo.meses) resumos.push(await getResumoFinanceiro(mes));
+      const pagamentos = resumos.flatMap((resumo) => resumo.contasConcluidas);
+      const atualizadoEm = resumos.map((resumo) => resumo.atualizadoEm).sort()[0];
+      res.json(agruparSaidas(pagamentos, periodo.inicio, periodo.fim, atualizadoEm));
+    } catch (error: any) {
+      console.error('Erro ao montar as saídas do financeiro:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar dados do Nomus', details: error.message });
     }
   });
 

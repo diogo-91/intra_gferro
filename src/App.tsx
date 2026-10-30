@@ -28,6 +28,7 @@ import { DepartamentosApp } from './components/DepartamentosApp';
 import { VendasDashboard } from './components/VendasDashboard';
 import { ProgramacaoFinanceira } from './components/ProgramacaoFinanceira';
 import { ProgramacaoContas } from './components/ProgramacaoContas';
+import { SaidasFinanceiras } from './components/SaidasFinanceiras';
 import { Producao } from './components/Producao';
 import { AIAssistantModal } from './components/AIAssistantModal';
 import { NovoComunicadoModal } from './components/NovoComunicadoModal';
@@ -41,8 +42,8 @@ import type { ModuloId, SubmoduloId } from './modulos';
 
 interface Sessao { email: string; nome?: string; administrador: boolean; modulos: ModuloId[]; submodulos: SubmoduloId[] }
 
-// "Programação" é uma tela do Financeiro: usa a permissão desse módulo.
-const moduloDaAba = (aba: TabType) => (aba === 'programacao' ? 'financeiro' : aba) as ModuloId;
+// "Programação" e "Saídas" são telas do Financeiro: usam a permissão desse módulo.
+const moduloDaAba = (aba: TabType) => (aba === 'programacao' || aba === 'saidas' ? 'financeiro' : aba) as ModuloId;
 
 export default function App() {
   // Autenticação — verifica o cookie de sessão (ver auth.ts) antes de
@@ -283,6 +284,8 @@ export default function App() {
           {activeTab === 'financeiro' && <ProgramacaoFinanceira />}
 
           {activeTab === 'programacao' && <ProgramacaoContas />}
+
+          {activeTab === 'saidas' && <SaidasFinanceiras />}
 
           {activeTab === 'producao' && <Producao />}
 
