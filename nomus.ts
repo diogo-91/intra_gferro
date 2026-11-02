@@ -117,8 +117,13 @@ export interface IntervaloVendas {
 }
 
 interface ItemPedido {
+  id?: number;
   idProduto?: number;
   status?: number;
+  item?: string;
+  dataEntrega?: string;
+  observacoes?: string;
+  informacoesAdicionaisProduto?: string;
   quantidade?: string | number;
   valorUnitario?: string | number;
   valorDesconto?: string | number;
@@ -131,12 +136,16 @@ interface ItemPedido {
 interface Pedido {
   id: number;
   codigoPedido?: string;
+  idEmpresa?: number;
+  idPessoaCliente?: number;
   dataEmissao?: string;
   dataModificacao?: string;
   idPessoaVendedor?: number;
   valorTotal?: string | number;
   valorTotalFrete?: string | number;
   valorTotalOutrasDespesasAcessorias?: string | number;
+  observacoes?: string;
+  observacoesInternas?: string;
   itensPedido?: ItemPedido[];
 }
 
@@ -906,6 +915,75 @@ function filtrarPedidosConsideradosNasVendas(pedidos: Pedido[]): Pedido[] {
   }
 
   return [...pedidosUnicos.values()];
+}
+
+export interface FontePedidoGestao {
+  id: number;
+  codigoPedido: string;
+  dataEmissao: string;
+  dataModificacao?: string;
+  idPessoaCliente?: number;
+  cliente: string;
+  telefone: string;
+  cidade: string;
+  idPessoaVendedor?: number;
+  vendedor: string;
+  valorTotal: number;
+  prazoNomus?: string;
+  observacoesNomus: string;
+  produtos: string[];
+  quantidadeItens: number;
+}
+
+/** Fonte do painel operacional: somente pedidos cujos itens continuam liberados. */
+export async function buscarPedidosLiberadosParaGestao(dataInicio = '2019-12-31T23:59:59'): Promise<FontePedidoGestao[]> {
+  const { baseUrl, apiKey } = getConfig();
+  if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+
+  const fim = `${new Date().getFullYear() + 1}-01-01T00:00:00`;
+  const pedidosBrutos = await coletarTudo<Pedido>(
+    'pedidos',
+    baseUrl,
+    apiKey,
+    comFiltroEmpresa(`dataEmissao>${dataInicio};dataEmissao<${fim}`)
+  );
+  const pedidos = pedidosBrutos.filter((pedido) => {
+    const itens = pedido.itensPedido || [];
+    return itens.length > 0 && itens.every((item) => item.status === STATUS_ITEM_LIBERADO);
+  });
+
+  const vendedores = cacheVendedores?.vendedores ?? await getVendedores();
+  const vendedoresPorId = new Map(vendedores.map((vendedor) => [vendedor.id, vendedor.nome || `Vendedor #${vendedor.id}`]));
+
+  const idsProdutos = new Set(pedidos.flatMap((pedido) => (pedido.itensPedido || []).map((item) => item.idProduto).filter((id): id is number => id != null)));
+  await Promise.all([...idsProdutos].map((id) => getProdutoPorId(id)));
+
+  return pedidos.map((pedido) => {
+    const prazos = (pedido.itensPedido || []).map((item) => item.dataEntrega || '').filter(Boolean).sort();
+    const produtos = (pedido.itensPedido || []).map((item) => {
+      const produto = item.idProduto ? cacheProdutoPorId.get(item.idProduto) : null;
+      const descricao = produto?.descricao || (item.idProduto ? `Produto #${item.idProduto}` : 'Produto');
+      const complemento = item.informacoesAdicionaisProduto?.trim();
+      return complemento ? `${descricao} - ${complemento}` : descricao;
+    });
+    return {
+      id: pedido.id,
+      codigoPedido: pedido.codigoPedido || String(pedido.id),
+      dataEmissao: pedido.dataEmissao || '',
+      dataModificacao: pedido.dataModificacao,
+      idPessoaCliente: pedido.idPessoaCliente,
+      cliente: pedido.idPessoaCliente ? `Cliente #${pedido.idPessoaCliente}` : 'Cliente não informado',
+      telefone: '',
+      cidade: '',
+      idPessoaVendedor: pedido.idPessoaVendedor,
+      vendedor: pedido.idPessoaVendedor ? vendedoresPorId.get(pedido.idPessoaVendedor) || `Vendedor #${pedido.idPessoaVendedor}` : 'Não informado',
+      valorTotal: parseNum(pedido.valorTotal),
+      prazoNomus: prazos.at(-1),
+      observacoesNomus: [pedido.observacoes, pedido.observacoesInternas].filter(Boolean).join('\n'),
+      produtos,
+      quantidadeItens: pedido.itensPedido?.length || 0,
+    };
+  });
 }
 
 async function getPedidosDoPeriodo(periodo: Periodo, mes?: string, intervalo?: IntervaloVendas): Promise<Pedido[]> {

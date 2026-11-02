@@ -33,6 +33,7 @@ import { agruparSaidas } from './src/saidasFinanceiras';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
+import { atualizarPedidoGestao, listarPedidosGestao } from './pedidosGestao';
 
 type SessaoAutenticada = NonNullable<Awaited<ReturnType<typeof obterSessao>>>;
 
@@ -923,6 +924,29 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao buscar kanban de produção no Apontamento:', error);
       res.status(500).json({ error: 'Erro ao buscar dados do Apontamento de Produção', details: error.message });
+    }
+  });
+
+  app.get('/api/pedidos-gestao', async (req, res) => {
+    try {
+      res.json(await listarPedidosGestao(req.query.atualizar === '1'));
+    } catch (error: any) {
+      console.error('Erro ao buscar gestão de pedidos:', error);
+      res.status(error.status || 500).json({ error: error.message || 'Erro ao buscar os pedidos.' });
+    }
+  });
+
+  app.patch('/api/pedidos-gestao/:id', async (req, res) => {
+    try {
+      const sessao = await obterSessao(req);
+      if (!sessao) return res.status(401).json({ error: 'Não autenticado.' });
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return res.status(400).json({ error: 'Pedido inválido.' });
+      const usuario = sessao.nome || nomePorEmail(sessao.email);
+      res.json(await atualizarPedidoGestao(id, req.body || {}, usuario));
+    } catch (error: any) {
+      console.error('Erro ao atualizar gestão de pedido:', error);
+      res.status(error.status || 500).json({ error: error.message || 'Erro ao atualizar o pedido.' });
     }
   });
 

@@ -19,7 +19,8 @@ import {
   Cpu,
   ChevronDown,
   ShieldCheck,
-  Target
+  Target,
+  PackageCheck
 } from 'lucide-react';
 import { TabType, Department } from '../types';
 import type { ModuloId } from '../modulos';
@@ -75,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'servicos', label: 'Meus Chamados', icon: LifeBuoy },
     { id: 'pessoas', label: 'Diretório de Pessoas', icon: Users },
     { id: 'chat', label: 'Chat Interno GFERRO', icon: MessageSquare },
+    { id: 'pedidos', label: 'Gestão de Pedidos', icon: PackageCheck },
     { id: 'ia-assistente', label: 'Ideias e Sugestões', icon: Lightbulb },
     { id: 'qualidade', label: 'Qualidade', icon: ShieldCheck },
     {

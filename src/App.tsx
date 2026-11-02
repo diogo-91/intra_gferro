@@ -37,6 +37,7 @@ import { Login } from './components/Login';
 import { GestaoUsuarios } from './components/GestaoUsuarios';
 import { GestaoMetasMensais } from './components/GestaoMetasMensais';
 import { QualidadeApp } from './components/QualidadeApp';
+import { GestaoPedidos } from './components/GestaoPedidos';
 import { nomeDoEmail } from './utils/format';
 import type { ModuloId, SubmoduloId } from './modulos';
 
@@ -288,6 +289,8 @@ export default function App() {
           {activeTab === 'saidas' && <SaidasFinanceiras />}
 
           {activeTab === 'producao' && <Producao />}
+
+          {activeTab === 'pedidos' && <GestaoPedidos />}
 
           {activeTab === 'gestao' && <GestaoMetasMensais podeEditar={!!sessao?.administrador} />}
 

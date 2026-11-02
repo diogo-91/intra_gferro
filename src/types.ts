@@ -5,6 +5,7 @@ export type TabType =
   | 'programacao'
   | 'saidas'
   | 'producao'
+  | 'pedidos'
   | 'gestao'
   | 'informativos'
   | 'comunicados'
@@ -16,6 +17,50 @@ export type TabType =
   | 'departamentos'
   | 'ia-assistente'
   | 'usuarios';
+
+export type StatusPedidoGestao = 'AGUARDANDO' | 'PEDIDO LIBERADO' | 'EM PRODUÇÃO' | 'EXPEDIÇÃO' | 'ROTA DE ENTREGA' | 'ENCERRADO' | 'CANCELADO';
+export type StatusAtendimentoPedido = 'Aguardando programação' | 'Aguardando compras' | 'Aguardando produção' | 'Em análise' | 'Aguardando retorno' | 'Pronto para entrega' | 'Concluído';
+
+export interface HistoricoPedidoGestao {
+  id: string;
+  usuario: string;
+  acao: string;
+  criadoEm: string;
+}
+
+export interface PedidoGestao {
+  id: number;
+  codigoPedido: string;
+  dataEmissao: string;
+  dataModificacao?: string;
+  idPessoaCliente?: number;
+  cliente: string;
+  telefone: string;
+  cidade: string;
+  idPessoaVendedor?: number;
+  vendedor: string;
+  valorTotal: number;
+  prazoNomus?: string;
+  prazoOriginal: string;
+  prazo: string;
+  observacoesNomus: string;
+  observacao: string;
+  produtos: string[];
+  quantidadeItens: number;
+  status: StatusPedidoGestao;
+  atendimento: StatusAtendimentoPedido;
+  responsavel: string;
+  atualizadoEm?: string;
+  atualizadoPor?: string;
+  historico: HistoricoPedidoGestao[];
+}
+
+export interface PainelPedidosGestao {
+  pedidos: PedidoGestao[];
+  atualizadoEm: string;
+  sincronizando: boolean;
+  origem: 'nomus' | 'cache-inicial';
+}
 
 export interface VendedorRanking {
   nome: string;
