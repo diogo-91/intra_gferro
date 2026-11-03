@@ -27,6 +27,7 @@ export const MODULOS = [
   { id: 'departamentos', nome: 'Departamentos & Áreas' },
   { id: 'ia-assistente', nome: 'Ideias e Sugestões' },
   { id: 'vendas', nome: 'Dashboard de Vendas', submodulos: SUBMODULOS_VENDAS },
+  { id: 'dashboard-pedidos', nome: 'Dashboard de Pedidos' },
   { id: 'financeiro', nome: 'Dashboard Financeiro' },
   { id: 'producao', nome: 'Produção' },
   { id: 'pedidos', nome: 'Gestão de Pedidos' },

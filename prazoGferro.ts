@@ -126,7 +126,14 @@ async function processarFila(): Promise<void> {
 
 // ---- Lista de pedidos do PCP (fonte principal) ----
 
-let listaPcp: { prazos: Map<number, string | null>; carregadoEm: number } | null = null;
+/** O que o PCP sabe de um pedido (tela "Controle de pedidos"). */
+export interface DadosPcp {
+  prazo: string | null; // aaaa-mm-dd
+  cliente: string;
+  status: string; // status do PCP, ex.: "PEDIDO LIBERADO"
+}
+
+let listaPcp: { pedidos: Map<number, DadosPcp>; carregadoEm: number } | null = null;
 let carregandoLista: Promise<void> | null = null;
 
 async function lerListaPcp(): Promise<void> {
@@ -139,13 +146,17 @@ async function lerListaPcp(): Promise<void> {
     if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
     const dados: any = await resposta.json();
     if (!Array.isArray(dados?.pedidos)) throw new Error('resposta sem pedidos');
-    const prazos = new Map<number, string | null>();
+    const pedidos = new Map<number, DadosPcp>();
     for (const pedido of dados.pedidos) {
       const numero = Number(pedido?.numero);
       if (!numero) continue;
-      prazos.set(numero, /^\d{4}-\d{2}-\d{2}$/.test(pedido.prazoEntrega ?? '') ? pedido.prazoEntrega : null);
+      pedidos.set(numero, {
+        prazo: /^\d{4}-\d{2}-\d{2}$/.test(pedido.prazoEntrega ?? '') ? pedido.prazoEntrega : null,
+        cliente: typeof pedido.clienteNome === 'string' ? pedido.clienteNome.trim() : '',
+        status: typeof pedido.statusPcp === 'string' ? pedido.statusPcp.trim() : '',
+      });
     }
-    listaPcp = { prazos, carregadoEm: Date.now() };
+    listaPcp = { pedidos, carregadoEm: Date.now() };
   } catch (e: any) {
     console.error('Não foi possível ler a lista de pedidos do PCP:', e.message);
     if (listaPcp) listaPcp.carregadoEm = Date.now() - TTL_LISTA_MS + REPETIR_APOS_FALHA_MS; // mantém a última leitura e tenta de novo em breve
@@ -155,11 +166,59 @@ async function lerListaPcp(): Promise<void> {
 }
 
 // Espera a primeira leitura; depois serve a anterior e atualiza em segundo plano.
-async function prazosDaLista(): Promise<Map<number, string | null> | null> {
+export async function obterDadosPcp(): Promise<Map<number, DadosPcp> | null> {
   const vencida = !listaPcp || Date.now() - listaPcp.carregadoEm > TTL_LISTA_MS;
   if (vencida && !carregandoLista) carregandoLista = lerListaPcp();
   if (!listaPcp) await carregandoLista;
-  return listaPcp?.prazos ?? null;
+  return listaPcp?.pedidos ?? null;
+}
+
+// ---- Entregas na Programação do PCP ----
+
+/** Itens de um pedido na Programação do PCP (onde a equipe marca Entregue/Cancelado). */
+export interface ItensPcp {
+  total: number;
+  abertos: number; // ainda não entregues nem cancelados
+  entregues: number;
+}
+
+let programacaoPcp: { pedidos: Map<number, ItensPcp>; carregadoEm: number } | null = null;
+let carregandoProgramacao: Promise<void> | null = null;
+
+async function lerProgramacaoPcp(): Promise<void> {
+  try {
+    const resposta = await fetch(`${PCP_URL}/api/programacao?visao=todos&antigos=1`, {
+      headers: PCP_TOKEN ? { 'x-pcp-token': PCP_TOKEN } : {},
+      signal: AbortSignal.timeout(TIMEOUT_LISTA_MS * 4),
+    });
+    if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+    const dados: any = await resposta.json();
+    if (!Array.isArray(dados?.itens)) throw new Error('resposta sem itens');
+    const pedidos = new Map<number, ItensPcp>();
+    for (const item of dados.itens) {
+      const numero = Number(item?.numeroPedido);
+      if (!numero) continue;
+      const atual = pedidos.get(numero) ?? { total: 0, abertos: 0, entregues: 0 };
+      atual.total += 1;
+      if (item.situacao === 'ENTREGUE') atual.entregues += 1;
+      else if (item.situacao !== 'CANCELADO' && item.situacao !== 'DEVOLUCAO') atual.abertos += 1;
+      pedidos.set(numero, atual);
+    }
+    programacaoPcp = { pedidos, carregadoEm: Date.now() };
+  } catch (e: any) {
+    console.error('Não foi possível ler a Programação do PCP:', e.message);
+    if (programacaoPcp) programacaoPcp.carregadoEm = Date.now() - TTL_LISTA_MS + REPETIR_APOS_FALHA_MS;
+  } finally {
+    carregandoProgramacao = null;
+  }
+}
+
+/** Situação de entrega de cada pedido na Programação do PCP, ou null se o PCP não responder. */
+export async function obterItensPcp(): Promise<Map<number, ItensPcp> | null> {
+  const vencida = !programacaoPcp || Date.now() - programacaoPcp.carregadoEm > TTL_LISTA_MS;
+  if (vencida && !carregandoProgramacao) carregandoProgramacao = lerProgramacaoPcp();
+  if (!programacaoPcp) await carregandoProgramacao;
+  return programacaoPcp?.pedidos ?? null;
 }
 
 function precisaConsultar(numero: number, entrada: Entrada | undefined, agora: number): boolean {
@@ -175,13 +234,13 @@ function precisaConsultar(numero: number, entrada: Entrada | undefined, agora: n
  */
 export async function anexarPrazoGferro(linhas: PedidoLojaLinha[]): Promise<PedidoLojaLinha[]> {
   const entradas = await carregar();
-  const daLista = await prazosDaLista();
+  const daLista = await obterDadosPcp();
   const agora = Date.now();
   const resultado = linhas.map((linha): PedidoLojaLinha => {
     if (linha.situacao === 'cancelado') return { ...linha, prazoGferro: null, prazoGferroPendente: false };
     const numero = numeroDoPedido(linha.codigo);
     if (numero === null) return { ...linha, prazoGferro: null, prazoGferroPendente: false };
-    if (daLista?.has(numero)) return { ...linha, prazoGferro: daLista.get(numero) ?? null, prazoGferroPendente: false };
+    if (daLista?.has(numero)) return { ...linha, prazoGferro: daLista.get(numero)?.prazo ?? null, prazoGferroPendente: false };
     const entrada = entradas.get(numero);
     if (precisaConsultar(numero, entrada, agora)) {
       fila.push(numero);

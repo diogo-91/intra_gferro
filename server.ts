@@ -30,6 +30,7 @@ import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoCon
 import { montarLinhasPedidosLoja, type RespostaPedidosLoja } from './src/pedidosLoja';
 import { anexarPrazoGferro } from './prazoGferro';
 import { agruparSaidas } from './src/saidasFinanceiras';
+import { iniciarAtualizacaoPedidosAbertos, montarRespostaPedidosAbertos } from './pedidosAbertos';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -856,6 +857,17 @@ Contexto da GFERRO:
     }
   });
 
+  // Dashboard > Pedidos: pedidos em aberto no Nomus, com loja, atraso e o que ainda há a receber. Responde na hora
+  // com o último estado guardado (a leitura do Nomus roda em segundo plano).
+  app.get('/api/dashboard/pedidos', async (req, res) => {
+    try {
+      res.json(await montarRespostaPedidosAbertos(req.query.atualizar === '1'));
+    } catch (error: any) {
+      console.error('Erro ao montar o dashboard de pedidos:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar os pedidos em aberto.', details: error.message });
+    }
+  });
+
   app.get('/api/financeiro/relatorio/pdf', async (req, res) => {
     try {
       const mes = req.query.mes as string | undefined;
@@ -1549,6 +1561,9 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
     // primeiro ciclo do mês corrente para não disputar a fila do Nomus com os KPIs.
     const aquecimentoPedidos = setTimeout(() => { void aquecerRelacaoDePedidos(3); }, 2 * 60 * 1000);
     aquecimentoPedidos.unref();
+
+    // Mantém o dashboard de pedidos em aberto atualizado em segundo plano (primeira leitura completa leva minutos).
+    iniciarAtualizacaoPedidosAbertos();
   });
 }
 

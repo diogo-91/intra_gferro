@@ -20,7 +20,8 @@ import {
   ChevronDown,
   ShieldCheck,
   Target,
-  PackageCheck
+  PackageCheck,
+  PackageSearch
 } from 'lucide-react';
 import { TabType, Department } from '../types';
 import type { ModuloId } from '../modulos';
@@ -85,6 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       children: [
         { id: 'vendas', label: 'Vendas', icon: TrendingUp },
+        { id: 'dashboard-pedidos', label: 'Pedidos', icon: PackageSearch },
         { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }] },
         { id: 'producao', label: 'Produção', icon: Factory },
         { id: 'gestao', label: 'Gestão', icon: Target },

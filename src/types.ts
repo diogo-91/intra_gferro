@@ -4,6 +4,7 @@ export type TabType =
   | 'financeiro'
   | 'programacao'
   | 'saidas'
+  | 'dashboard-pedidos'
   | 'producao'
   | 'pedidos'
   | 'gestao'

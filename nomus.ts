@@ -935,6 +935,91 @@ export interface FontePedidoGestao {
   quantidadeItens: number;
 }
 
+// ---- Dashboard de Pedidos (pedidos em aberto + o que ainda há a receber) ----
+
+export interface PedidoParaPainel {
+  id: number;
+  codigoPedido: string;
+  idPessoaCliente?: number;
+  idPessoaVendedor?: number;
+  dataEmissao: string; // "dd/mm/aaaa" como vem do Nomus
+  dataModificacao?: string;
+  valorTotal: number;
+  itens: Array<{ status?: number; dataEntrega?: string }>;
+}
+
+const paraPedidoDoPainel = (pedido: Pedido): PedidoParaPainel => ({
+  id: pedido.id,
+  codigoPedido: pedido.codigoPedido || String(pedido.id),
+  idPessoaCliente: pedido.idPessoaCliente,
+  idPessoaVendedor: pedido.idPessoaVendedor,
+  dataEmissao: (pedido.dataEmissao || '').split(' ')[0],
+  dataModificacao: pedido.dataModificacao,
+  valorTotal: parseNum(pedido.valorTotal),
+  itens: (pedido.itensPedido || []).map((item) => ({ status: item.status, dataEntrega: item.dataEntrega })),
+});
+
+/**
+ * Pedidos da GFERRO lidos do Nomus para o painel, no formato enxuto (sem observações nem produtos).
+ * Sem `modificadosDesde` lê tudo (varredura longa: minutos, por causa do limite de consultas); com ele lê só
+ * os que mudaram depois dessa data (AAAA-MM-DDTHH:mm:ss).
+ */
+export async function buscarPedidosParaPainel(modificadosDesde?: string): Promise<PedidoParaPainel[]> {
+  const { baseUrl, apiKey } = getConfig();
+  if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+  const filtro = modificadosDesde ? `dataModificacao>${modificadosDesde}` : `dataEmissao>2019-12-31T23:59:59;dataEmissao<${new Date().getFullYear() + 1}-01-01T00:00:00`;
+  const pedidos = await coletarTudo<Pedido>('pedidos', baseUrl, apiKey, comFiltroEmpresa(filtro));
+  return pedidos.map(paraPedidoDoPainel);
+}
+
+export interface ContaDoPedidoNomus {
+  descricaoLancamento: string;
+  saldo: number; // o que falta nesta parcela
+  valor: number;
+  recebido: number; // o que já entrou nesta parcela
+  dataVencimento: string; // "dd/mm/aaaa"
+  quitada: boolean;
+}
+
+/**
+ * Todas as parcelas a receber (abertas e quitadas) dos pedidos informados, ligadas pela descrição
+ * "Pedido PD nnnnn - Parcela x de y". Consulta em lotes de 20 pedidos (curinga no final da descrição).
+ */
+export async function buscarContasDosPedidos(numeros: number[]): Promise<ContaDoPedidoNomus[]> {
+  const { baseUrl, apiKey } = getConfig();
+  if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+  const resultado: ContaDoPedidoNomus[] = [];
+  for (let i = 0; i < numeros.length; i += 20) {
+    // O filtro de empresa não entra na consulta (o "ou" entre os pedidos misturaria com o "e"): a conferência é depois.
+    const query = numeros.slice(i, i + 20).map((n) => `descricaoLancamento=="Pedido PD ${String(n).padStart(5, '0')}*"`).join(',');
+    const contas = await coletarTudo<ContaFinanceiraRaw & { descricaoLancamento?: string; valorRecebido?: string | number; idEmpresa?: number }>('contasReceber', baseUrl, apiKey, query);
+    for (const conta of contas) {
+      if (conta.idEmpresa !== undefined && conta.idEmpresa !== ID_EMPRESA_GFERRO) continue; // instância compartilhada com a Constelha
+      resultado.push({
+        descricaoLancamento: conta.descricaoLancamento || '',
+        saldo: Math.abs(parseNum(conta.saldoReceber)),
+        valor: Math.abs(parseNum(conta.valorReceber)),
+        recebido: Math.abs(parseNum(conta.valorRecebido)),
+        dataVencimento: (conta.dataVencimento || '').split(' ')[0],
+        quitada: conta.status === true,
+      });
+    }
+  }
+  return resultado;
+}
+
+/** Nome de cada vendedor por id (do cache de vendedores). */
+export async function nomesDosVendedores(): Promise<Map<number, string>> {
+  const vendedores = await getVendedores();
+  return new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
+}
+
+/** Código do pedido ("PD 02208", "Pedido PD 02208 - parcela 1") -> número sem zeros à esquerda, ou null. */
+export function numeroDoCodigoPedido(texto?: string): number | null {
+  const numero = chaveCodigoPedido(texto);
+  return numero ? Number(numero) : null;
+}
+
 /** Fonte do painel operacional: somente pedidos cujos itens continuam liberados. */
 export async function buscarPedidosLiberadosParaGestao(dataInicio = '2019-12-31T23:59:59'): Promise<FontePedidoGestao[]> {
   const { baseUrl, apiKey } = getConfig();
