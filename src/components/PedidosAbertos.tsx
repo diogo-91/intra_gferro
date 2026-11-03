@@ -125,7 +125,7 @@ const PedidosAbertosConteudo: React.FC = () => {
 
   // Enquanto o servidor lê o Nomus (primeira vez, atualização, financeiro), pergunta de novo em poucos segundos;
   // fora disso, acompanha a cada minuto.
-  const lendo = !!(resposta?.carregando || resposta?.atualizando || resposta?.financeiroPendente);
+  const lendo = !!(resposta?.carregando || resposta?.atualizando || resposta?.financeiroPendente || resposta?.historicoParcial);
   useEffect(() => {
     const espera = setTimeout(() => buscar(true), lendo ? 8_000 : 60_000);
     return () => clearTimeout(espera);
@@ -244,6 +244,20 @@ const PedidosAbertosConteudo: React.FC = () => {
           {resposta.atualizando ? ' · atualizando...' : ''}
           {resposta.financeiroPendente ? ' · lendo o financeiro de alguns pedidos...' : ''}
         </p>
+      )}
+
+      {resposta?.historicoParcial && !resposta.carregando && (
+        <div role="status" className="flex gap-2 p-3 rounded-xl bg-yellow-50 border border-yellow-200 text-xs text-yellow-900 -mt-2">
+          <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden="true" />
+          Carregando os pedidos mais antigos do Nomus. A lista já mostra os mais recentes e vai completando sozinha.
+        </div>
+      )}
+
+      {resposta?.erroAtualizacao && !resposta.carregando && (
+        <div role="alert" className="flex gap-2 p-3 rounded-xl bg-orange-50 border border-orange-200 text-xs text-orange-900 -mt-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+          Não foi possível atualizar agora ({resposta.erroAtualizacao}). Mostrando a última leitura, de {new Date(resposta.atualizadoEm).toLocaleString('pt-BR')}; o sistema tenta de novo sozinho.
+        </div>
       )}
 
       {erro && (

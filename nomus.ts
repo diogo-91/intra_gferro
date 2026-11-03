@@ -961,14 +961,18 @@ const paraPedidoDoPainel = (pedido: Pedido): PedidoParaPainel => ({
 
 /**
  * Pedidos da GFERRO lidos do Nomus para o painel, no formato enxuto (sem observações nem produtos).
- * Sem `modificadosDesde` lê tudo (varredura longa: minutos, por causa do limite de consultas); com ele lê só
- * os que mudaram depois dessa data (AAAA-MM-DDTHH:mm:ss).
+ * Com `modificadosDesde` lê só os que mudaram depois dessa data; com `emitidosApos`/`emitidosAntes` lê uma faixa
+ * de datas de emissão (a varredura completa em etapas); sem nada lê tudo. Datas no formato AAAA-MM-DDTHH:mm:ss.
  */
-export async function buscarPedidosParaPainel(modificadosDesde?: string): Promise<PedidoParaPainel[]> {
+export async function buscarPedidosParaPainel(
+  filtro: { modificadosDesde?: string; emitidosApos?: string; emitidosAntes?: string } = {}
+): Promise<PedidoParaPainel[]> {
   const { baseUrl, apiKey } = getConfig();
   if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
-  const filtro = modificadosDesde ? `dataModificacao>${modificadosDesde}` : `dataEmissao>2019-12-31T23:59:59;dataEmissao<${new Date().getFullYear() + 1}-01-01T00:00:00`;
-  const pedidos = await coletarTudo<Pedido>('pedidos', baseUrl, apiKey, comFiltroEmpresa(filtro));
+  const query = filtro.modificadosDesde
+    ? `dataModificacao>${filtro.modificadosDesde}`
+    : `dataEmissao>${filtro.emitidosApos ?? '2019-12-31T23:59:59'};dataEmissao<${filtro.emitidosAntes ?? `${new Date().getFullYear() + 1}-01-01T00:00:00`}`;
+  const pedidos = await coletarTudo<Pedido>('pedidos', baseUrl, apiKey, comFiltroEmpresa(query));
   return pedidos.map(paraPedidoDoPainel);
 }
 

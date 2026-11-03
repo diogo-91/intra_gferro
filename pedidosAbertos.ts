@@ -1,8 +1,11 @@
-// Dashboard > Pedidos (servidor): mantém em disco os pedidos com status Liberado no Nomus e o financeiro de cada um,
-// e os atualiza em segundo plano. A primeira leitura completa leva minutos (limite de consultas do Nomus); depois
-// só entram os pedidos modificados desde a última leitura, e a tela nunca espera o Nomus.
+// Dashboard > Pedidos (servidor): guarda em disco (e em memória) os pedidos com status Liberado no Nomus, o
+// financeiro de cada um, os nomes dos vendedores e o que o PCP sabe de cada pedido. A tela lê SÓ desse estado
+// guardado — nunca espera o Nomus nem o PCP —, e tudo é atualizado em segundo plano:
+//  - leitura completa em etapas (os últimos 30 dias primeiro, depois 120 dias, depois o histórico), publicando a cada etapa;
+//  - depois só entram os pedidos modificados desde a última leitura (segundos);
+//  - se uma atualização falha, a última leitura continua valendo e a tela avisa.
 
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { copyFile, mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { buscarContasDosPedidos, buscarPedidosParaPainel, nomesDosVendedores, numeroDoCodigoPedido, type PedidoParaPainel } from './nomus';
 import { obterDadosPcp, obterItensPcp } from './prazoGferro';
@@ -12,10 +15,15 @@ import { ehPedidoLiberado, montarLinhaPedidoAberto, ordenarPedidosAbertos, type 
 
 const ARQUIVO = path.join(process.cwd(), 'data', 'pedidos-abertos.json');
 
-const INTERVALO_ATUALIZACAO_MS = 10 * 60_000; // o que mudou nos pedidos
+const INTERVALO_ATUALIZACAO_MS = 10 * 60_000; // o que mudou nos pedidos, vendedores e PCP
 const VARREDURA_COMPLETA_A_CADA_MS = 12 * 60 * 60_000; // rede de segurança caso uma mudança não apareça na data de modificação
 const FINANCEIRO_VALIDO_POR_MS = 30 * 60_000;
 const MARGEM_DA_MODIFICACAO_MS = 15 * 60_000;
+const DIAS_DA_PRIMEIRA_ETAPA = 30; // pedidos emitidos nesse período entram primeiro, para a tela ter dados em poucos minutos
+const DIAS_DA_SEGUNDA_ETAPA = 120;
+const INICIO_DO_HISTORICO = '2019-12-31T23:59:59';
+const FIM_DA_ETAPA_ANTIGA = '2025-07-01T00:00:00';
+const INICIO_DA_ETAPA_INTERMEDIARIA = '2025-06-30T23:59:59';
 
 interface FinanceiroGuardado {
   recebido: number; // já recebido nas parcelas (abertas e quitadas)
@@ -23,49 +31,81 @@ interface FinanceiroGuardado {
   atualizadoEm: number;
 }
 
+interface PcpGuardado {
+  cliente: string;
+  prazo: string | null;
+  status: string;
+  itens: { total: number; abertos: number; entregues: number } | null;
+}
+
 interface Estado {
-  versao: 2;
+  versao: 3;
   pedidos: Record<string, PedidoParaPainel>; // só os com status Liberado
   varreduraCompletaEm: number;
   pedidosAtualizadoEm: number;
+  historicoCompleto: boolean; // false enquanto a primeira leitura ainda traz os pedidos antigos
   financeiro: Record<string, FinanceiroGuardado>; // por número do pedido
+  vendedores: Record<string, string>; // id -> nome
+  pcp: Record<string, PcpGuardado>; // por número do pedido
+  ultimoErro: { mensagem: string; em: number } | null;
 }
 
-const estadoVazio = (): Estado => ({ versao: 2, pedidos: {}, varreduraCompletaEm: 0, pedidosAtualizadoEm: 0, financeiro: {} });
+const estadoVazio = (): Estado => ({
+  versao: 3, pedidos: {}, varreduraCompletaEm: 0, pedidosAtualizadoEm: 0, historicoCompleto: false, financeiro: {}, vendedores: {}, pcp: {}, ultimoErro: null,
+});
 
 let estado: Estado | null = null;
 let emAndamento: Promise<void> | null = null;
 
-async function carregarDoDisco(): Promise<Estado> {
-  if (estado) return estado;
+async function lerArquivo(arquivo: string): Promise<Estado | null> {
   try {
-    const dados = JSON.parse(await readFile(ARQUIVO, 'utf-8'));
-    estado = dados?.versao === 2 ? { ...estadoVazio(), ...dados } : estadoVazio();
+    const dados = JSON.parse(await readFile(arquivo, 'utf-8'));
+    if (dados?.versao !== 2 && dados?.versao !== 3) return null;
+    // A versão 2 (sem vendedores/PCP guardados) tem o mesmo formato de pedidos e financeiro.
+    return { ...estadoVazio(), ...dados, versao: 3, historicoCompleto: dados.historicoCompleto ?? dados.varreduraCompletaEm > 0, ultimoErro: dados.ultimoErro ?? null };
   } catch {
-    estado = estadoVazio();
+    return null;
   }
-  return estado!;
 }
 
+async function carregarDoDisco(): Promise<Estado> {
+  if (estado) return estado;
+  estado = (await lerArquivo(ARQUIVO)) ?? (await lerArquivo(`${ARQUIVO}.bak`)) ?? estadoVazio();
+  return estado;
+}
+
+// Grava num arquivo temporário e troca (nunca deixa o arquivo principal pela metade); guarda a cópia anterior.
 async function persistir(): Promise<void> {
   try {
     await mkdir(path.dirname(ARQUIVO), { recursive: true });
-    await writeFile(ARQUIVO, JSON.stringify(estado), 'utf-8');
+    const temporario = `${ARQUIVO}.tmp`;
+    await writeFile(temporario, JSON.stringify(estado), 'utf-8');
+    await copyFile(ARQUIVO, `${ARQUIVO}.bak`).catch(() => undefined);
+    await rename(temporario, ARQUIVO);
   } catch (e: any) {
     console.error('[pedidos-abertos] não foi possível salvar o estado:', e.message);
   }
 }
 
+const dois = (n: number) => String(n).padStart(2, '0');
+const dataDoServidor = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`; };
+
 // AAAA-MM-DDTHH:mm:ss no horário do servidor (o mesmo fuso em que o Nomus grava as datas).
 function formatarParaNomus(ms: number): string {
   const d = new Date(ms);
-  const dois = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}T${dois(d.getHours())}:${dois(d.getMinutes())}:${dois(d.getSeconds())}`;
+  return `${dataDoServidor(ms)}T${dois(d.getHours())}:${dois(d.getMinutes())}:${dois(d.getSeconds())}`;
 }
 
-const estaEmAberto = (pedido: PedidoParaPainel): boolean => ehPedidoLiberado(pedido.itens);
-
 const ehDataBr = (texto: string) => /^\d{2}\/\d{2}\/\d{4}$/.test(texto);
+
+async function atualizarVendedores(atual: Estado): Promise<void> {
+  try {
+    const nomes = await nomesDosVendedores();
+    if (nomes.size > 0) atual.vendedores = Object.fromEntries([...nomes].map(([id, nome]) => [String(id), nome]));
+  } catch (e: any) {
+    console.error('[pedidos-abertos] não foi possível ler os vendedores; mantendo os guardados:', e?.message ?? e);
+  }
+}
 
 async function atualizarFinanceiro(atual: Estado, modificados: Set<number>, relerQuemTemParcelaAberta: boolean): Promise<void> {
   const agora = Date.now();
@@ -94,76 +134,143 @@ async function atualizarFinanceiro(atual: Estado, modificados: Set<number>, rele
   for (const chave of Object.keys(atual.financeiro)) if (!emAberto.has(chave)) delete atual.financeiro[chave];
 }
 
+// Guarda o que o PCP sabe (cliente, prazo Gferro, status, entregas) dos pedidos da lista. Se o PCP não responder,
+// continuam valendo os dados da última leitura.
+async function atualizarPcp(atual: Estado): Promise<void> {
+  const [dados, itens] = await Promise.all([obterDadosPcp().catch(() => null), obterItensPcp().catch(() => null)]);
+  if (!dados && !itens) return;
+  const pcp: Record<string, PcpGuardado> = {};
+  for (const pedido of Object.values(atual.pedidos)) {
+    const numero = numeroDoCodigoPedido(pedido.codigoPedido);
+    if (numero === null) continue;
+    const anterior = atual.pcp[numero];
+    const doPedido = dados?.get(numero);
+    pcp[numero] = {
+      cliente: doPedido ? doPedido.cliente : anterior?.cliente ?? '',
+      prazo: doPedido ? doPedido.prazo : anterior?.prazo ?? null,
+      status: doPedido ? doPedido.status : anterior?.status ?? '',
+      itens: itens ? itens.get(numero) ?? null : anterior?.itens ?? null,
+    };
+  }
+  atual.pcp = pcp;
+}
+
+// Leitura completa em etapas. Com a lista ainda vazia ou incompleta (primeira vez, depois de um deploy sem dados),
+// cada etapa já é publicada; com dados anteriores, a lista antiga só é trocada no fim (nunca fica menor no meio).
+async function varreduraCompleta(atual: Estado, inicio: number): Promise<void> {
+  const publicarAoLongoDoCaminho = !atual.historicoCompleto;
+  // Fronteira entre duas etapas: um lado é "depois da véspera às 23:59:59", o outro "antes das 00:00:00 do dia" — sem
+  // sobrepor nem deixar pedido de fora.
+  const fronteira = (dias: number) => ({
+    dia: `${dataDoServidor(inicio - dias * 86_400_000)}T00:00:00`,
+    vespera: `${dataDoServidor(inicio - (dias + 1) * 86_400_000)}T23:59:59`,
+  });
+  const primeira = fronteira(DIAS_DA_PRIMEIRA_ETAPA);
+  const segunda = fronteira(DIAS_DA_SEGUNDA_ETAPA);
+  const etapas = [
+    { emitidosApos: primeira.vespera },
+    { emitidosApos: segunda.vespera, emitidosAntes: primeira.dia },
+    { emitidosApos: INICIO_DA_ETAPA_INTERMEDIARIA, emitidosAntes: segunda.dia },
+    { emitidosApos: INICIO_DO_HISTORICO, emitidosAntes: FIM_DA_ETAPA_ANTIGA },
+  ];
+
+  const novos: Record<string, PedidoParaPainel> = {};
+  for (const etapa of etapas) {
+    for (const pedido of await buscarPedidosParaPainel(etapa)) if (ehPedidoLiberado(pedido.itens)) novos[pedido.id] = pedido;
+    if (publicarAoLongoDoCaminho) {
+      atual.pedidos = { ...novos };
+      await atualizarPcp(atual); // rápido: os nomes dos clientes já entram junto com os pedidos
+      await persistir();
+      await atualizarFinanceiro(atual, new Set(), false);
+      await persistir();
+    }
+  }
+  atual.pedidos = novos;
+  atual.pedidosAtualizadoEm = inicio;
+  atual.varreduraCompletaEm = inicio;
+  atual.historicoCompleto = true;
+}
+
 async function executarAtualizacao(relerFinanceiro: boolean): Promise<void> {
   const atual = await carregarDoDisco();
   const inicio = Date.now();
-  const completa = atual.varreduraCompletaEm === 0 || inicio - atual.varreduraCompletaEm > VARREDURA_COMPLETA_A_CADA_MS;
+  await atualizarVendedores(atual);
 
-  const lidos = await buscarPedidosParaPainel(completa ? undefined : formatarParaNomus(atual.pedidosAtualizadoEm - MARGEM_DA_MODIFICACAO_MS));
-  const pedidos: Record<string, PedidoParaPainel> = completa ? {} : { ...atual.pedidos };
+  const completa = !atual.historicoCompleto || inicio - atual.varreduraCompletaEm > VARREDURA_COMPLETA_A_CADA_MS;
   const modificados = new Set<number>();
-  for (const pedido of lidos) {
-    if (estaEmAberto(pedido)) pedidos[pedido.id] = pedido;
-    else delete pedidos[pedido.id];
-    const numero = numeroDoCodigoPedido(pedido.codigoPedido);
-    if (numero !== null) modificados.add(numero);
+  if (completa) {
+    await varreduraCompleta(atual, inicio);
+  } else {
+    const lidos = await buscarPedidosParaPainel({ modificadosDesde: formatarParaNomus(atual.pedidosAtualizadoEm - MARGEM_DA_MODIFICACAO_MS) });
+    const pedidos = { ...atual.pedidos };
+    for (const pedido of lidos) {
+      if (ehPedidoLiberado(pedido.itens)) pedidos[pedido.id] = pedido;
+      else delete pedidos[pedido.id];
+      const numero = numeroDoCodigoPedido(pedido.codigoPedido);
+      if (numero !== null) modificados.add(numero);
+    }
+    atual.pedidos = pedidos;
+    atual.pedidosAtualizadoEm = inicio;
   }
-  atual.pedidos = pedidos;
-  atual.pedidosAtualizadoEm = inicio;
-  if (completa) atual.varreduraCompletaEm = inicio;
+  await atualizarPcp(atual); // rápido; o financeiro (mais lento) vem depois
   await persistir(); // a tela já pode mostrar os pedidos enquanto o financeiro é lido
 
   await atualizarFinanceiro(atual, modificados, relerFinanceiro);
+  atual.ultimoErro = null;
   await persistir();
-  console.log(`[pedidos-abertos] ${completa ? 'leitura completa' : 'atualização'}: ${Object.keys(atual.pedidos).length} pedidos em aberto, ${lidos.length} lidos, em ${Math.round((Date.now() - inicio) / 1000)}s`);
+  console.log(`[pedidos-abertos] ${completa ? 'leitura completa' : 'atualização'}: ${Object.keys(atual.pedidos).length} pedidos liberados em ${Math.round((Date.now() - inicio) / 1000)}s`);
 }
 
-/** Dispara uma atualização em segundo plano (uma por vez). */
+/** Dispara uma atualização em segundo plano (uma por vez). Nunca rejeita: a falha fica registrada no estado. */
 export function atualizarPedidosAbertos(relerFinanceiro = false): Promise<void> {
   if (!emAndamento) {
     emAndamento = executarAtualizacao(relerFinanceiro)
-      .catch((erro) => console.error('[pedidos-abertos] falha na atualização; mantendo os dados anteriores:', erro?.message ?? erro))
+      .catch(async (erro) => {
+        console.error('[pedidos-abertos] falha na atualização; mantendo os dados anteriores:', erro?.message ?? erro);
+        if (estado) {
+          estado.ultimoErro = { mensagem: String(erro?.message ?? erro).slice(0, 200), em: Date.now() };
+          await persistir();
+        }
+      })
       .finally(() => { emAndamento = null; });
   }
   return emAndamento;
 }
 
-/** Carrega o último estado do disco e mantém a atualização automática. */
+/** Carrega o último estado do disco e mantém a atualização automática em segundo plano. */
 export function iniciarAtualizacaoPedidosAbertos(): void {
   const ciclo = async () => {
     await atualizarPedidosAbertos();
     setTimeout(ciclo, INTERVALO_ATUALIZACAO_MS).unref();
   };
-  void carregarDoDisco().then(() => setTimeout(ciclo, 30_000).unref());
+  void carregarDoDisco().then(() => setTimeout(ciclo, 15_000).unref());
 }
 
-const hojeIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const hojeIso = (d: Date) => `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
 
+/** Monta a tela só do que está guardado (não consulta o Nomus nem o PCP). */
 export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): Promise<RespostaPedidosAbertos> {
   const atual = await carregarDoDisco();
   const vencido = Date.now() - atual.pedidosAtualizadoEm > INTERVALO_ATUALIZACAO_MS;
-  if (forcarAtualizacao || vencido || atual.pedidosAtualizadoEm === 0) void atualizarPedidosAbertos(forcarAtualizacao);
+  if (forcarAtualizacao || vencido || !atual.historicoCompleto) void atualizarPedidosAbertos(forcarAtualizacao);
 
-  if (atual.pedidosAtualizadoEm === 0) {
+  const semDados = Object.keys(atual.pedidos).length === 0 && !atual.historicoCompleto;
+  if (semDados) {
     return { atualizadoEm: new Date().toISOString(), carregando: true, atualizando: true, pedidos: [] };
   }
 
   const hoje = new Date();
-  const [nomes, dadosPcp, itensPcp] = await Promise.all([
-    nomesDosVendedores().catch(() => new Map<number, string>()),
-    obterDadosPcp().catch(() => null),
-    obterItensPcp().catch(() => null),
-  ]);
-  const nomesLojas = new Map<string, string>(LOJAS.map((l) => [l.id, l.nome]));
   const hojeTexto = hojeIso(hoje);
+  const nomesLojas = new Map<string, string>(LOJAS.map((l) => [l.id, l.nome]));
 
   let financeiroPendente = false;
   const linhas: PedidoAbertoLinha[] = [];
   for (const pedido of Object.values(atual.pedidos)) {
     const numero = numeroDoCodigoPedido(pedido.codigoPedido);
-    const pcp = numero !== null ? dadosPcp?.get(numero) : undefined;
-    const vendedor = pedido.idPessoaVendedor != null ? nomes.get(pedido.idPessoaVendedor) ?? `Vendedor #${pedido.idPessoaVendedor}` : 'Sem vendedor';
-    const lojaId = pedido.idPessoaVendedor != null && nomes.has(pedido.idPessoaVendedor) ? lojaDoVendedor(vendedor) : undefined;
+    const pcp = numero !== null ? atual.pcp[numero] : undefined;
+    const nomeVendedor = pedido.idPessoaVendedor != null ? atual.vendedores[pedido.idPessoaVendedor] : undefined;
+    const vendedor = pedido.idPessoaVendedor == null ? 'Sem vendedor' : nomeVendedor ?? `Vendedor #${pedido.idPessoaVendedor}`;
+    const lojaId = nomeVendedor ? lojaDoVendedor(nomeVendedor) : undefined;
 
     const guardado = numero !== null ? atual.financeiro[numero] : undefined;
     let financeiro: FinanceiroDoPedido | null = null;
@@ -192,16 +299,18 @@ export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): P
       loja: (lojaId && nomesLojas.get(lojaId)) || 'Sem loja',
       statusPcp: pcp?.status ?? '',
       prazoGferro: pcp?.prazo ?? null,
-      itensPcp: numero !== null ? itensPcp?.get(numero) ?? null : null,
+      itensPcp: pcp?.itens ?? null,
       financeiro,
     }, hoje);
     if (linha) linhas.push(linha);
   }
 
   return {
-    atualizadoEm: new Date(atual.pedidosAtualizadoEm).toISOString(),
+    atualizadoEm: new Date(atual.pedidosAtualizadoEm || Date.now()).toISOString(),
     ...(emAndamento ? { atualizando: true } : {}),
     ...(financeiroPendente ? { financeiroPendente: true } : {}),
+    ...(!atual.historicoCompleto ? { historicoParcial: true } : {}),
+    ...(atual.ultimoErro ? { erroAtualizacao: atual.ultimoErro.mensagem } : {}),
     pedidos: ordenarPedidosAbertos(linhas),
   };
 }

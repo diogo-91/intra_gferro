@@ -39,6 +39,10 @@ export interface RespostaPedidosAbertos {
   atualizando?: boolean;
   /** Existem pedidos cujo financeiro ainda está sendo lido. */
   financeiroPendente?: boolean;
+  /** A primeira leitura ainda está trazendo os pedidos mais antigos: a lista pode crescer. */
+  historicoParcial?: boolean;
+  /** A última tentativa de atualizar falhou: a lista é a da última leitura bem-sucedida. */
+  erroAtualizacao?: string;
   pedidos: PedidoAbertoLinha[];
 }
 
