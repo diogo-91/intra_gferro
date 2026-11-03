@@ -189,13 +189,11 @@ const PedidosAbertosConteudo: React.FC = () => {
   const colunas: Array<{ campo: Campo; titulo: string; alinhar?: 'right' }> = [
     { campo: 'codigo', titulo: 'Pedido' },
     { campo: 'cliente', titulo: 'Cliente' },
-    { campo: 'vendedor', titulo: 'Vendedor' },
-    { campo: 'loja', titulo: 'Loja' },
-    { campo: 'emissao', titulo: 'Emissão' },
-    { campo: 'prazo', titulo: 'Prazo de entrega' },
+    { campo: 'vendedor', titulo: 'Vendedor / Loja' },
+    { campo: 'prazo', titulo: 'Prazo' },
     { campo: 'urgencia', titulo: 'Situação' },
     { campo: 'valor', titulo: 'Valor', alinhar: 'right' },
-    { campo: 'aReceber', titulo: 'A receber', alinhar: 'right' },
+    { campo: 'aReceber', titulo: 'Falta receber', alinhar: 'right' },
   ];
 
   const consultando = carregando || !!resposta?.carregando;
@@ -277,7 +275,7 @@ const PedidosAbertosConteudo: React.FC = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Kpi titulo="Pedidos liberados" valor={formatInteiro(visiveis.length)} detalhe={`${formatCurrency(totais.valor)} em pedidos`} classe="border-yellow-100 bg-yellow-50/60" tituloClasse="text-yellow-800" />
             <Kpi titulo="Atrasados" valor={formatInteiro(totais.atrasados)} detalhe={totais.atrasados ? `${formatCurrency(totais.valorAtrasado)} · média de ${plural(totais.mediaAtraso, 'dia', 'dias')}` : 'Nenhum pedido atrasado'} classe="border-red-100 bg-red-50/60" tituloClasse="text-red-700" />
-            <Kpi titulo="A receber" valor={formatCurrency(totais.aReceber)} detalhe={`em ${plural(totais.comSaldo, 'pedido', 'pedidos')}`} classe="border-emerald-100 bg-emerald-50/60" tituloClasse="text-emerald-700" />
+            <Kpi titulo="Falta receber" valor={formatCurrency(totais.aReceber)} detalhe={`em ${plural(totais.comSaldo, 'pedido', 'pedidos')}`} classe="border-emerald-100 bg-emerald-50/60" tituloClasse="text-emerald-700" />
             <Kpi titulo="Vencido a receber" valor={formatCurrency(totais.vencido)} detalhe={`parcelas vencidas em ${plural(totais.comVencido, 'pedido', 'pedidos')}`} classe="border-orange-100 bg-orange-50/60" tituloClasse="text-orange-700" />
           </div>
 
@@ -317,14 +315,14 @@ const PedidosAbertosConteudo: React.FC = () => {
 
           <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1400px] text-sm">
+              <table className="w-full min-w-[860px] text-[13px]">
                 <thead className="bg-neutral-50 border-b border-neutral-200">
                   <tr>
                     {colunas.map(({ campo, titulo, alinhar }) => {
                       const ativa = ordenacao.campo === campo;
                       const Icone = !ativa ? ArrowUpDown : ordenacao.direcao === 'asc' ? ArrowUp : ArrowDown;
                       return (
-                        <th key={campo} scope="col" aria-sort={ativa ? (ordenacao.direcao === 'asc' ? 'ascending' : 'descending') : 'none'} className={`px-4 py-4 font-extrabold text-neutral-900 ${alinhar === 'right' ? 'text-right' : 'text-left'}`}>
+                        <th key={campo} scope="col" aria-sort={ativa ? (ordenacao.direcao === 'asc' ? 'ascending' : 'descending') : 'none'} className={`px-3 py-3.5 font-extrabold text-neutral-900 ${alinhar === 'right' ? 'text-right' : 'text-left'}`}>
                           <button type="button" onClick={() => alternar(campo)} className={`flex items-center gap-2 hover:text-yellow-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 rounded ${alinhar === 'right' ? 'ml-auto' : ''}`}>
                             {titulo}
                             <Icone className={`w-3.5 h-3.5 ${ativa ? 'text-yellow-600' : 'text-neutral-400'}`} aria-hidden="true" />
@@ -341,39 +339,40 @@ const PedidosAbertosConteudo: React.FC = () => {
                     const estilo = ESTILO[pedido.situacao];
                     return (
                       <tr key={pedido.id} className="hover:bg-neutral-50/60 align-top">
-                        <td className={`px-4 py-3.5 whitespace-nowrap border-l-4 ${estilo.borda}`}>
+                        <td className={`px-3 py-3 whitespace-nowrap border-l-4 ${estilo.borda}`}>
                           <div className="font-bold text-neutral-900">{pedido.codigo}</div>
-                          <div className="text-[11px] text-neutral-500">{pedido.statusPcp || pedido.etapa}</div>
+                          <div className="text-[11px] text-neutral-500">{pedido.dataEmissao ? `emitido em ${formatDataIsoParaBr(pedido.dataEmissao)}` : (pedido.statusPcp || pedido.etapa)}</div>
                         </td>
-                        <td className="px-4 py-3.5 text-neutral-800 max-w-[220px]"><span className="line-clamp-2" title={pedido.cliente}>{pedido.cliente}</span></td>
-                        <td className="px-4 py-3.5 text-neutral-700">{pedido.vendedor}</td>
-                        <td className="px-4 py-3.5 text-neutral-700 whitespace-nowrap">{pedido.loja}</td>
-                        <td className="px-4 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">{pedido.dataEmissao ? formatDataIsoParaBr(pedido.dataEmissao) : '—'}</td>
-                        <td className="px-4 py-3.5 whitespace-nowrap tabular-nums text-neutral-700">
+                        <td className="px-3 py-3 text-neutral-800 max-w-[170px]"><span className="line-clamp-2" title={pedido.cliente}>{pedido.cliente}</span></td>
+                        <td className="px-3 py-3 text-neutral-700 max-w-[150px]">
+                          <div className="line-clamp-2" title={pedido.vendedor}>{pedido.vendedor}</div>
+                          <div className="text-[11px] text-neutral-500">{pedido.loja}</div>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap tabular-nums text-neutral-700">
                           {pedido.prazo ? formatDataIsoParaBr(pedido.prazo) : '—'}
                           {pedido.fontePrazo && <div className="text-[10px] text-neutral-400">{pedido.fontePrazo === 'gferro' ? 'prazo Gferro' : 'prazo Nomus'}</div>}
                         </td>
-                        <td className="px-4 py-3.5">
-                          <span className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold ${estilo.selo}`}>
-                            <span className={`w-2.5 h-2.5 rounded-full ${estilo.ponto}`} aria-hidden="true" />
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${estilo.selo}`}>
+                            <span className={`w-2 h-2 rounded-full ${estilo.ponto}`} aria-hidden="true" />
                             {textoSituacao(pedido)}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-right whitespace-nowrap tabular-nums text-neutral-900">{formatarValor(pedido.valorTotal)}</td>
-                        <td className="px-4 py-3.5 text-right whitespace-nowrap tabular-nums">
+                        <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums text-neutral-900">{formatarValor(pedido.valorTotal)}</td>
+                        <td className="px-3 py-3 text-right tabular-nums bg-emerald-50/40">
                           {pedido.aReceber === null ? (
                             <span className="text-neutral-400 text-xs">Lendo...</span>
                           ) : pedido.aReceber === 0 ? (
                             <span className="text-neutral-500 text-xs font-semibold">Nada a receber</span>
                           ) : (
                             <>
-                              <div className="font-bold text-neutral-900">{formatarValor(pedido.aReceber)}</div>
+                              <div className="font-bold text-neutral-900 whitespace-nowrap">{formatarValor(pedido.aReceber)}</div>
                               <div className="text-[10px] text-neutral-500">
                                 {pedido.titulosAbertos > 0
                                   ? `${plural(pedido.titulosAbertos, 'parcela', 'parcelas')} em aberto${pedido.proximoVencimento ? ` · ${formatDataIsoParaBr(pedido.proximoVencimento)}` : ''}`
                                   : 'sem parcela lançada'}
                               </div>
-                              {pedido.vencidoReceber > 0 && <div className="text-[10px] font-bold text-red-600">{formatarValor(pedido.vencidoReceber)} vencido</div>}
+                              {pedido.vencidoReceber > 0 && <div className="text-[10px] font-bold text-red-600 whitespace-nowrap">{formatarValor(pedido.vencidoReceber)} vencido</div>}
                             </>
                           )}
                         </td>
