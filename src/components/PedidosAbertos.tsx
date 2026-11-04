@@ -134,20 +134,25 @@ const PedidosAbertosConteudo: React.FC = () => {
   const pedidos = resposta?.pedidos ?? [];
   const lojas = useMemo(() => [...new Set<string>(pedidos.map((p) => p.loja))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [pedidos]);
 
-  const contagem = useMemo(() => {
-    const total: Record<SituacaoPedidoAberto, number> = { 'atrasado': 0, 'vence-em-breve': 0, 'no-prazo': 0, 'sem-prazo': 0, 'entregue-pcp': 0 };
-    for (const pedido of pedidos) total[pedido.situacao] += 1;
-    return total;
-  }, [pedidos]);
-
-  const visiveis = useMemo(() => {
+  // Seleção atual (loja, recebíveis e busca). Os números dos botões de situação e os indicadores do topo contam só
+  // esses pedidos; o botão de situação escolhido restringe apenas a tabela.
+  const selecionados = useMemo(() => {
     const termo = normalizar(busca.trim());
-    const filtrados = pedidos.filter((p) =>
-      (filtro === 'todos' || p.situacao === filtro)
-      && (loja === 'todas' || p.loja === loja)
+    return pedidos.filter((p) =>
+      (loja === 'todas' || p.loja === loja)
       && (recebivel === 'todos' || (recebivel === 'com-saldo' ? (p.aReceber ?? 0) > 0 : p.aReceber === 0))
       && (!termo || normalizar(`${p.codigo} ${p.cliente} ${p.vendedor} ${p.loja}`).includes(termo))
     );
+  }, [pedidos, loja, recebivel, busca]);
+
+  const contagem = useMemo(() => {
+    const total: Record<SituacaoPedidoAberto, number> = { 'atrasado': 0, 'vence-em-breve': 0, 'no-prazo': 0, 'sem-prazo': 0, 'entregue-pcp': 0 };
+    for (const pedido of selecionados) total[pedido.situacao] += 1;
+    return total;
+  }, [selecionados]);
+
+  const visiveis = useMemo(() => {
+    const filtrados = filtro === 'todos' ? selecionados : selecionados.filter((p) => p.situacao === filtro);
     if (ordenacao.campo === 'urgencia') return filtrados; // já vem ordenado pelo servidor
     const fator = ordenacao.direcao === 'asc' ? 1 : -1;
     return [...filtrados].sort((a, b) => {
@@ -163,21 +168,24 @@ const PedidosAbertosConteudo: React.FC = () => {
         default: return 0;
       }
     });
-  }, [pedidos, filtro, loja, recebivel, busca, ordenacao]);
+  }, [selecionados, filtro, ordenacao]);
 
   const totais = useMemo(() => {
-    const atrasados = visiveis.filter((p) => p.situacao === 'atrasado');
+    const atrasados = selecionados.filter((p) => p.situacao === 'atrasado');
     return {
-      valor: visiveis.reduce((s, p) => s + p.valorTotal, 0),
+      total: selecionados.length,
+      valor: selecionados.reduce((s, p) => s + p.valorTotal, 0),
       atrasados: atrasados.length,
       valorAtrasado: atrasados.reduce((s, p) => s + p.valorTotal, 0),
       mediaAtraso: atrasados.length ? Math.round(atrasados.reduce((s, p) => s + p.diasAtraso, 0) / atrasados.length) : 0,
-      aReceber: visiveis.reduce((s, p) => s + (p.aReceber ?? 0), 0),
-      comSaldo: visiveis.filter((p) => (p.aReceber ?? 0) > 0).length,
-      vencido: visiveis.reduce((s, p) => s + p.vencidoReceber, 0),
-      comVencido: visiveis.filter((p) => p.vencidoReceber > 0).length,
+      aReceber: selecionados.reduce((s, p) => s + (p.aReceber ?? 0), 0),
+      comSaldo: selecionados.filter((p) => (p.aReceber ?? 0) > 0).length,
+      vencido: selecionados.reduce((s, p) => s + p.vencidoReceber, 0),
+      comVencido: selecionados.filter((p) => p.vencidoReceber > 0).length,
     };
-  }, [visiveis]);
+  }, [selecionados]);
+
+  const valorVisiveis = useMemo(() => visiveis.reduce((s, p) => s + p.valorTotal, 0), [visiveis]);
 
   const alternar = (campo: Campo) =>
     setOrdenacao((atual) => campo === 'urgencia'
@@ -273,7 +281,7 @@ const PedidosAbertosConteudo: React.FC = () => {
       ) : resposta ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Kpi titulo="Pedidos liberados" valor={formatInteiro(visiveis.length)} detalhe={`${formatCurrency(totais.valor)} em pedidos`} classe="border-yellow-100 bg-yellow-50/60" tituloClasse="text-yellow-800" />
+            <Kpi titulo="Pedidos liberados" valor={formatInteiro(totais.total)} detalhe={`${formatCurrency(totais.valor)} em pedidos`} classe="border-yellow-100 bg-yellow-50/60" tituloClasse="text-yellow-800" />
             <Kpi titulo="Atrasados" valor={formatInteiro(totais.atrasados)} detalhe={totais.atrasados ? `${formatCurrency(totais.valorAtrasado)} · média de ${plural(totais.mediaAtraso, 'dia', 'dias')}` : 'Nenhum pedido atrasado'} classe="border-red-100 bg-red-50/60" tituloClasse="text-red-700" />
             <Kpi titulo="Falta receber" valor={formatCurrency(totais.aReceber)} detalhe={`em ${plural(totais.comSaldo, 'pedido', 'pedidos')}`} classe="border-emerald-100 bg-emerald-50/60" tituloClasse="text-emerald-700" />
             <Kpi titulo="Vencido a receber" valor={formatCurrency(totais.vencido)} detalhe={`parcelas vencidas em ${plural(totais.comVencido, 'pedido', 'pedidos')}`} classe="border-orange-100 bg-orange-50/60" tituloClasse="text-orange-700" />
@@ -282,9 +290,9 @@ const PedidosAbertosConteudo: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por situação">
               <button type="button" aria-pressed={filtro === 'todos'} onClick={() => setFiltro('todos')} className={`${chipBase} ${filtro === 'todos' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400'}`}>
-                Todos ({pedidos.length})
+                Todos ({selecionados.length})
               </button>
-              {ORDEM_FILTROS.filter((s) => contagem[s] > 0 || s === 'atrasado').map((situacao) => {
+              {ORDEM_FILTROS.filter((s) => contagem[s] > 0 || s === 'atrasado' || s === filtro).map((situacao) => {
                 const estilo = ESTILO[situacao];
                 const ativo = filtro === situacao;
                 return (
@@ -310,7 +318,7 @@ const PedidosAbertosConteudo: React.FC = () => {
                 <option value="sem-saldo">Sem saldo a receber</option>
               </select>
             </label>
-            <span className="text-neutral-500 text-[11px] sm:ml-auto">{plural(visiveis.length, 'pedido', 'pedidos')} · {formatarValor(totais.valor)}</span>
+            <span className="text-neutral-500 text-[11px] sm:ml-auto">{plural(visiveis.length, 'pedido', 'pedidos')} · {formatarValor(valorVisiveis)}</span>
           </div>
 
           <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
