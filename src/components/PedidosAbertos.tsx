@@ -48,8 +48,9 @@ const ESTILO: Record<SituacaoPedidoAberto, { borda: string; selo: string; ponto:
   'no-prazo': { borda: 'border-l-emerald-500', selo: 'bg-emerald-100 text-emerald-700', ponto: 'bg-emerald-500', rotuloFiltro: 'Dentro do prazo' },
   'sem-prazo': { borda: 'border-l-neutral-300', selo: 'bg-neutral-100 text-neutral-600', ponto: 'bg-neutral-400', rotuloFiltro: 'Sem prazo' },
   'entregue-pcp': { borda: 'border-l-sky-400', selo: 'bg-sky-100 text-sky-700', ponto: 'bg-sky-500', rotuloFiltro: 'Entregues no PCP' },
+  'cancelado-pcp': { borda: 'border-l-neutral-400', selo: 'bg-neutral-200 text-neutral-700', ponto: 'bg-neutral-500', rotuloFiltro: 'Cancelados no PCP' },
 };
-const ORDEM_FILTROS: SituacaoPedidoAberto[] = ['atrasado', 'vence-em-breve', 'no-prazo', 'sem-prazo', 'entregue-pcp'];
+const ORDEM_FILTROS: SituacaoPedidoAberto[] = ['atrasado', 'vence-em-breve', 'no-prazo', 'sem-prazo', 'entregue-pcp', 'cancelado-pcp'];
 
 function textoSituacao(pedido: PedidoAbertoLinha): string {
   const dias = pedido.diasParaPrazo ?? 0;
@@ -59,6 +60,7 @@ function textoSituacao(pedido: PedidoAbertoLinha): string {
     case 'no-prazo': return `Faltam ${plural(dias, 'dia', 'dias')}`;
     case 'sem-prazo': return 'Sem prazo';
     case 'entregue-pcp': return 'Entregue (PCP)';
+    case 'cancelado-pcp': return 'Cancelado (PCP)';
   }
 }
 
@@ -146,7 +148,7 @@ const PedidosAbertosConteudo: React.FC = () => {
   }, [pedidos, loja, recebivel, busca]);
 
   const contagem = useMemo(() => {
-    const total: Record<SituacaoPedidoAberto, number> = { 'atrasado': 0, 'vence-em-breve': 0, 'no-prazo': 0, 'sem-prazo': 0, 'entregue-pcp': 0 };
+    const total: Record<SituacaoPedidoAberto, number> = { 'atrasado': 0, 'vence-em-breve': 0, 'no-prazo': 0, 'sem-prazo': 0, 'entregue-pcp': 0, 'cancelado-pcp': 0 };
     for (const pedido of selecionados) total[pedido.situacao] += 1;
     return total;
   }, [selecionados]);

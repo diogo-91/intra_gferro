@@ -3,7 +3,7 @@
 
 import { DIAS_ALERTA_PRAZO, classificarPrazoPedido, dataBrParaIso, type ItemParaPrazo } from './pedidosLoja';
 
-export type SituacaoPedidoAberto = 'atrasado' | 'vence-em-breve' | 'no-prazo' | 'sem-prazo' | 'entregue-pcp';
+export type SituacaoPedidoAberto = 'atrasado' | 'vence-em-breve' | 'no-prazo' | 'sem-prazo' | 'entregue-pcp' | 'cancelado-pcp';
 
 export interface PedidoAbertoLinha {
   id: number;
@@ -103,7 +103,11 @@ export function montarLinhaPedidoAberto(entrada: EntradaPedidoAberto, hoje: Date
 
   // Se o PCP já deu todos os itens como entregues (o Nomus só fecha o pedido depois), o atraso não vale mais.
   const entreguePcp = !!entrada.itensPcp && entrada.itensPcp.total > 0 && entrada.itensPcp.abertos === 0 && entrada.itensPcp.entregues > 0;
-  const situacao: SituacaoPedidoAberto = entreguePcp
+  // Todos os itens cancelados/devolvidos no PCP (nenhum aberto nem entregue): o pedido não será entregue.
+  const canceladoPcp = !!entrada.itensPcp && entrada.itensPcp.total > 0 && entrada.itensPcp.abertos === 0 && entrada.itensPcp.entregues === 0;
+  const situacao: SituacaoPedidoAberto = canceladoPcp
+    ? 'cancelado-pcp'
+    : entreguePcp
     ? 'entregue-pcp'
     : diasParaPrazo === null ? 'sem-prazo' : diasParaPrazo < 0 ? 'atrasado' : diasParaPrazo <= DIAS_ALERTA_PRAZO ? 'vence-em-breve' : 'no-prazo';
 
@@ -126,7 +130,7 @@ export function montarLinhaPedidoAberto(entrada: EntradaPedidoAberto, hoje: Date
     fontePrazo,
     situacao,
     diasParaPrazo,
-    diasAtraso: diasParaPrazo !== null && diasParaPrazo < 0 && !entreguePcp ? -diasParaPrazo : 0,
+    diasAtraso: diasParaPrazo !== null && diasParaPrazo < 0 && !entreguePcp && !canceladoPcp ? -diasParaPrazo : 0,
     recebido: fin ? arredondar(fin.recebido) : null,
     aReceber: aReceber !== null && aReceber < 1 ? 0 : aReceber,
     titulosAbertos: fin?.titulosAbertos ?? 0,
@@ -136,8 +140,8 @@ export function montarLinhaPedidoAberto(entrada: EntradaPedidoAberto, hoje: Date
   };
 }
 
-// Mais urgente primeiro: atrasados (do mais antigo), vence em breve, no prazo, sem prazo; entregues no PCP por último.
-const PESO: Record<SituacaoPedidoAberto, number> = { 'atrasado': 0, 'vence-em-breve': 1, 'no-prazo': 2, 'sem-prazo': 3, 'entregue-pcp': 4 };
+// Mais urgente primeiro: atrasados (do mais antigo), vence em breve, no prazo, sem prazo; entregues e cancelados no PCP por último.
+const PESO: Record<SituacaoPedidoAberto, number> = { 'atrasado': 0, 'vence-em-breve': 1, 'no-prazo': 2, 'sem-prazo': 3, 'entregue-pcp': 4, 'cancelado-pcp': 5 };
 
 export function ordenarPedidosAbertos(linhas: PedidoAbertoLinha[]): PedidoAbertoLinha[] {
   return [...linhas].sort((a, b) =>
