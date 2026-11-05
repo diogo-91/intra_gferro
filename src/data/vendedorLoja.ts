@@ -35,6 +35,11 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'REBECA GONÇALVES': 'lucas',
   'Andreza Soares Ribeiro de Andrade': 'lucas',
   'Ana Caroline Paz Basseto': 'lucas',
+  'Gilberto Del Poço': 'lucas',
+  'Luiz Monteiro': 'lucas',
+  'LUIZ MARCOS MONTEIRO': 'lucas', // cadastro antigo do mesmo vendedor
+  'Edson Cavalcante': 'lucas',
+  'EDSON RODRIGUES CAVALCANTE': 'lucas', // cadastro antigo do mesmo vendedor
 
   'SAMUEL WOLFGAN SILVA': 'paulo',
   'Elson Marcelo Braga da Silva': 'paulo',
@@ -46,6 +51,7 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'Telma Carlos Gomes de Camargo': 'correa',
   'Vanessa Pereira Bezerra': 'correa',
   'Virgínia': 'correa',
+  'Daniele Cardoso Vargas': 'correa',
 
   'Bruno Felipe Santos Bezerra': 'tatui',
   'Jeferson Antonio Corrêa': 'tatui',
@@ -55,6 +61,7 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'Alisson': 'tatui',
   'Rosemeire Lopes Eleutério': 'tatui',
   'Hamilton Ricardo Gonçalves': 'tatui',
+  'Samuel Rodrigues da silva': 'tatui', // gerente da Unidade 5
 };
 
 // Vendedores informados pela GFERRO que ainda não aparecem na API do Nomus.
