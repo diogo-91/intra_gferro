@@ -31,7 +31,6 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'RAFAEL LUIZ AURO': 'petter',
   'Laís da Silva Gomes': 'petter',
 
-  'EDER PULLHEIS': 'lucas',
   'Myrene Aparecida da Silva': 'lucas',
   'REBECA GONÇALVES': 'lucas',
   'Andreza Soares Ribeiro de Andrade': 'lucas',
@@ -41,6 +40,7 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'Elson Marcelo Braga da Silva': 'paulo',
   'SUMAIA LUCENA': 'paulo',
   'Tatiane Cristina de Moraes': 'paulo',
+  'EDER PULLHEIS': 'paulo',
 
   'MARIA DE FATIMA DE SOUZA CAMPOS': 'correa',
   'Telma Carlos Gomes de Camargo': 'correa',
