@@ -433,13 +433,12 @@ const EntregasConteudo: React.FC = () => {
         </div>
       ) : resposta && !periodoInvalido ? (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <Kpi titulo="Entregas" valor={formatInteiro(totais.entregas)} detalhe={plural(totais.pedidos, 'pedido entregue', 'pedidos entregues')} classe="border-yellow-100 bg-yellow-50/60" tituloClasse="text-yellow-800" />
             <Kpi titulo="Metragem" valor={formatMetrosQuadrados(totais.metragem)} detalhe="somando todas as entregas" classe="border-sky-100 bg-sky-50/60" tituloClasse="text-sky-700" />
             <Kpi titulo="Valor dos pedidos" valor={formatCurrency(totais.valorPedidos)} detalhe="cada pedido conta uma vez" classe="border-neutral-200 bg-neutral-50" tituloClasse="text-neutral-700" />
             <Kpi titulo="Recebido na entrega" valor={formatCurrency(totais.recebidoNaEntrega)} detalhe={financeiroIncompleto ? notaParcial : `${plural(totais.comRecebimentoNaEntrega, 'pedido', 'pedidos')} · falta ${formatCurrency(totais.aReceberNaEntrega)} da cobrança`} classe="border-emerald-100 bg-emerald-50/60" tituloClasse="text-emerald-700" />
             <Kpi titulo="Falta receber" valor={formatCurrency(totais.emAberto)} detalhe={financeiroIncompleto ? notaParcial : 'dos pedidos entregues'} classe="border-orange-100 bg-orange-50/60" tituloClasse="text-orange-700" />
-            <Kpi titulo="No prazo" valor={formatPercentual(totais.pctNoPrazo)} detalhe={totais.comPrazo > 0 ? `${plural(totais.atrasados, 'atrasado', 'atrasados')} de ${plural(totais.comPrazo, 'pedido', 'pedidos')}` : 'sem prazo no Nomus'} classe="border-red-100 bg-red-50/60" tituloClasse="text-red-700" />
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
