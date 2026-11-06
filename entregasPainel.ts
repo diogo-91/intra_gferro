@@ -4,7 +4,7 @@
 
 import { copyFile, mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
-import { buscarContasDosPedidos, buscarFormasPagamento, buscarPedidosDasEntregas, nomesDosVendedores, pedidosDoCacheDoPainel, type ContaDoPedidoNomus, type PedidoDaEntregaNomus } from './nomus';
+import { buscarContasDosPedidos, buscarFormasPagamento, buscarPedidosDasEntregas, nomesDosVendedores, numeroDoCodigoPedido, pedidosDoCacheDoPainel, type ContaDoPedidoNomus, type PedidoDaEntregaNomus } from './nomus';
 import { numerosLiberadosNoNomus } from './pedidosAbertos';
 import { obterDadosPcp } from './prazoGferro';
 import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
@@ -227,7 +227,8 @@ async function atualizarDadosDoNomus(atual: Estado): Promise<void> {
       const contas = await buscarContasDosPedidos(faltamContas);
       const porPedido = new Map<number, ContaDoPedidoNomus[]>(faltamContas.map((n) => [n, []]));
       for (const conta of contas) {
-        const numero = numeroDoPedido(conta.descricaoLancamento);
+        // "Pedido PD 02158 - Parcela 1 de 2" -> 2158 (numeroDoPedido juntaria todos os dígitos e daria 0215812).
+        const numero = numeroDoCodigoPedido(conta.descricaoLancamento);
         if (numero !== null) porPedido.get(numero)?.push(conta);
       }
       for (const [numero, lista] of porPedido) atual.contas[numero] = { contas: lista, atualizadoEm: agora };
