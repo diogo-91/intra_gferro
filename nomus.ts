@@ -146,6 +146,8 @@ interface Pedido {
   valorTotalOutrasDespesasAcessorias?: string | number;
   observacoes?: string;
   observacoesInternas?: string;
+  dataEntregaPadrao?: string;
+  parcelas?: Array<{ observacao?: string; valorParcela?: string | number; idFormaPagamento?: number }>;
   itensPedido?: ItemPedido[];
 }
 
@@ -982,6 +984,8 @@ export interface ContaDoPedidoNomus {
   valor: number;
   recebido: number; // o que já entrou nesta parcela
   dataVencimento: string; // "dd/mm/aaaa"
+  dataBaixa: string; // "dd/mm/aaaa" (vazio se ainda não baixada)
+  forma: string; // forma de pagamento da baixa ("Pix", "Dinheiro"...), vazio se não vier
   quitada: boolean;
 }
 
@@ -996,7 +1000,7 @@ export async function buscarContasDosPedidos(numeros: number[]): Promise<ContaDo
   for (let i = 0; i < numeros.length; i += 20) {
     // O filtro de empresa não entra na consulta (o "ou" entre os pedidos misturaria com o "e"): a conferência é depois.
     const query = numeros.slice(i, i + 20).map((n) => `descricaoLancamento=="Pedido PD ${String(n).padStart(5, '0')}*"`).join(',');
-    const contas = await coletarTudo<ContaFinanceiraRaw & { descricaoLancamento?: string; valorRecebido?: string | number; idEmpresa?: number }>('contasReceber', baseUrl, apiKey, query);
+    const contas = await coletarTudo<ContaFinanceiraRaw & { descricaoLancamento?: string; valorRecebido?: string | number; idEmpresa?: number; nomeFormaPagamento?: string }>('contasReceber', baseUrl, apiKey, query);
     for (const conta of contas) {
       if (conta.idEmpresa !== undefined && conta.idEmpresa !== ID_EMPRESA_GFERRO) continue; // instância compartilhada com a Constelha
       resultado.push({
@@ -1005,11 +1009,88 @@ export async function buscarContasDosPedidos(numeros: number[]): Promise<ContaDo
         valor: Math.abs(parseNum(conta.valorReceber)),
         recebido: Math.abs(parseNum(conta.valorRecebido)),
         dataVencimento: (conta.dataVencimento || '').split(' ')[0],
+        dataBaixa: (conta.dataBaixa || '').split(' ')[0],
+        forma: conta.nomeFormaPagamento || '',
         quitada: conta.status === true,
       });
     }
   }
   return resultado;
+}
+
+export interface PedidoDaEntregaNomus {
+  numero: number;
+  valorTotal: number;
+  idPessoaVendedor?: number;
+  parcelas: Array<{ observacao: string; valor: number; idFormaPagamento: number | null }>;
+  prazoIso: string | null; // data prometida: a mais tardia entre os itens, ou a data padrão do pedido
+  prazoOrigem: 'itens' | 'padrao' | null;
+}
+
+const dataBrParaIsoNomus = (texto?: string): string | null => {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(texto ?? '').trim());
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+};
+
+/**
+ * Pedidos (valor, vendedor, parcelas e data prometida) dos números informados, em lotes de 20 por consulta.
+ * Pedido que o Nomus não devolve simplesmente não aparece no resultado.
+ */
+export async function buscarPedidosDasEntregas(numeros: number[]): Promise<PedidoDaEntregaNomus[]> {
+  const { baseUrl, apiKey } = getConfig();
+  if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+  const porNumero = new Map<number, Pedido>();
+  for (let i = 0; i < numeros.length; i += 20) {
+    const query = numeros.slice(i, i + 20).map((n) => `codigoPedido=="PD ${String(n).padStart(5, '0')}"`).join(',');
+    for (const pedido of await coletarTudo<Pedido>('pedidos', baseUrl, apiKey, query)) {
+      if (pedido.idEmpresa !== undefined && pedido.idEmpresa !== ID_EMPRESA_GFERRO) continue; // instância compartilhada com a Constelha
+      const numero = numeroDoCodigoPedido(pedido.codigoPedido);
+      if (numero === null) continue;
+      const existente = porNumero.get(numero);
+      if (!existente || pedido.id > existente.id) porNumero.set(numero, pedido);
+    }
+  }
+  return [...porNumero].map(([numero, pedido]) => paraPedidoDaEntrega(numero, pedido));
+}
+
+function paraPedidoDaEntrega(numero: number, pedido: Pedido): PedidoDaEntregaNomus {
+  const dosItens = (pedido.itensPedido ?? []).map((item) => dataBrParaIsoNomus(item.dataEntrega)).filter((d): d is string => !!d).sort();
+  const padrao = dataBrParaIsoNomus(pedido.dataEntregaPadrao);
+  return {
+    numero,
+    valorTotal: parseNum(pedido.valorTotal),
+    idPessoaVendedor: pedido.idPessoaVendedor,
+    parcelas: (pedido.parcelas ?? []).map((parcela) => ({ observacao: parcela.observacao ?? '', valor: parseNum(parcela.valorParcela), idFormaPagamento: parcela.idFormaPagamento ?? null })),
+    prazoIso: dosItens.length > 0 ? dosItens[dosItens.length - 1] : padrao,
+    prazoOrigem: dosItens.length > 0 ? 'itens' : padrao ? 'padrao' : null,
+  };
+}
+
+/**
+ * Pedidos dos números informados que a intranet JÁ tem guardados (cache mensal dos pedidos do painel de vendas, completo:
+ * com parcelas, itens e vendedor). Evita consultar o Nomus de novo; o que não estiver nos meses guardados fica de fora.
+ */
+export function pedidosDoCacheDoPainel(numeros: number[]): PedidoDaEntregaNomus[] {
+  const procurados = new Set(numeros);
+  const porNumero = new Map<number, Pedido>();
+  for (const { pedidos } of cachePedidosPorPeriodo.values()) {
+    for (const pedido of pedidos) {
+      if (pedido.idEmpresa !== undefined && pedido.idEmpresa !== ID_EMPRESA_GFERRO) continue;
+      const numero = numeroDoCodigoPedido(pedido.codigoPedido);
+      if (numero === null || !procurados.has(numero)) continue;
+      const existente = porNumero.get(numero);
+      if (!existente || pedido.id > existente.id) porNumero.set(numero, pedido);
+    }
+  }
+  return [...porNumero].map(([numero, pedido]) => paraPedidoDaEntrega(numero, pedido));
+}
+
+/** id -> nome das formas de pagamento do Nomus ("Pix", "Dinheiro"...). */
+export async function buscarFormasPagamento(): Promise<Map<number, string>> {
+  const { baseUrl, apiKey } = getConfig();
+  if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+  const formas = await coletarTudo<{ id: number; nome?: string }>('formasPagamento', baseUrl, apiKey);
+  return new Map(formas.filter((f) => f.nome).map((f) => [f.id, f.nome as string]));
 }
 
 /** Nome de cada vendedor por id (do cache de vendedores). */

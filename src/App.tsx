@@ -30,6 +30,7 @@ import { ProgramacaoFinanceira } from './components/ProgramacaoFinanceira';
 import { ProgramacaoContas } from './components/ProgramacaoContas';
 import { SaidasFinanceiras } from './components/SaidasFinanceiras';
 import { PedidosAbertos } from './components/PedidosAbertos';
+import { Entregas } from './components/Entregas';
 import { Producao } from './components/Producao';
 import { AIAssistantModal } from './components/AIAssistantModal';
 import { NovoComunicadoModal } from './components/NovoComunicadoModal';
@@ -290,6 +291,8 @@ export default function App() {
           {activeTab === 'saidas' && <SaidasFinanceiras />}
 
           {activeTab === 'dashboard-pedidos' && <PedidosAbertos />}
+
+          {activeTab === 'dashboard-entregas' && <Entregas />}
 
           {activeTab === 'producao' && <Producao />}
 

@@ -28,6 +28,7 @@ export const MODULOS = [
   { id: 'ia-assistente', nome: 'Ideias e Sugestões' },
   { id: 'vendas', nome: 'Dashboard de Vendas', submodulos: SUBMODULOS_VENDAS },
   { id: 'dashboard-pedidos', nome: 'Dashboard de Pedidos' },
+  { id: 'dashboard-entregas', nome: 'Dashboard de Entregas' },
   { id: 'financeiro', nome: 'Dashboard Financeiro' },
   { id: 'producao', nome: 'Produção' },
   { id: 'pedidos', nome: 'Gestão de Pedidos' },

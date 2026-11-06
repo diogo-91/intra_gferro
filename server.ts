@@ -31,6 +31,7 @@ import { montarLinhasPedidosLoja, type RespostaPedidosLoja } from './src/pedidos
 import { anexarPrazoGferro } from './prazoGferro';
 import { agruparSaidas } from './src/saidasFinanceiras';
 import { iniciarAtualizacaoPedidosAbertos, montarRespostaPedidosAbertos } from './pedidosAbertos';
+import { iniciarAtualizacaoEntregas, montarRespostaEntregas, validarPeriodoEntregas } from './entregasPainel';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -868,6 +869,18 @@ Contexto da GFERRO:
     }
   });
 
+  // Dashboard > Entregas: entregas lançadas no apontamento de produção, ligadas ao pedido do Nomus (vendedor, loja,
+  // valor, recebimento na entrega e prazo). Responde na hora com o último estado guardado.
+  app.get('/api/dashboard/entregas', async (req, res) => {
+    try {
+      const { inicio, fim } = validarPeriodoEntregas(req.query.inicio, req.query.fim);
+      res.json(await montarRespostaEntregas(inicio, fim, req.query.atualizar === '1'));
+    } catch (error: any) {
+      console.error('Erro ao montar o dashboard de entregas:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar as entregas.', details: error.message });
+    }
+  });
+
   app.get('/api/financeiro/relatorio/pdf', async (req, res) => {
     try {
       const mes = req.query.mes as string | undefined;
@@ -1564,6 +1577,9 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
 
     // Mantém o dashboard de pedidos em aberto atualizado em segundo plano (primeira leitura completa leva minutos).
     iniciarAtualizacaoPedidosAbertos();
+
+    // Mantém o dashboard de entregas atualizado em segundo plano (lê o apontamento de produção e o Nomus).
+    iniciarAtualizacaoEntregas();
   });
 }
 

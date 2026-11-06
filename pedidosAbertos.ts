@@ -248,6 +248,16 @@ export function iniciarAtualizacaoPedidosAbertos(): void {
 
 const hojeIso = (d: Date) => `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
 
+/**
+ * Números dos pedidos que hoje têm status Liberado no Nomus (os da tela de Pedidos), ou null se essa lista ainda não
+ * foi lida nenhuma vez. Só lê o que está guardado.
+ */
+export async function numerosLiberadosNoNomus(): Promise<Set<number> | null> {
+  const atual = await carregarDoDisco();
+  if (Object.keys(atual.pedidos).length === 0 && !atual.historicoCompleto) return null;
+  return new Set(Object.values(atual.pedidos).map((pedido) => numeroDoCodigoPedido(pedido.codigoPedido)).filter((n): n is number => n !== null));
+}
+
 /** Monta a tela só do que está guardado (não consulta o Nomus nem o PCP). */
 export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): Promise<RespostaPedidosAbertos> {
   const atual = await carregarDoDisco();
