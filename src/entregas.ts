@@ -32,8 +32,7 @@ export interface EntregaLinha {
   pedidoEncontrado: boolean;
   valorPedido: number | null;
   recebimento: RecebimentoEntrega | null; // null enquanto o financeiro do pedido ainda não foi lido
-  prazo: string | null; // aaaa-mm-dd — prazo combinado no PCP (Gferro) ou, sem ele, a data prometida no Nomus
-  fontePrazo: 'gferro' | 'nomus' | null;
+  prazo: string | null; // aaaa-mm-dd — data prometida ao cliente no Nomus (a mais tardia entre os itens do pedido)
   /** O pedido ainda consta como Liberado no Nomus (aparece na tela de Pedidos): entregue, mas falta dar a baixa. */
   liberadoNoNomus: boolean;
   situacaoPrazo: SituacaoPrazoEntrega;

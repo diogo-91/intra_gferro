@@ -119,7 +119,7 @@ function Prazo({ linha }: { linha: EntregaLinha }) {
   if (!linha.prazo) return <span className="text-neutral-400">—</span>;
   return (
     <div className="space-y-1">
-      <div className="tabular-nums text-neutral-700 whitespace-nowrap">{formatDataIsoParaBr(linha.prazo)}{linha.fontePrazo && <span className="block text-[10px] text-neutral-400">{linha.fontePrazo === 'gferro' ? 'prazo Gferro' : 'prazo Nomus'}</span>}</div>
+      <div className="tabular-nums text-neutral-700 whitespace-nowrap">{formatDataIsoParaBr(linha.prazo)}<span className="block text-[10px] text-neutral-400">prazo do Nomus</span></div>
       {linha.situacaoPrazo === 'atrasado' && <span className="inline-block rounded-full bg-red-100 text-red-700 px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap">Atrasada {plural(linha.diasAtraso, 'dia', 'dias')}</span>}
       {linha.situacaoPrazo === 'no-prazo' && <span className="inline-block rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap">{linha.diasAntecipado > 0 ? `No prazo (${linha.diasAntecipado}d antes)` : 'No prazo'}</span>}
       {!linha.primeiraDoPedido && <div className="text-[10px] text-neutral-400">pedido lançado {linha.lancamentosDoPedido}x</div>}
@@ -152,7 +152,7 @@ const Resumo: React.FC<{ titulo: string; grupos: Array<{ nome: string; totais: T
               <td className="px-3 py-2 text-right tabular-nums">{formatInteiro(totais.entregas)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatInteiro(Math.round(totais.metragem))}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totais.valorPedidos)}</td>
-              <td className="px-3 py-2 text-right tabular-nums" title={incompleto ? 'Lendo o financeiro no Nomus' : undefined}>{incompleto ? '...' : formatCurrency(totais.recebidoNaEntrega)}</td>
+              <td className="px-3 py-2 text-right tabular-nums" title={incompleto ? 'Parcial: o financeiro de alguns pedidos ainda está sendo lido no Nomus' : undefined}>{formatCurrency(totais.recebidoNaEntrega)}{incompleto ? '*' : ''}</td>
               {mostrarPontualidade && <td className="px-3 py-2 text-right tabular-nums">{formatPercentual(totais.pctNoPrazo)}</td>}
             </tr>
           ))}
@@ -234,8 +234,20 @@ const EntregasConteudo: React.FC = () => {
   }, [entregas, loja, motorista, soSemBaixa, busca]);
 
   const totais = useMemo(() => totaisDasLinhas(selecionadas), [selecionadas]);
-  // Enquanto o financeiro de algum pedido ainda está sendo lido, os valores de recebimento estariam incompletos.
-  const financeiroIncompleto = useMemo(() => selecionadas.some((e) => !e.pedidoLido || (e.pedidoEncontrado && !e.recebimento)), [selecionadas]);
+  // Andamento da leitura do financeiro no Nomus (pedidos distintos): os valores de recebimento já aparecem, somando o que foi
+  // lido até agora, e vão crescendo sozinhos até completar.
+  const progresso = useMemo(() => {
+    const pedidos = new Map<string, boolean>();
+    for (const e of selecionadas) {
+      if (e.pedidoLido && !e.pedidoEncontrado) continue; // pedido que o Nomus não tem: não há financeiro a ler
+      pedidos.set(e.pedido, (pedidos.get(e.pedido) ?? true) && !!e.recebimento);
+    }
+    const total = pedidos.size;
+    const lidos = [...pedidos.values()].filter(Boolean).length;
+    return { total, lidos, incompleto: lidos < total };
+  }, [selecionadas]);
+  const financeiroIncompleto = progresso.incompleto;
+  const notaParcial = `parcial: ${progresso.lidos} de ${progresso.total} pedidos lidos no Nomus`;
   // Pedidos entregues no período que ainda constam como Liberados no Nomus (falta dar a baixa).
   const semBaixa = useMemo(() => new Set(entregas.filter((e) => e.liberadoNoNomus).map((e) => e.pedido)).size, [entregas]);
 
@@ -425,8 +437,8 @@ const EntregasConteudo: React.FC = () => {
             <Kpi titulo="Entregas" valor={formatInteiro(totais.entregas)} detalhe={plural(totais.pedidos, 'pedido entregue', 'pedidos entregues')} classe="border-yellow-100 bg-yellow-50/60" tituloClasse="text-yellow-800" />
             <Kpi titulo="Metragem" valor={formatMetrosQuadrados(totais.metragem)} detalhe="somando todas as entregas" classe="border-sky-100 bg-sky-50/60" tituloClasse="text-sky-700" />
             <Kpi titulo="Valor dos pedidos" valor={formatCurrency(totais.valorPedidos)} detalhe="cada pedido conta uma vez" classe="border-neutral-200 bg-neutral-50" tituloClasse="text-neutral-700" />
-            <Kpi titulo="Recebido na entrega" valor={financeiroIncompleto ? '...' : formatCurrency(totais.recebidoNaEntrega)} detalhe={financeiroIncompleto ? 'lendo o financeiro no Nomus' : `${plural(totais.comRecebimentoNaEntrega, 'pedido', 'pedidos')} · falta ${formatCurrency(totais.aReceberNaEntrega)} da cobrança`} classe="border-emerald-100 bg-emerald-50/60" tituloClasse="text-emerald-700" />
-            <Kpi titulo="Falta receber" valor={financeiroIncompleto ? '...' : formatCurrency(totais.emAberto)} detalhe={financeiroIncompleto ? 'lendo o financeiro no Nomus' : 'dos pedidos entregues'} classe="border-orange-100 bg-orange-50/60" tituloClasse="text-orange-700" />
+            <Kpi titulo="Recebido na entrega" valor={formatCurrency(totais.recebidoNaEntrega)} detalhe={financeiroIncompleto ? notaParcial : `${plural(totais.comRecebimentoNaEntrega, 'pedido', 'pedidos')} · falta ${formatCurrency(totais.aReceberNaEntrega)} da cobrança`} classe="border-emerald-100 bg-emerald-50/60" tituloClasse="text-emerald-700" />
+            <Kpi titulo="Falta receber" valor={formatCurrency(totais.emAberto)} detalhe={financeiroIncompleto ? notaParcial : 'dos pedidos entregues'} classe="border-orange-100 bg-orange-50/60" tituloClasse="text-orange-700" />
             <Kpi titulo="No prazo" valor={formatPercentual(totais.pctNoPrazo)} detalhe={totais.comPrazo > 0 ? `${plural(totais.atrasados, 'atrasado', 'atrasados')} de ${plural(totais.comPrazo, 'pedido', 'pedidos')}` : 'sem prazo no Nomus'} classe="border-red-100 bg-red-50/60" tituloClasse="text-red-700" />
           </div>
 

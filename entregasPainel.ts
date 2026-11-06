@@ -6,7 +6,6 @@ import { copyFile, mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { buscarContasDosPedidos, buscarFormasPagamento, buscarPedidosDasEntregas, nomesDosVendedores, numeroDoCodigoPedido, pedidosDoCacheDoPainel, type ContaDoPedidoNomus, type PedidoDaEntregaNomus } from './nomus';
 import { numerosLiberadosNoNomus } from './pedidosAbertos';
-import { obterDadosPcp } from './prazoGferro';
 import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
 import { classificarPrazoEntrega, codigoDoPedido, numeroDoPedido, resumirRecebimento, type EntregaLinha, type RespostaEntregas } from './src/entregas';
 
@@ -57,12 +56,11 @@ interface Estado {
   contas: Record<string, ContasGuardadas>; // por número do pedido
   formas: Record<string, string>;
   vendedores: Record<string, string>;
-  pcp: Record<string, { prazo: string | null }>; // prazo Gferro (PCP) por número do pedido
   formatoParcelas?: number; // 2 = valores de parcela lidos com o ponto de milhar certo (4.575 = 4575)
   ultimoErro: { mensagem: string; em: number } | null;
 }
 
-const estadoVazio = (): Estado => ({ versao: 1, entregas: [], entregasAtualizadoEm: 0, motoristas: {}, caminhoes: {}, pedidos: {}, contas: {}, formas: {}, vendedores: {}, pcp: {}, ultimoErro: null });
+const estadoVazio = (): Estado => ({ versao: 1, entregas: [], entregasAtualizadoEm: 0, motoristas: {}, caminhoes: {}, pedidos: {}, contas: {}, formas: {}, vendedores: {}, ultimoErro: null });
 
 let estado: Estado | null = null;
 let emAndamento: Promise<void> | null = null;
@@ -150,22 +148,6 @@ async function atualizarDadosDoNomus(atual: Estado): Promise<void> {
         await persistir();
       })
       .catch((e: any) => console.error('[entregas] não foi possível ler as formas de pagamento:', e?.message ?? e));
-  }
-
-  // Prazo combinado no PCP (Gferro): é o que vale para dizer se a entrega foi no prazo, como na tela de Pedidos.
-  try {
-    const dadosPcp = await obterDadosPcp();
-    if (dadosPcp) {
-      const pcp: Record<string, { prazo: string | null }> = {};
-      for (const entrega of atual.entregas) {
-        const numero = numeroDoPedido(entrega.pedido)!;
-        const doPedido = dadosPcp.get(numero);
-        if (doPedido) pcp[numero] = { prazo: doPedido.prazo };
-      }
-      atual.pcp = pcp;
-    }
-  } catch (e: any) {
-    console.error('[entregas] não foi possível ler os prazos do PCP; mantendo os guardados:', e?.message ?? e);
   }
 
   // Pedidos das entregas, das mais recentes para as mais antigas: o mês corrente enche primeiro.
@@ -325,9 +307,8 @@ export async function montarRespostaEntregas(inicio: string, fim: string, forcar
     if (!pedido || (encontrado && !contas)) pendentes += 1;
 
     const real = primeira.get(numero)!.data;
-    const prazoGferro = atual.pcp[numero]?.prazo ?? null;
-    const prazoEscolhido = prazoGferro ?? pedido?.prazoIso ?? null;
-    const prazoDaEntrega = classificarPrazoEntrega(prazoEscolhido, real);
+    // Prazo = a data prometida ao cliente no Nomus (a mais tardia entre os itens), como no relatório do apontamento.
+    const prazoDaEntrega = classificarPrazoEntrega(pedido?.prazoIso ?? null, real);
     linhas.push({
       id: entrega.id,
       data: entrega.data,
@@ -342,8 +323,7 @@ export async function montarRespostaEntregas(inicio: string, fim: string, forcar
       pedidoEncontrado: encontrado,
       valorPedido,
       recebimento,
-      prazo: prazoEscolhido,
-      fontePrazo: prazoGferro ? 'gferro' : pedido?.prazoIso ? 'nomus' : null,
+      prazo: pedido?.prazoIso ?? null,
       liberadoNoNomus: liberados?.has(numero) ?? false,
       situacaoPrazo: prazoDaEntrega.situacao,
       diasAtraso: prazoDaEntrega.diasAtraso,
