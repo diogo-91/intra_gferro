@@ -1053,6 +1053,14 @@ export async function buscarPedidosDasEntregas(numeros: number[]): Promise<Pedid
   return [...porNumero].map(([numero, pedido]) => paraPedidoDaEntrega(numero, pedido));
 }
 
+// O Nomus escreve o valor da parcela sem decimais quando ele é inteiro, mas já com o ponto de milhar: "4.575" é 4575 (e não
+// 4,575). Com vírgula ("4.575,50") vale a leitura normal.
+function parseValorDeParcela(valor: unknown): number {
+  const texto = String(valor ?? '').trim();
+  if (/^\d{1,3}(\.\d{3})+$/.test(texto)) return Number(texto.replace(/\./g, ''));
+  return parseNum(valor);
+}
+
 function paraPedidoDaEntrega(numero: number, pedido: Pedido): PedidoDaEntregaNomus {
   const dosItens = (pedido.itensPedido ?? []).map((item) => dataBrParaIsoNomus(item.dataEntrega)).filter((d): d is string => !!d).sort();
   const padrao = dataBrParaIsoNomus(pedido.dataEntregaPadrao);
@@ -1060,7 +1068,7 @@ function paraPedidoDaEntrega(numero: number, pedido: Pedido): PedidoDaEntregaNom
     numero,
     valorTotal: parseNum(pedido.valorTotal),
     idPessoaVendedor: pedido.idPessoaVendedor,
-    parcelas: (pedido.parcelas ?? []).map((parcela) => ({ observacao: parcela.observacao ?? '', valor: parseNum(parcela.valorParcela), idFormaPagamento: parcela.idFormaPagamento ?? null })),
+    parcelas: (pedido.parcelas ?? []).map((parcela) => ({ observacao: parcela.observacao ?? '', valor: parseValorDeParcela(parcela.valorParcela), idFormaPagamento: parcela.idFormaPagamento ?? null })),
     prazoIso: dosItens.length > 0 ? dosItens[dosItens.length - 1] : padrao,
     prazoOrigem: dosItens.length > 0 ? 'itens' : padrao ? 'padrao' : null,
   };

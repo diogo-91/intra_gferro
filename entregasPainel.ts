@@ -58,6 +58,7 @@ interface Estado {
   formas: Record<string, string>;
   vendedores: Record<string, string>;
   pcp: Record<string, { prazo: string | null }>; // prazo Gferro (PCP) por número do pedido
+  formatoParcelas?: number; // 2 = valores de parcela lidos com o ponto de milhar certo (4.575 = 4575)
   ultimoErro: { mensagem: string; em: number } | null;
 }
 
@@ -78,6 +79,11 @@ async function lerArquivo(arquivo: string): Promise<Estado | null> {
 async function carregarDoDisco(): Promise<Estado> {
   if (estado) return estado;
   estado = (await lerArquivo(ARQUIVO)) ?? (await lerArquivo(`${ARQUIVO}.bak`)) ?? estadoVazio();
+  // Estados guardados antes da correção leram parcelas de "4.575" como 4,575: manda reler os pedidos (vem do cache, na hora).
+  if (estado.formatoParcelas !== 2) {
+    for (const pedido of Object.values(estado.pedidos)) pedido.atualizadoEm = 0;
+    estado.formatoParcelas = 2;
+  }
   return estado;
 }
 

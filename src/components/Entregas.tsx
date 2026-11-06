@@ -128,7 +128,7 @@ function Prazo({ linha }: { linha: EntregaLinha }) {
 }
 
 // Resumo por loja ou por motorista: uma linha por grupo, ordenada por quantidade de entregas.
-const Resumo: React.FC<{ titulo: string; grupos: Array<{ nome: string; totais: TotaisEntregas }>; mostrarPontualidade: boolean }> = ({ titulo, grupos, mostrarPontualidade }) => (
+const Resumo: React.FC<{ titulo: string; grupos: Array<{ nome: string; totais: TotaisEntregas; incompleto: boolean }>; mostrarPontualidade: boolean }> = ({ titulo, grupos, mostrarPontualidade }) => (
   <section className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden" aria-label={titulo}>
     <h2 className="text-sm font-black text-neutral-900 px-4 pt-4 pb-2">{titulo}</h2>
     <div className="overflow-x-auto">
@@ -146,13 +146,13 @@ const Resumo: React.FC<{ titulo: string; grupos: Array<{ nome: string; totais: T
         <tbody className="divide-y divide-neutral-100">
           {grupos.length === 0 ? (
             <tr><td colSpan={mostrarPontualidade ? 6 : 5} className="px-3 py-6 text-center text-neutral-500">Sem entregas.</td></tr>
-          ) : grupos.map(({ nome, totais }) => (
+          ) : grupos.map(({ nome, totais, incompleto }) => (
             <tr key={nome}>
               <td className="px-3 py-2 font-semibold text-neutral-800">{nome}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatInteiro(totais.entregas)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatInteiro(Math.round(totais.metragem))}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totais.valorPedidos)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(totais.recebidoNaEntrega)}</td>
+              <td className="px-3 py-2 text-right tabular-nums" title={incompleto ? 'Lendo o financeiro no Nomus' : undefined}>{incompleto ? '...' : formatCurrency(totais.recebidoNaEntrega)}</td>
               {mostrarPontualidade && <td className="px-3 py-2 text-right tabular-nums">{formatPercentual(totais.pctNoPrazo)}</td>}
             </tr>
           ))}
@@ -242,7 +242,7 @@ const EntregasConteudo: React.FC = () => {
   const agrupar = useCallback((chave: (e: EntregaLinha) => string) => {
     const grupos = new Map<string, EntregaLinha[]>();
     for (const entrega of selecionadas) grupos.set(chave(entrega), [...(grupos.get(chave(entrega)) ?? []), entrega]);
-    return [...grupos].map(([nome, linhas]) => ({ nome, totais: totaisDasLinhas(linhas) })).sort((a, b) => b.totais.entregas - a.totais.entregas || a.nome.localeCompare(b.nome, 'pt-BR'));
+    return [...grupos].map(([nome, linhas]) => ({ nome, totais: totaisDasLinhas(linhas), incompleto: linhas.some((e) => !e.pedidoLido || (e.pedidoEncontrado && !e.recebimento)) })).sort((a, b) => b.totais.entregas - a.totais.entregas || a.nome.localeCompare(b.nome, 'pt-BR'));
   }, [selecionadas]);
   const porLoja = useMemo(() => agrupar((e) => e.loja), [agrupar]);
   const porMotorista = useMemo(() => agrupar((e) => e.motorista), [agrupar]);
