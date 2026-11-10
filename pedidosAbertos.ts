@@ -327,7 +327,12 @@ export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): P
 
 export interface PedidoAEntregarParaMapa {
   idPessoaCliente?: number;
+  codigo: string;
+  cliente: string;
+  vendedor: string;
   loja: string;
+  dataEmissao: string;
+  prazo: string | null;
   valorTotal: number;
 }
 
@@ -347,6 +352,6 @@ export async function pedidosAEntregarParaMapa(forcar = false): Promise<{ atuali
     ...(resposta.erroAtualizacao ? { erroAtualizacao: resposta.erroAtualizacao } : {}),
     pedidos: resposta.pedidos
       .filter((linha) => linha.situacao !== 'entregue-pcp' && linha.situacao !== 'cancelado-pcp')
-      .map((linha) => ({ idPessoaCliente: clientePorId.get(linha.id), loja: linha.loja, valorTotal: linha.valorTotal })),
+      .map((linha) => ({ idPessoaCliente: clientePorId.get(linha.id), codigo: linha.codigo, cliente: linha.cliente, vendedor: linha.vendedor, loja: linha.loja, dataEmissao: linha.dataEmissao, prazo: linha.prazo, valorTotal: linha.valorTotal })),
   };
 }

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Loader2, Map as MapIcon, RefreshCw } from 'lucide-react';
-import { agregarMapa, normalizarCidade, type AgregadoCidade, type RespostaMapa } from '../mapaPedidos';
-import { chaveDia, formatCurrency, formatInteiro } from '../utils/format';
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Loader2, Map as MapIcon, RefreshCw, X } from 'lucide-react';
+import { agregarMapa, normalizarCidade, type AgregadoCidade, type PedidoDoMapa, type RespostaMapa } from '../mapaPedidos';
+import { chaveDia, formatCurrency, formatDataIsoParaBr, formatInteiro } from '../utils/format';
 
 interface FeicaoEstado { uf: string; nome: string; aneis: number[][][] }
 type Coordenadas = Record<string, [number, number]>;
@@ -47,6 +47,62 @@ const Kpi: React.FC<{ titulo: string; valor: string; detalhe: string }> = ({ tit
 
 type Modo = 'a-entregar' | 'periodo';
 
+// Janela com todos os pedidos de uma cidade: número, cliente, cidade, vendedor, loja, datas e valor.
+const PedidosDaCidade: React.FC<{ cidade: string; uf: string; pedidos: PedidoDoMapa[]; mostrarPrazo: boolean; aoFechar: () => void }> = ({ cidade, uf, pedidos, mostrarPrazo, aoFechar }) => {
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => { if (e.key === 'Escape') aoFechar(); };
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, [aoFechar]);
+  const total = pedidos.reduce((soma, p) => soma + p.valor, 0);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6" onClick={aoFechar}>
+      <div role="dialog" aria-modal="true" aria-label={`Pedidos de ${cidade}`} className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 border-b border-neutral-200 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-black text-neutral-900">{cidade} — {uf}</h2>
+            <p className="text-xs text-neutral-500">{plural(pedidos.length, 'pedido', 'pedidos')} · {formatCurrency(total)}</p>
+          </div>
+          <button type="button" autoFocus onClick={aoFechar} aria-label="Fechar" className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 text-neutral-600 hover:border-yellow-400 hover:text-yellow-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400">
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-[12px]">
+            <thead className="sticky top-0 bg-neutral-50 text-neutral-600">
+              <tr>
+                <th scope="col" className="px-3 py-2 text-left font-bold">Pedido</th>
+                <th scope="col" className="px-3 py-2 text-left font-bold">Cliente</th>
+                <th scope="col" className="px-3 py-2 text-left font-bold">Cidade</th>
+                <th scope="col" className="px-3 py-2 text-left font-bold">Vendedor</th>
+                <th scope="col" className="px-3 py-2 text-left font-bold">Loja</th>
+                <th scope="col" className="px-3 py-2 text-left font-bold">Emissão</th>
+                {mostrarPrazo && <th scope="col" className="px-3 py-2 text-left font-bold">Prazo</th>}
+                <th scope="col" className="px-3 py-2 text-right font-bold">Valor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {pedidos.map((p) => (
+                <tr key={p.codigo}>
+                  <td className="whitespace-nowrap px-3 py-2 font-bold text-neutral-900">{p.codigo}</td>
+                  <td className="px-3 py-2 text-neutral-800">{p.cliente}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-neutral-700">{p.cidade} — {p.uf}</td>
+                  <td className="px-3 py-2 text-neutral-700">{p.vendedor}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-neutral-700">{p.loja}</td>
+                  <td className="whitespace-nowrap px-3 py-2 tabular-nums text-neutral-700">{p.dataEmissao ? formatDataIsoParaBr(p.dataEmissao) : '—'}</td>
+                  {mostrarPrazo && <td className="whitespace-nowrap px-3 py-2 tabular-nums text-neutral-700">{p.prazo ? formatDataIsoParaBr(p.prazo) : '—'}</td>}
+                  <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-neutral-900">{formatCurrency(p.valor)}</td>
+                </tr>
+              ))}
+              {pedidos.length === 0 && <tr><td colSpan={mostrarPrazo ? 8 : 7} className="px-3 py-8 text-center text-neutral-500">Nenhum pedido.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const MapaPedidos: React.FC = () => {
   const [modo, setModo] = useState<Modo>('a-entregar');
   const [referencia, setReferencia] = useState<Date>(() => new Date());
@@ -61,6 +117,7 @@ export const MapaPedidos: React.FC = () => {
   const [coordenadas, setCoordenadas] = useState<Coordenadas>({});
   const [ufSelecionada, setUfSelecionada] = useState<string | null>(null);
   const [foco, setFoco] = useState<{ titulo: string; pedidos: number; valor: number; x: number; y: number } | null>(null);
+  const [cidadeAberta, setCidadeAberta] = useState<{ cidade: string; uf: string } | null>(null);
   const areaDoMapa = useRef<HTMLDivElement>(null);
 
   // O desenho do Brasil e as coordenadas das cidades são pesados: só são baixados quando a tela é aberta.
@@ -106,6 +163,7 @@ export const MapaPedidos: React.FC = () => {
     setErro('');
     setCarregando(guardada === null);
     setUfSelecionada(null);
+    setCidadeAberta(null);
     buscar(url, guardada !== null);
   }, [url, periodoInvalido, buscar]);
 
@@ -338,6 +396,12 @@ export const MapaPedidos: React.FC = () => {
                       fill="rgba(23, 23, 23, 0.55)"
                       stroke="#ffffff"
                       strokeWidth={0.8 * unidade}
+                      className="cursor-pointer outline-none hover:fill-neutral-900/80 focus-visible:stroke-yellow-400"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${cidade.cidade}: ${plural(cidade.pedidos, 'pedido', 'pedidos')}. Abrir a lista`}
+                      onClick={() => setCidadeAberta({ cidade: cidade.cidade, uf: cidade.uf })}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCidadeAberta({ cidade: cidade.cidade, uf: cidade.uf }); } }}
                       onMouseMove={(e) => mostrarFoco(e, `${cidade.cidade} — ${cidade.uf}`, cidade.pedidos, cidade.valor)}
                     />
                   ))}
@@ -353,7 +417,7 @@ export const MapaPedidos: React.FC = () => {
                 )}
               </div>
               <p className="px-1 pt-2 text-[11px] text-neutral-500">
-                Cor do estado e tamanho do círculo = quantidade de pedidos. Passe o mouse para ver o valor.
+                Cor do estado e tamanho do círculo = quantidade de pedidos. Passe o mouse para ver o valor e clique no círculo para ver os pedidos da cidade.
                 {semCoordenada > 0 ? ` ${plural(semCoordenada, 'cidade', 'cidades')} sem posição no mapa (aparecem na lista).` : ''}
               </p>
             </section>
@@ -361,7 +425,7 @@ export const MapaPedidos: React.FC = () => {
             <aside className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden" aria-label={ufSelecionada ? `Cidades de ${nomeDoEstado(ufSelecionada)}` : 'Estados'}>
               <h2 className="text-sm font-black text-neutral-900 px-4 pt-4 pb-2">{ufSelecionada ? `Cidades de ${nomeDoEstado(ufSelecionada)}` : 'Estados'}</h2>
               <ol className="max-h-[600px] overflow-y-auto divide-y divide-neutral-100 text-[12px]">
-                {(ufSelecionada ? cidadesVisiveis.map((c) => ({ chave: c.cidade, nome: c.cidade, pedidos: c.pedidos, valor: c.valor, uf: '' })) : agregado.estados.map((e) => ({ chave: e.uf, nome: nomeDoEstado(e.uf), pedidos: e.pedidos, valor: e.valor, uf: e.uf }))).map((linha) => {
+                {(ufSelecionada ? cidadesVisiveis.map((c) => ({ chave: c.cidade, nome: c.cidade, pedidos: c.pedidos, valor: c.valor, uf: '', cidade: c.cidade })) : agregado.estados.map((e) => ({ chave: e.uf, nome: nomeDoEstado(e.uf), pedidos: e.pedidos, valor: e.valor, uf: e.uf, cidade: '' }))).map((linha) => {
                   const maximo = ufSelecionada ? maxCidade : maxEstado;
                   const conteudo = (
                     <>
@@ -378,7 +442,7 @@ export const MapaPedidos: React.FC = () => {
                       {linha.uf ? (
                         <button type="button" onClick={() => setUfSelecionada(linha.uf)} className="block w-full px-4 py-2 text-left hover:bg-yellow-50 focus:outline-none focus-visible:bg-yellow-50">{conteudo}</button>
                       ) : (
-                        <div className="px-4 py-2">{conteudo}</div>
+                        <button type="button" onClick={() => setCidadeAberta({ cidade: linha.cidade, uf: ufSelecionada ?? '' })} className="block w-full px-4 py-2 text-left hover:bg-yellow-50 focus:outline-none focus-visible:bg-yellow-50">{conteudo}</button>
                       )}
                     </li>
                   );
@@ -393,6 +457,15 @@ export const MapaPedidos: React.FC = () => {
             </aside>
           </div>
         </>
+      )}
+      {cidadeAberta && resposta && (
+        <PedidosDaCidade
+          cidade={cidadeAberta.cidade}
+          uf={cidadeAberta.uf}
+          mostrarPrazo={aEntregar}
+          pedidos={resposta.pedidos.filter((p) => p.uf === cidadeAberta.uf && normalizarCidade(p.cidade) === normalizarCidade(cidadeAberta.cidade) && (loja === 'todas' || p.loja === loja))}
+          aoFechar={() => setCidadeAberta(null)}
+        />
       )}
     </div>
   );

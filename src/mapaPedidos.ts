@@ -31,6 +31,19 @@ export interface LinhaMapa {
   valor: number;
 }
 
+/** Um pedido no mapa, para a lista que abre ao clicar na cidade. */
+export interface PedidoDoMapa {
+  codigo: string; // "PD 02208"
+  cliente: string;
+  cidade: string;
+  uf: string;
+  vendedor: string;
+  loja: string;
+  dataEmissao: string; // aaaa-mm-dd
+  prazo: string | null; // aaaa-mm-dd — só na visão "a entregar"
+  valor: number;
+}
+
 export interface RespostaMapa {
   /** 'periodo': pedidos emitidos no período. 'a-entregar': todos os pedidos que ainda não foram entregues (sem período). */
   modo: 'periodo' | 'a-entregar';
@@ -53,6 +66,8 @@ export interface RespostaMapa {
   semLocalizacao: { pedidos: number; valor: number };
   lojas: string[];
   linhas: LinhaMapa[];
+  /** Cada pedido localizado (os mesmos que formam as linhas), do maior para o menor valor. */
+  pedidos: PedidoDoMapa[];
 }
 
 export interface AgregadoCidade {

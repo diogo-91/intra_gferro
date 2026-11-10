@@ -7,7 +7,7 @@ import path from 'path';
 import { buscarLocalDasPessoas, nomesDosVendedores, pedidosDoMesParaMapa, type PedidoParaMapa } from './nomus';
 import { pedidosAEntregarParaMapa } from './pedidosAbertos';
 import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
-import { normalizarCidade, separarCidadeEUf, type LinhaMapa, type RespostaMapa } from './src/mapaPedidos';
+import { normalizarCidade, separarCidadeEUf, type LinhaMapa, type PedidoDoMapa, type RespostaMapa } from './src/mapaPedidos';
 
 const ARQUIVO = path.join(process.cwd(), 'data', 'mapa-clientes.json');
 
@@ -16,6 +16,7 @@ const MAXIMO_DE_MESES = 13;
 const MAXIMO_DE_DIAS_NA_CONSULTA = 400;
 
 interface LocalDoCliente {
+  nome?: string; // ausente nos clientes lidos antes de o nome ser guardado
   municipio: string; // vazio se o cadastro não tem
   uf: string;
   lidoEm: number;
@@ -64,14 +65,14 @@ function lerClientesFaltantes(ids: number[]): void {
   lendoClientes = (async () => {
     const atual = await carregarDoDisco();
     for (let i = 0; i < ids.length; i += CLIENTES_POR_ETAPA) {
-      const etapa = ids.slice(i, i + CLIENTES_POR_ETAPA).filter((id) => !atual.clientes[id]);
+      const etapa = ids.slice(i, i + CLIENTES_POR_ETAPA).filter((id) => atual.clientes[id]?.nome === undefined);
       if (etapa.length === 0) continue;
       const lidos = new Map((await buscarLocalDasPessoas(etapa)).map((pessoa) => [pessoa.id, pessoa]));
       const agora = Date.now();
       for (const id of etapa) {
         const pessoa = lidos.get(id);
         const { cidade, uf } = pessoa ? separarCidadeEUf(pessoa.municipio, pessoa.uf) : { cidade: '', uf: '' };
-        atual.clientes[id] = { municipio: cidade, uf, lidoEm: agora }; // sem cidade no cadastro também fica guardado: não relê toda hora
+        atual.clientes[id] = { nome: pessoa?.nome ?? '', municipio: cidade, uf, lidoEm: agora }; // sem cidade no cadastro também fica guardado: não relê toda hora
       }
       atual.ultimoErro = null;
       await persistir();
@@ -113,7 +114,7 @@ export async function montarRespostaMapa(periodo: { inicio: string; fim: string;
   const lidos = await Promise.all(periodo.meses.map((mes) => pedidosDoMesParaMapa(mes)));
   const mesesPendentes = lidos.filter((m) => m === null).length;
   if (mesesPendentes === periodo.meses.length) {
-    return { modo: 'periodo', inicio: periodo.inicio, fim: periodo.fim, atualizadoEm: new Date().toISOString(), carregando: true, totalPedidos: 0, semLocalizacao: { pedidos: 0, valor: 0 }, lojas: [], linhas: [] };
+    return { modo: 'periodo', inicio: periodo.inicio, fim: periodo.fim, atualizadoEm: new Date().toISOString(), carregando: true, totalPedidos: 0, semLocalizacao: { pedidos: 0, valor: 0 }, lojas: [], linhas: [], pedidos: [] };
   }
 
   const pedidos: PedidoParaMapa[] = lidos.flatMap((m) => m?.pedidos ?? []).filter((p) => p.dataEmissao >= periodo.inicio && p.dataEmissao <= periodo.fim);
@@ -123,7 +124,16 @@ export async function montarRespostaMapa(periodo: { inicio: string; fim: string;
   const agrupado = await agruparPorCidade(pedidos.map((pedido) => {
     const nomeVendedor = pedido.idPessoaVendedor != null ? nomesVendedores.get(pedido.idPessoaVendedor) : undefined;
     const lojaId = nomeVendedor ? lojaDoVendedor(nomeVendedor) : undefined;
-    return { idPessoaCliente: pedido.idPessoaCliente, loja: (lojaId && nomesLojas.get(lojaId)) || 'Sem loja', valorTotal: pedido.valorTotal };
+    return {
+      idPessoaCliente: pedido.idPessoaCliente,
+      codigo: pedido.codigoPedido,
+      cliente: '',
+      vendedor: pedido.idPessoaVendedor == null ? 'Sem vendedor' : nomeVendedor ?? `Vendedor #${pedido.idPessoaVendedor}`,
+      loja: (lojaId && nomesLojas.get(lojaId)) || 'Sem loja',
+      dataEmissao: pedido.dataEmissao,
+      prazo: null,
+      valorTotal: pedido.valorTotal,
+    };
   }));
 
   const atualizadoEm = Math.min(...lidos.filter((m): m is NonNullable<typeof m> => m !== null).map((m) => m.atualizadoEm));
@@ -142,7 +152,7 @@ export async function montarRespostaMapaAEntregar(forcar = false): Promise<Respo
   const fonte = await pedidosAEntregarParaMapa(forcar);
   const hoje = new Date().toISOString().slice(0, 10);
   if (fonte.carregando) {
-    return { modo: 'a-entregar', inicio: hoje, fim: hoje, atualizadoEm: fonte.atualizadoEm, carregando: true, totalPedidos: 0, semLocalizacao: { pedidos: 0, valor: 0 }, lojas: [], linhas: [] };
+    return { modo: 'a-entregar', inicio: hoje, fim: hoje, atualizadoEm: fonte.atualizadoEm, carregando: true, totalPedidos: 0, semLocalizacao: { pedidos: 0, valor: 0 }, lojas: [], linhas: [], pedidos: [] };
   }
   return {
     modo: 'a-entregar',
@@ -158,22 +168,28 @@ export async function montarRespostaMapaAEntregar(forcar = false): Promise<Respo
 
 interface PedidoParaAgrupar {
   idPessoaCliente?: number;
+  codigo: string;
+  cliente: string; // nome vindo da fonte, usado quando o cadastro do Nomus ainda não foi lido
+  vendedor: string;
   loja: string;
+  dataEmissao: string;
+  prazo: string | null;
   valorTotal: number;
 }
 
 /** Junta os pedidos por cidade/UF/loja usando a cidade guardada de cada cliente; dispara a leitura dos clientes que faltam. */
-async function agruparPorCidade(pedidos: PedidoParaAgrupar[]): Promise<Pick<RespostaMapa, 'pedidosPendentes' | 'erroAtualizacao' | 'totalPedidos' | 'semLocalizacao' | 'lojas' | 'linhas'>> {
+async function agruparPorCidade(pedidos: PedidoParaAgrupar[]): Promise<Pick<RespostaMapa, 'pedidosPendentes' | 'erroAtualizacao' | 'totalPedidos' | 'semLocalizacao' | 'lojas' | 'linhas' | 'pedidos'>> {
   const atual = await carregarDoDisco();
   const faltantes = new Set<number>();
   const linhas = new Map<string, LinhaMapa>();
+  const detalhes: PedidoDoMapa[] = [];
   let semLocalizacao = { pedidos: 0, valor: 0 };
   let pedidosPendentes = 0;
   let total = 0;
   for (const pedido of pedidos) {
     const local = pedido.idPessoaCliente != null ? atual.clientes[pedido.idPessoaCliente] : undefined;
+    if (pedido.idPessoaCliente != null && local?.nome === undefined) faltantes.add(pedido.idPessoaCliente); // também relê quem ficou sem nome guardado
     if (pedido.idPessoaCliente != null && !local) {
-      faltantes.add(pedido.idPessoaCliente);
       pedidosPendentes += 1;
       continue;
     }
@@ -187,6 +203,17 @@ async function agruparPorCidade(pedidos: PedidoParaAgrupar[]): Promise<Pick<Resp
     linha.pedidos += 1;
     linha.valor += pedido.valorTotal;
     linhas.set(chave, linha);
+    detalhes.push({
+      codigo: pedido.codigo,
+      cliente: local.nome || pedido.cliente || (pedido.idPessoaCliente != null ? `Cliente #${pedido.idPessoaCliente}` : '—'),
+      cidade: local.municipio,
+      uf: local.uf,
+      vendedor: pedido.vendedor,
+      loja: pedido.loja,
+      dataEmissao: pedido.dataEmissao,
+      prazo: pedido.prazo,
+      valor: Math.round(pedido.valorTotal * 100) / 100,
+    });
   }
   if (faltantes.size > 0) lerClientesFaltantes([...faltantes]);
   return {
@@ -196,5 +223,6 @@ async function agruparPorCidade(pedidos: PedidoParaAgrupar[]): Promise<Pick<Resp
     semLocalizacao: { pedidos: semLocalizacao.pedidos, valor: Math.round(semLocalizacao.valor * 100) / 100 },
     lojas: [...new Set([...linhas.values()].map((l) => l.loja))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     linhas: [...linhas.values()].map((l) => ({ ...l, valor: Math.round(l.valor * 100) / 100 })),
+    pedidos: detalhes.sort((a, b) => b.valor - a.valor || a.codigo.localeCompare(b.codigo)),
   };
 }

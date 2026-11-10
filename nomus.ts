@@ -1148,15 +1148,15 @@ export async function pedidosDoMesParaMapa(mes: string): Promise<{ pedidos: Pedi
   };
 }
 
-/** Cidade e estado (cadastro do Nomus) das pessoas informadas, em lotes de 20 por consulta. */
-export async function buscarLocalDasPessoas(ids: number[]): Promise<Array<{ id: number; municipio: string; uf: string }>> {
+/** Nome, cidade e estado (cadastro do Nomus) das pessoas informadas, em lotes de 20 por consulta. */
+export async function buscarLocalDasPessoas(ids: number[]): Promise<Array<{ id: number; nome: string; municipio: string; uf: string }>> {
   const { baseUrl, apiKey } = getConfig();
   if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
-  const resultado: Array<{ id: number; municipio: string; uf: string }> = [];
+  const resultado: Array<{ id: number; nome: string; municipio: string; uf: string }> = [];
   for (let i = 0; i < ids.length; i += 20) {
     const query = ids.slice(i, i + 20).map((id) => `id==${id}`).join(',');
-    for (const pessoa of await coletarTudo<{ id: number; municipio?: string; uf?: string }>('pessoas', baseUrl, apiKey, query)) {
-      resultado.push({ id: pessoa.id, municipio: String(pessoa.municipio ?? '').trim(), uf: String(pessoa.uf ?? '').trim().toUpperCase() });
+    for (const pessoa of await coletarTudo<{ id: number; nome?: string; municipio?: string; uf?: string }>('pessoas', baseUrl, apiKey, query)) {
+      resultado.push({ id: pessoa.id, nome: String(pessoa.nome ?? '').trim(), municipio: String(pessoa.municipio ?? '').trim(), uf: String(pessoa.uf ?? '').trim().toUpperCase() });
     }
   }
   return resultado;
