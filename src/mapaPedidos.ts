@@ -37,6 +37,10 @@ export interface PedidoDoMapa {
   cliente: string;
   cidade: string;
   uf: string;
+  /** Endereço do cadastro do cliente no Nomus ("" se ainda não lido ou sem endereço). O pedido em si não guarda endereço. */
+  endereco: string;
+  /** true: é o endereço de entrega do cadastro; false: é o endereço principal do cadastro. */
+  enderecoEntrega: boolean;
   vendedor: string;
   loja: string;
   dataEmissao: string; // aaaa-mm-dd

@@ -57,7 +57,7 @@ const PedidosDaCidade: React.FC<{ cidade: string; uf: string; pedidos: PedidoDoM
   const total = pedidos.reduce((soma, p) => soma + p.valor, 0);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6" onClick={aoFechar}>
-      <div role="dialog" aria-modal="true" aria-label={`Pedidos de ${cidade}`} className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={`Pedidos de ${cidade}`} className="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 border-b border-neutral-200 px-5 py-4">
           <div>
             <h2 className="text-lg font-black text-neutral-900">{cidade} — {uf}</h2>
@@ -73,6 +73,7 @@ const PedidosDaCidade: React.FC<{ cidade: string; uf: string; pedidos: PedidoDoM
               <tr>
                 <th scope="col" className="px-3 py-2 text-left font-bold">Pedido</th>
                 <th scope="col" className="px-3 py-2 text-left font-bold">Cliente</th>
+                <th scope="col" className="px-3 py-2 text-left font-bold">Endereço de entrega</th>
                 <th scope="col" className="px-3 py-2 text-left font-bold">Cidade</th>
                 <th scope="col" className="px-3 py-2 text-left font-bold">Vendedor</th>
                 <th scope="col" className="px-3 py-2 text-left font-bold">Loja</th>
@@ -86,6 +87,14 @@ const PedidosDaCidade: React.FC<{ cidade: string; uf: string; pedidos: PedidoDoM
                 <tr key={p.codigo}>
                   <td className="whitespace-nowrap px-3 py-2 font-bold text-neutral-900">{p.codigo}</td>
                   <td className="px-3 py-2 text-neutral-800">{p.cliente}</td>
+                  <td className="min-w-[220px] px-3 py-2 text-neutral-700">
+                    {p.endereco ? (
+                      <>
+                        {p.endereco}
+                        {!p.enderecoEntrega && <span className="block text-[10px] text-neutral-400" title="O cliente não tem endereço de entrega cadastrado no Nomus; este é o endereço principal">endereço principal do cadastro</span>}
+                      </>
+                    ) : <span className="text-neutral-400">—</span>}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 text-neutral-700">{p.cidade} — {p.uf}</td>
                   <td className="px-3 py-2 text-neutral-700">{p.vendedor}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-neutral-700">{p.loja}</td>
@@ -94,7 +103,7 @@ const PedidosDaCidade: React.FC<{ cidade: string; uf: string; pedidos: PedidoDoM
                   <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-neutral-900">{formatCurrency(p.valor)}</td>
                 </tr>
               ))}
-              {pedidos.length === 0 && <tr><td colSpan={mostrarPrazo ? 8 : 7} className="px-3 py-8 text-center text-neutral-500">Nenhum pedido.</td></tr>}
+              {pedidos.length === 0 && <tr><td colSpan={mostrarPrazo ? 9 : 8} className="px-3 py-8 text-center text-neutral-500">Nenhum pedido.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -235,8 +244,8 @@ export const MapaPedidos: React.FC = () => {
           </h1>
           <p className="text-neutral-500 text-sm mt-1">
             {aEntregar
-              ? 'Todos os pedidos liberados que ainda não foram entregues (sem entrega nem cancelamento dados no PCP), pela cidade do cliente no cadastro do Nomus, ao vivo. Clique em um estado para ver as cidades.'
-              : 'Todos os pedidos emitidos no período (exceto cancelados), pela cidade do cliente no cadastro do Nomus. Clique em um estado para ver as cidades.'}
+              ? 'Todos os pedidos liberados que ainda não foram entregues (sem entrega nem cancelamento dados no PCP), pela cidade do endereço de entrega no cadastro do cliente no Nomus, ao vivo. Clique em um estado para ver as cidades.'
+              : 'Todos os pedidos emitidos no período (exceto cancelados), pela cidade do endereço de entrega no cadastro do cliente no Nomus. Clique em um estado para ver as cidades.'}
           </p>
         </div>
         <button

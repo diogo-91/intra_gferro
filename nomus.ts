@@ -1148,15 +1148,53 @@ export async function pedidosDoMesParaMapa(mes: string): Promise<{ pedidos: Pedi
   };
 }
 
-/** Nome, cidade e estado (cadastro do Nomus) das pessoas informadas, em lotes de 20 por consulta. */
-export async function buscarLocalDasPessoas(ids: number[]): Promise<Array<{ id: number; nome: string; municipio: string; uf: string }>> {
+interface EnderecoNomus {
+  ativo?: boolean;
+  tipoEndereco?: string;
+  tipoLogradouro?: string;
+  endereco?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  bairroDistrito?: string;
+  cep?: string;
+  municipio?: string;
+  uf?: string;
+}
+
+/** "RUA DAS FLORES, 120 - Centro - Sorocaba/SP - CEP 18000-000" a partir dos campos de endereço do Nomus. */
+function formatarEnderecoNomus(e: EnderecoNomus): string {
+  const texto = (valor?: string) => String(valor ?? '').trim();
+  const logradouro = texto(e.endereco);
+  const tipo = texto(e.tipoLogradouro);
+  const rua = logradouro && tipo && !logradouro.toUpperCase().startsWith(tipo.toUpperCase()) ? `${tipo} ${logradouro}` : logradouro;
+  const ruaNumero = [rua, texto(e.numero)].filter(Boolean).join(', ');
+  const cidade = [texto(e.municipio), texto(e.uf)].filter(Boolean).join('/');
+  return [ruaNumero, texto(e.complemento), texto(e.bairro) || texto(e.bairroDistrito), cidade, texto(e.cep) ? `CEP ${texto(e.cep)}` : ''].filter(Boolean).join(' - ');
+}
+
+/**
+ * Nome, cidade, estado e endereço (cadastro do Nomus) das pessoas informadas, em lotes de 20 por consulta. O endereço é o
+ * de entrega cadastrado (tipo "Entrega"); sem ele, o endereço principal. O pedido em si não guarda endereço.
+ */
+export async function buscarLocalDasPessoas(ids: number[]): Promise<Array<{ id: number; nome: string; municipio: string; uf: string; endereco: string; enderecoEntrega: boolean }>> {
   const { baseUrl, apiKey } = getConfig();
   if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
-  const resultado: Array<{ id: number; nome: string; municipio: string; uf: string }> = [];
+  const resultado: Array<{ id: number; nome: string; municipio: string; uf: string; endereco: string; enderecoEntrega: boolean }> = [];
   for (let i = 0; i < ids.length; i += 20) {
     const query = ids.slice(i, i + 20).map((id) => `id==${id}`).join(',');
-    for (const pessoa of await coletarTudo<{ id: number; nome?: string; municipio?: string; uf?: string }>('pessoas', baseUrl, apiKey, query)) {
-      resultado.push({ id: pessoa.id, nome: String(pessoa.nome ?? '').trim(), municipio: String(pessoa.municipio ?? '').trim(), uf: String(pessoa.uf ?? '').trim().toUpperCase() });
+    for (const pessoa of await coletarTudo<EnderecoNomus & { id: number; nome?: string; enderecos?: EnderecoNomus[] }>('pessoas', baseUrl, apiKey, query)) {
+      const entrega = (pessoa.enderecos ?? []).find((e) => e.ativo !== false && /entrega/i.test(String(e.tipoEndereco ?? '')) && formatarEnderecoNomus(e));
+      // A cidade do mapa é a do endereço de entrega (quando ele tem município e UF); senão, a do endereço principal.
+      const cidadeDaEntrega = entrega && String(entrega.municipio ?? '').trim() && String(entrega.uf ?? '').trim() ? entrega : null;
+      resultado.push({
+        id: pessoa.id,
+        nome: String(pessoa.nome ?? '').trim(),
+        municipio: String((cidadeDaEntrega ?? pessoa).municipio ?? '').trim(),
+        uf: String((cidadeDaEntrega ?? pessoa).uf ?? '').trim().toUpperCase(),
+        endereco: entrega ? formatarEnderecoNomus(entrega) : formatarEnderecoNomus(pessoa),
+        enderecoEntrega: !!entrega,
+      });
     }
   }
   return resultado;

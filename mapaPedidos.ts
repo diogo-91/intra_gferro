@@ -17,6 +17,8 @@ const MAXIMO_DE_DIAS_NA_CONSULTA = 400;
 
 interface LocalDoCliente {
   nome?: string; // ausente nos clientes lidos antes de o nome ser guardado
+  endereco?: string; // ausente nos clientes lidos antes de o endereço ser guardado; vazio se o cadastro não tem
+  enderecoEntrega?: boolean; // true: é o endereço de entrega do cadastro; false: é o endereço principal
   municipio: string; // vazio se o cadastro não tem
   uf: string;
   lidoEm: number;
@@ -65,14 +67,14 @@ function lerClientesFaltantes(ids: number[]): void {
   lendoClientes = (async () => {
     const atual = await carregarDoDisco();
     for (let i = 0; i < ids.length; i += CLIENTES_POR_ETAPA) {
-      const etapa = ids.slice(i, i + CLIENTES_POR_ETAPA).filter((id) => atual.clientes[id]?.nome === undefined);
+      const etapa = ids.slice(i, i + CLIENTES_POR_ETAPA).filter((id) => atual.clientes[id]?.endereco === undefined);
       if (etapa.length === 0) continue;
       const lidos = new Map((await buscarLocalDasPessoas(etapa)).map((pessoa) => [pessoa.id, pessoa]));
       const agora = Date.now();
       for (const id of etapa) {
         const pessoa = lidos.get(id);
         const { cidade, uf } = pessoa ? separarCidadeEUf(pessoa.municipio, pessoa.uf) : { cidade: '', uf: '' };
-        atual.clientes[id] = { nome: pessoa?.nome ?? '', municipio: cidade, uf, lidoEm: agora }; // sem cidade no cadastro também fica guardado: não relê toda hora
+        atual.clientes[id] = { nome: pessoa?.nome ?? '', endereco: pessoa?.endereco ?? '', enderecoEntrega: pessoa?.enderecoEntrega ?? false, municipio: cidade, uf, lidoEm: agora }; // sem cidade no cadastro também fica guardado: não relê toda hora
       }
       atual.ultimoErro = null;
       await persistir();
@@ -188,7 +190,7 @@ async function agruparPorCidade(pedidos: PedidoParaAgrupar[]): Promise<Pick<Resp
   let total = 0;
   for (const pedido of pedidos) {
     const local = pedido.idPessoaCliente != null ? atual.clientes[pedido.idPessoaCliente] : undefined;
-    if (pedido.idPessoaCliente != null && local?.nome === undefined) faltantes.add(pedido.idPessoaCliente); // também relê quem ficou sem nome guardado
+    if (pedido.idPessoaCliente != null && local?.endereco === undefined) faltantes.add(pedido.idPessoaCliente); // também relê quem foi guardado sem nome/endereço
     if (pedido.idPessoaCliente != null && !local) {
       pedidosPendentes += 1;
       continue;
@@ -208,6 +210,8 @@ async function agruparPorCidade(pedidos: PedidoParaAgrupar[]): Promise<Pick<Resp
       cliente: local.nome || pedido.cliente || (pedido.idPessoaCliente != null ? `Cliente #${pedido.idPessoaCliente}` : '—'),
       cidade: local.municipio,
       uf: local.uf,
+      endereco: local.endereco ?? '',
+      enderecoEntrega: local.enderecoEntrega ?? false,
       vendedor: pedido.vendedor,
       loja: pedido.loja,
       dataEmissao: pedido.dataEmissao,
