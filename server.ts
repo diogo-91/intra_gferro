@@ -32,6 +32,7 @@ import { anexarPrazoGferro } from './prazoGferro';
 import { agruparSaidas } from './src/saidasFinanceiras';
 import { iniciarAtualizacaoPedidosAbertos, montarRespostaPedidosAbertos } from './pedidosAbertos';
 import { iniciarAtualizacaoEntregas, montarRespostaEntregas, validarPeriodoEntregas } from './entregasPainel';
+import { montarRespostaMapa, montarRespostaMapaAEntregar, validarPeriodoMapa } from './mapaPedidos';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -878,6 +879,17 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao montar o dashboard de entregas:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar as entregas.', details: error.message });
+    }
+  });
+
+  // Dashboard > Mapa: pedidos do período por cidade e estado do cliente. Responde na hora com o que já está guardado.
+  app.get('/api/dashboard/mapa', async (req, res) => {
+    try {
+      if (req.query.modo === 'a-entregar') return res.json(await montarRespostaMapaAEntregar(req.query.atualizar === '1'));
+      res.json(await montarRespostaMapa(validarPeriodoMapa(req.query.inicio, req.query.fim)));
+    } catch (error: any) {
+      console.error('Erro ao montar o mapa de pedidos:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao montar o mapa de pedidos.', details: error.message });
     }
   });
 

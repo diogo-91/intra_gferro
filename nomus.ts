@@ -1101,6 +1101,67 @@ export async function buscarFormasPagamento(): Promise<Map<number, string>> {
   return new Map(formas.filter((f) => f.nome).map((f) => [f.id, f.nome as string]));
 }
 
+// ---- Mapa de pedidos (pedidos por cidade e estado) ----
+
+export interface PedidoParaMapa {
+  id: number;
+  codigoPedido: string;
+  idPessoaCliente?: number;
+  idPessoaVendedor?: number;
+  dataEmissao: string; // aaaa-mm-dd
+  valorTotal: number;
+}
+
+/**
+ * Pedidos emitidos no mês ("AAAA-MM"), de qualquer status (menos os cancelados por completo), a partir do cache mensal
+ * dos pedidos. Devolve null — e dispara a leitura do mês no Nomus em segundo plano — quando o mês ainda não foi lido.
+ */
+export async function pedidosDoMesParaMapa(mes: string): Promise<{ pedidos: PedidoParaMapa[]; atualizadoEm: number } | null> {
+  const chave = chavePedidos('mes', mes);
+  if (!cachePedidosPorPeriodo.has(chave)) {
+    getPedidosBrutosDoPeriodo('mes', mes, undefined, TTL_PEDIDOS_DA_LOJA_MS).catch((erro) =>
+      console.error('[nomus] falha ao ler os pedidos do mês para o mapa:', erro?.message ?? erro)
+    );
+    return null;
+  }
+  const brutos = await getPedidosBrutosDoPeriodo('mes', mes, undefined, TTL_PEDIDOS_DA_LOJA_MS); // stale-while-revalidate: volta na hora
+  const unicos = new Map<string, Pedido>();
+  for (const pedido of brutos) {
+    const codigo = chaveCodigoPedido(pedido.codigoPedido);
+    if (codigo && PEDIDOS_EXCLUIDOS_DAS_VENDAS.has(codigo)) continue;
+    const itens = pedido.itensPedido ?? [];
+    if (itens.length > 0 && itens.every((item) => item.status === 6 || item.status === 8)) continue; // cancelado/devolvido por completo
+    const chaveUnica = codigo || `id:${pedido.id}`;
+    const existente = unicos.get(chaveUnica);
+    if (!existente || pedido.id > existente.id) unicos.set(chaveUnica, pedido);
+  }
+  return {
+    atualizadoEm: cachePedidosPorPeriodo.get(chave)?.atualizadoEm ?? Date.now(),
+    pedidos: [...unicos.values()].map((pedido) => ({
+      id: pedido.id,
+      codigoPedido: pedido.codigoPedido || String(pedido.id),
+      idPessoaCliente: pedido.idPessoaCliente,
+      idPessoaVendedor: pedido.idPessoaVendedor,
+      dataEmissao: dataBrParaIsoNomus(pedido.dataEmissao) ?? '',
+      valorTotal: parseNum(pedido.valorTotal),
+    })),
+  };
+}
+
+/** Cidade e estado (cadastro do Nomus) das pessoas informadas, em lotes de 20 por consulta. */
+export async function buscarLocalDasPessoas(ids: number[]): Promise<Array<{ id: number; municipio: string; uf: string }>> {
+  const { baseUrl, apiKey } = getConfig();
+  if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+  const resultado: Array<{ id: number; municipio: string; uf: string }> = [];
+  for (let i = 0; i < ids.length; i += 20) {
+    const query = ids.slice(i, i + 20).map((id) => `id==${id}`).join(',');
+    for (const pessoa of await coletarTudo<{ id: number; municipio?: string; uf?: string }>('pessoas', baseUrl, apiKey, query)) {
+      resultado.push({ id: pessoa.id, municipio: String(pessoa.municipio ?? '').trim(), uf: String(pessoa.uf ?? '').trim().toUpperCase() });
+    }
+  }
+  return resultado;
+}
+
 /** Nome de cada vendedor por id (do cache de vendedores). */
 export async function nomesDosVendedores(): Promise<Map<number, string>> {
   const vendedores = await getVendedores();

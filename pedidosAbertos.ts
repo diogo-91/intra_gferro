@@ -324,3 +324,29 @@ export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): P
     pedidos: ordenarPedidosAbertos(linhas),
   };
 }
+
+export interface PedidoAEntregarParaMapa {
+  idPessoaCliente?: number;
+  loja: string;
+  valorTotal: number;
+}
+
+/**
+ * Pedidos que ainda não foram entregues (liberados no Nomus, sem entrega nem cancelamento dados pelo PCP), com o cliente
+ * para o mapa. Sai do mesmo estado guardado da tela Pedidos; `forcar` pede uma releitura no Nomus agora.
+ */
+export async function pedidosAEntregarParaMapa(forcar = false): Promise<{ atualizadoEm: string; carregando?: boolean; atualizando?: boolean; historicoParcial?: boolean; erroAtualizacao?: string; pedidos: PedidoAEntregarParaMapa[] }> {
+  const resposta = await montarRespostaPedidosAbertos(forcar);
+  if (resposta.carregando) return { atualizadoEm: resposta.atualizadoEm, carregando: true, atualizando: true, pedidos: [] };
+  const atual = await carregarDoDisco();
+  const clientePorId = new Map(Object.values(atual.pedidos).map((pedido) => [pedido.id, pedido.idPessoaCliente]));
+  return {
+    atualizadoEm: resposta.atualizadoEm,
+    ...(resposta.atualizando ? { atualizando: true } : {}),
+    ...(resposta.historicoParcial ? { historicoParcial: true } : {}),
+    ...(resposta.erroAtualizacao ? { erroAtualizacao: resposta.erroAtualizacao } : {}),
+    pedidos: resposta.pedidos
+      .filter((linha) => linha.situacao !== 'entregue-pcp' && linha.situacao !== 'cancelado-pcp')
+      .map((linha) => ({ idPessoaCliente: clientePorId.get(linha.id), loja: linha.loja, valorTotal: linha.valorTotal })),
+  };
+}

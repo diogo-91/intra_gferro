@@ -22,7 +22,8 @@ import {
   Target,
   PackageCheck,
   PackageSearch,
-  Truck
+  Truck,
+  Map as MapIcon
 } from 'lucide-react';
 import { TabType, Department } from '../types';
 import type { ModuloId } from '../modulos';
@@ -89,6 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'vendas', label: 'Vendas', icon: TrendingUp },
         { id: 'dashboard-pedidos', label: 'Pedidos', icon: PackageSearch },
         { id: 'dashboard-entregas', label: 'Entregas', icon: Truck },
+        { id: 'dashboard-mapa', label: 'Mapa', icon: MapIcon },
         { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }] },
         { id: 'producao', label: 'Produção', icon: Factory },
         { id: 'gestao', label: 'Gestão', icon: Target },
