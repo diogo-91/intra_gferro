@@ -5,6 +5,7 @@ export type TabType =
   | 'programacao'
   | 'saidas'
   | 'dashboard-pedidos'
+  | 'pedidos-problematicos'
   | 'dashboard-entregas'
   | 'dashboard-mapa'
   | 'producao'

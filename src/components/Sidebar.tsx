@@ -23,6 +23,7 @@ import {
   PackageCheck,
   PackageSearch,
   Truck,
+  AlertTriangle,
   Map as MapIcon
 } from 'lucide-react';
 import { TabType, Department } from '../types';
@@ -71,7 +72,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   administrador,
 }) => {
   // "Programação" e "Saídas" são telas do Financeiro: usam a permissão desse módulo.
-  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' || id === 'saidas' ? 'financeiro' : id) as ModuloId);
+  // "Pedidos problemáticos" é uma tela do Dashboard de Pedidos: usa a permissão desse módulo.
+  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' || id === 'saidas' ? 'financeiro' : id === 'pedidos-problematicos' ? 'dashboard-pedidos' : id) as ModuloId);
   const navItems: NavEntry[] = [
     { id: 'informativos', label: 'Informativos Internos', icon: Megaphone },
     { id: 'comunicados', label: 'Comunicados & Feed', icon: Newspaper },
@@ -88,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       children: [
         { id: 'vendas', label: 'Vendas', icon: TrendingUp },
-        { id: 'dashboard-pedidos', label: 'Pedidos', icon: PackageSearch },
+        { id: 'dashboard-pedidos', label: 'Pedidos', icon: PackageSearch, subitens: [{ id: 'pedidos-problematicos', label: 'Pedidos problemáticos', icon: AlertTriangle }] },
         { id: 'dashboard-entregas', label: 'Entregas', icon: Truck },
         { id: 'dashboard-mapa', label: 'Mapa', icon: MapIcon },
         { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }] },
