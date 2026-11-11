@@ -39,6 +39,8 @@ const ABAS: Record<Aba, { titulo: string; vazio: string; campos: CampoDef[] }> =
     campos: [
       { k: 'causa', rotulo: 'Causa', tipo: 'text', max: 500, obrigatorio: true },
       { k: 'motorista', rotulo: 'Motorista', tipo: 'text', max: 100 },
+      { k: 'acao', rotulo: 'Ação', tipo: 'text', max: 500 },
+      { k: 'prazoAcao', rotulo: 'Prazo da ação', tipo: 'date' },
       STATUS,
     ],
   },
@@ -227,6 +229,7 @@ export const PedidosProblematicos: React.FC = () => {
     if (novo === (textoDoCampo(registro, campo))) return; // nada mudou
     if (campo.obrigatorio && novo === '') { setErroGeral(`Informe ${campo.rotulo.toLowerCase()}.`); return; }
     if (campo.tipo === 'number') novo = novo === '' ? null : Number(novo.replace(',', '.'));
+    if (campo.tipo === 'date' && novo === '') novo = null; // data opcional (ex.: prazo da ação) pode ser limpa
     const chave = `${aba}:${registro.id}:${campo.k}:${novo}`;
     if (emGravacao.current.has(chave)) return;
     emGravacao.current.add(chave);
@@ -472,7 +475,7 @@ export const PedidosProblematicos: React.FC = () => {
                         onBlur={(e) => salvarCampo(registro, campo, e.target.value)}
                         onChange={campo.tipo === 'date' ? (e) => salvarCampo(registro, campo, e.target.value) : undefined}
                         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                        className={`w-full rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[12px] text-neutral-900 hover:border-neutral-200 focus:border-yellow-500 focus:bg-white focus:outline-none ${campo.k === 'formaPagamento' ? 'min-w-[340px]' : 'min-w-[140px]'}`}
+                        className={`w-full rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[12px] text-neutral-900 hover:border-neutral-200 focus:border-yellow-500 focus:bg-white focus:outline-none ${campo.k === 'formaPagamento' ? 'min-w-[340px]' : campo.k === 'acao' ? 'min-w-[260px]' : 'min-w-[140px]'}`}
                       />
                       )}
                     </td>
