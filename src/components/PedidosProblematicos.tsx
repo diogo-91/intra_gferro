@@ -7,24 +7,30 @@ type Aba = 'urgentes' | 'devolucoes' | 'defeitos';
 interface CampoDef {
   k: string;
   rotulo: string;
-  tipo: 'date' | 'text' | 'number';
+  tipo: 'date' | 'text' | 'number' | 'status';
   max?: number;
   obrigatorio?: boolean;
 }
+
+// Todo registro nasce "Não realizada"; ao marcar "Realizada" ele some da tela (continua gravado no PCP).
+type StatusRegistro = 'NAO_REALIZADA' | 'REALIZADA';
+const NOMES_STATUS: Record<StatusRegistro, string> = { NAO_REALIZADA: 'Não realizada', REALIZADA: 'Realizada' };
+const STATUS: CampoDef = { k: 'status', rotulo: 'Status', tipo: 'status' };
 
 // As três tabelas do PCP. Os registros ficam no PCP: esta tela é a mesma lista, em outro lugar.
 const ABAS: Record<Aba, { titulo: string; vazio: string; campos: CampoDef[] }> = {
   urgentes: {
     titulo: 'Pedidos Urgentes',
     vazio: 'Nenhum pedido urgente cadastrado.',
-    campos: [{ k: 'dataEntregaCombinada', rotulo: 'Data de entrega combinada', tipo: 'date', obrigatorio: true }],
+    campos: [{ k: 'dataEntregaCombinada', rotulo: 'Data de entrega combinada', tipo: 'date', obrigatorio: true }, STATUS],
   },
   devolucoes: {
     titulo: 'Pedidos de Devolução',
     vazio: 'Nenhuma devolução cadastrada.',
     campos: [
       { k: 'formaPagamento', rotulo: 'Forma de pagamento', tipo: 'text', max: 300 },
-      { k: 'valor', rotulo: 'Valor', tipo: 'number' },
+      { k: 'valor', rotulo: 'Valor da devolução', tipo: 'number' },
+      STATUS,
     ],
   },
   defeitos: {
@@ -33,6 +39,7 @@ const ABAS: Record<Aba, { titulo: string; vazio: string; campos: CampoDef[] }> =
     campos: [
       { k: 'causa', rotulo: 'Causa', tipo: 'text', max: 500, obrigatorio: true },
       { k: 'motorista', rotulo: 'Motorista', tipo: 'text', max: 100 },
+      STATUS,
     ],
   },
 };
@@ -41,14 +48,13 @@ interface Registro {
   id: number;
   numeroPedido: number;
   cliente: string;
-  atualizadoEm?: string;
-  atualizadoPor?: string;
+  status?: StatusRegistro;
   [campo: string]: unknown;
 }
 type Dados = Record<Aba, Registro[]>;
 
 interface PedidoEncontrado { numero: number; cliente: string; origem: 'pcp' | 'nomus' }
-interface PedidoEscolhido { numero: number; cliente: string; carregando: boolean; aviso: string; prazoEntrega: string | null; preenchido: boolean }
+interface PedidoEscolhido { numero: number; cliente: string; carregando: boolean; aviso: string; prazoEntrega: string | null; preenchido: boolean; valor: number | null; valorTotal: number | null }
 
 const VAZIO: Dados = { urgentes: [], devolucoes: [], defeitos: [] };
 const ERRO_RESPOSTA_INVALIDA = 'O servidor não respondeu como esperado. Atualize a página; se continuar, o servidor ainda não foi atualizado com esta funcionalidade.';
@@ -61,7 +67,9 @@ async function chamar<T = any>(url: string, init?: RequestInit): Promise<T> {
   return corpo;
 }
 
+const statusDe = (registro: Registro): StatusRegistro => (registro.status === 'REALIZADA' ? 'REALIZADA' : 'NAO_REALIZADA');
 const textoDoCampo = (registro: Registro, campo: CampoDef) => {
+  if (campo.tipo === 'status') return statusDe(registro);
   const valor = registro[campo.k];
   return valor === null || valor === undefined ? '' : String(valor);
 };
@@ -79,6 +87,8 @@ export const PedidosProblematicos: React.FC = () => {
   const [resultados, setResultados] = useState<PedidoEncontrado[] | null>(null);
   const [erroBusca, setErroBusca] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const [mostrarRealizadas, setMostrarRealizadas] = useState(false);
+  const [desfazer, setDesfazer] = useState<{ aba: Aba; id: number; numero: number } | null>(null);
   const temporizador = useRef<ReturnType<typeof setTimeout>>();
   const buscaAtual = useRef('');
   const emGravacao = useRef(new Set<string>());
@@ -110,7 +120,7 @@ export const PedidosProblematicos: React.FC = () => {
   dadosNaTela.current = dados;
   const conferir = useCallback(async () => {
     if (document.hidden || emGravacao.current.size > 0) return;
-    const digitando = document.activeElement instanceof HTMLInputElement && !!document.activeElement.closest('tbody');
+    const digitando = (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement) && !!document.activeElement.closest('tbody');
     try {
       const resposta = await chamar<Dados>('/api/problematicos');
       if (!Array.isArray(resposta?.urgentes) || !Array.isArray(resposta?.devolucoes) || !Array.isArray(resposta?.defeitos)) return;
@@ -131,6 +141,7 @@ export const PedidosProblematicos: React.FC = () => {
     return () => { clearInterval(intervalo); document.removeEventListener('visibilitychange', aoVoltar); window.removeEventListener('focus', aoVoltar); };
   }, [conferir]);
   useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(''), 5000); return () => clearTimeout(t); }, [aviso]);
+  useEffect(() => { if (!desfazer) return; const t = setTimeout(() => setDesfazer(null), 10000); return () => clearTimeout(t); }, [desfazer]);
 
   // ---- busca do pedido (por número ou nome do cliente) ----
 
@@ -158,7 +169,7 @@ export const PedidosProblematicos: React.FC = () => {
     setResultados(null);
     setBusca('');
     setErroForm('');
-    setSelecionado((atual) => ({ ...atual, [abaAtual]: { numero, cliente, carregando: true, aviso: '', prazoEntrega: null, preenchido: false } }));
+    setSelecionado((atual) => ({ ...atual, [abaAtual]: { numero, cliente, carregando: true, aviso: '', prazoEntrega: null, preenchido: false, valor: null, valorTotal: null } }));
     try {
       const d = await chamar<any>(`/api/problematicos/pedidos/${numero}`);
       let preenchido = false;
@@ -171,7 +182,7 @@ export const PedidosProblematicos: React.FC = () => {
         });
         preenchido = !!(d.formaPagamento || (d.valor !== null && d.valor !== undefined));
       }
-      setSelecionado((atual) => (atual[abaAtual]?.numero === numero ? { ...atual, [abaAtual]: { numero, cliente: d.cliente || cliente, carregando: false, aviso: d.aviso || '', prazoEntrega: d.prazoEntrega ?? null, preenchido } } : atual));
+      setSelecionado((atual) => (atual[abaAtual]?.numero === numero ? { ...atual, [abaAtual]: { numero, cliente: d.cliente || cliente, carregando: false, aviso: d.aviso || '', prazoEntrega: d.prazoEntrega ?? null, preenchido, valor: typeof d.valor === 'number' ? d.valor : null, valorTotal: typeof d.valorTotal === 'number' ? d.valorTotal : null } } : atual));
     } catch (e: any) {
       setSelecionado((atual) => ({ ...atual, [abaAtual]: null }));
       setErroForm(e.message);
@@ -192,7 +203,8 @@ export const PedidosProblematicos: React.FC = () => {
     const corpo: Record<string, unknown> = { numeroPedido: escolhido.numero, cliente: escolhido.cliente };
     for (const campo of def.campos) {
       const texto = (valores[aba][campo.k] ?? '').trim();
-      if (campo.tipo === 'number') { if (texto !== '') corpo[campo.k] = Number(texto.replace(',', '.')); }
+      if (campo.tipo === 'status') corpo.status = texto || 'NAO_REALIZADA';
+      else if (campo.tipo === 'number') { if (texto !== '') corpo[campo.k] = Number(texto.replace(',', '.')); }
       else if (texto !== '' || campo.obrigatorio) corpo[campo.k] = texto;
     }
     setSalvando(true);
@@ -201,7 +213,7 @@ export const PedidosProblematicos: React.FC = () => {
       setDados({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos });
       setSelecionado((atual) => ({ ...atual, [aba]: null }));
       setValores((atual) => ({ ...atual, [aba]: {} }));
-      setAviso(`Pedido ${escolhido.numero} cadastrado em ${def.titulo}.`);
+      setAviso(corpo.status === 'REALIZADA' ? `Pedido ${escolhido.numero} cadastrado como realizada: oculto da tela.` : `Pedido ${escolhido.numero} cadastrado em ${def.titulo}.`);
     } catch (e: any) {
       setErroForm(e.message);
     } finally {
@@ -222,11 +234,24 @@ export const PedidosProblematicos: React.FC = () => {
       const resposta = await chamar<Dados>(`/api/problematicos/${aba}/${registro.id}`, { method: 'PATCH', body: JSON.stringify({ [campo.k]: novo }) });
       setDados({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos });
       setErroGeral('');
+      if (campo.tipo === 'status' && novo === 'REALIZADA' && !mostrarRealizadas) setDesfazer({ aba, id: registro.id, numero: registro.numeroPedido });
     } catch (e: any) {
       setErroGeral(e.message);
       carregar(); // volta o que estava gravado
     } finally {
       emGravacao.current.delete(chave);
+    }
+  };
+
+  const desfazerRealizada = async () => {
+    if (!desfazer) return;
+    const { aba: abaDoRegistro, id } = desfazer;
+    setDesfazer(null);
+    try {
+      const resposta = await chamar<Dados>(`/api/problematicos/${abaDoRegistro}/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'NAO_REALIZADA' }) });
+      setDados({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos });
+    } catch (e: any) {
+      setErroGeral(e.message);
     }
   };
 
@@ -243,17 +268,31 @@ export const PedidosProblematicos: React.FC = () => {
 
   // ---- textos de apoio ----
 
-  const dica = (() => {
+  const dica: React.ReactNode = (() => {
     if (!escolhido) return aba === 'devolucoes' ? 'Escolha o pedido: forma de pagamento e valor são preenchidos sozinhos com os dados do pedido de venda (você pode ajustar).' : 'Digite o número ou o nome do cliente e escolha o pedido na lista.';
     if (escolhido.carregando) return 'Buscando os dados do pedido no Nomus… (pode levar alguns segundos)';
-    if (escolhido.aviso) return escolhido.aviso;
+    if (escolhido.aviso) return (
+      <>
+        <span className="font-semibold text-amber-700">{escolhido.aviso}</span>{' '}
+        <button type="button" onClick={() => escolher(escolhido.numero, escolhido.cliente)} className="rounded-full border border-neutral-200 px-2.5 py-0.5 text-[11px] font-bold text-neutral-600 hover:border-yellow-400 hover:text-yellow-700">Tentar de novo</button>
+      </>
+    );
     if (aba === 'urgentes' && escolhido.prazoEntrega) return `Prazo de entrega atual do pedido: ${formatDataIsoParaBr(escolhido.prazoEntrega)}.`;
-    if (aba === 'devolucoes') return escolhido.preenchido ? 'Forma de pagamento e valor preenchidos com os dados do pedido de venda do Nomus.' : 'O Nomus não trouxe forma de pagamento/valor deste pedido: preencha à mão.';
+    if (aba === 'devolucoes') {
+      if (!escolhido.preenchido) return 'O Nomus não trouxe forma de pagamento/valor deste pedido: preencha à mão.';
+      const dividido = escolhido.valorTotal !== null && escolhido.valor !== null && Math.abs(escolhido.valorTotal - escolhido.valor) > 0.005;
+      return dividido
+        ? <>Forma de pagamento preenchida pelo pedido de venda. O valor é o da <b>entrada</b> ({formatCurrency(escolhido.valor ?? 0)}); o total do pedido é {formatCurrency(escolhido.valorTotal ?? 0)}.</>
+        : 'Forma de pagamento e valor (pago de uma vez) preenchidos com os dados do pedido de venda do Nomus.';
+    }
     return '';
   })();
 
   const entrada = 'w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-sm text-neutral-900 outline-none focus:border-yellow-500';
-  const lista = dados[aba];
+  const todos = dados[aba];
+  const realizadas = todos.filter((r) => statusDe(r) === 'REALIZADA').length;
+  const lista = mostrarRealizadas ? todos : todos.filter((r) => statusDe(r) !== 'REALIZADA'); // realizada some da tela
+  const classeStatus = (status: StatusRegistro) => (status === 'REALIZADA' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800');
 
   return (
     <div className="space-y-6">
@@ -281,6 +320,12 @@ export const PedidosProblematicos: React.FC = () => {
           {erroGeral}
         </div>
       )}
+      {desfazer && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">
+          Pedido {desfazer.numero} marcado como realizada e ocultado.
+          <button type="button" onClick={desfazerRealizada} className="rounded-full border border-emerald-300 bg-white px-3 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100">Desfazer</button>
+        </div>
+      )}
       {aviso && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">{aviso}</div>}
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-6">
@@ -295,12 +340,12 @@ export const PedidosProblematicos: React.FC = () => {
               className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${aba === chave ? 'border-yellow-500 font-bold text-neutral-900' : 'border-transparent font-medium text-neutral-500 hover:text-neutral-900'}`}
             >
               {ABAS[chave].titulo}
-              {dados[chave].length > 0 && <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-700">{dados[chave].length}</span>}
+              {dados[chave].filter((r) => statusDe(r) !== 'REALIZADA').length > 0 && <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-700">{dados[chave].filter((r) => statusDe(r) !== 'REALIZADA').length}</span>}
             </button>
           ))}
         </div>
 
-        <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,1fr))_auto] xl:items-end" onSubmit={(e) => { e.preventDefault(); adicionar(); }}>
+        <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto] xl:items-end" onSubmit={(e) => { e.preventDefault(); adicionar(); }}>
           <div className="relative">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-neutral-600" htmlFor="pp-busca">Número do pedido *</label>
             {escolhido ? (
@@ -339,7 +384,19 @@ export const PedidosProblematicos: React.FC = () => {
             )}
           </div>
 
-          {def.campos.map((campo) => (
+          {def.campos.map((campo) => campo.tipo === 'status' ? (
+            <div key={campo.k}>
+              <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-neutral-600" htmlFor="pp-status">{campo.rotulo}</label>
+              <select
+                id="pp-status"
+                value={valores[aba].status || 'NAO_REALIZADA'}
+                onChange={(e) => setValores((atual) => ({ ...atual, [aba]: { ...atual[aba], status: e.target.value } }))}
+                className={`${entrada} font-bold ${classeStatus((valores[aba].status || 'NAO_REALIZADA') as StatusRegistro)}`}
+              >
+                {(Object.keys(NOMES_STATUS) as StatusRegistro[]).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
+              </select>
+            </div>
+          ) : (
             <div key={campo.k}>
               <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-neutral-600" htmlFor={`pp-${campo.k}`}>{campo.rotulo}{campo.obrigatorio ? ' *' : ''}</label>
               <input
@@ -363,8 +420,13 @@ export const PedidosProblematicos: React.FC = () => {
           </div>
         </form>
 
-        <p className={`mt-3 text-[11px] ${escolhido?.aviso ? 'font-semibold text-amber-700' : 'text-neutral-500'}`}>{dica}</p>
+        <p className="mt-3 text-[11px] text-neutral-500">{dica}</p>
         {erroForm && <p role="alert" className="mt-2 text-xs font-semibold text-red-700">{erroForm}</p>}
+
+        <label className="mt-4 flex w-fit cursor-pointer items-center gap-2 text-xs font-semibold text-neutral-700">
+          <input type="checkbox" checked={mostrarRealizadas} onChange={(e) => setMostrarRealizadas(e.target.checked)} className="h-4 w-4 accent-yellow-500" />
+          Mostrar realizadas ({realizadas})
+        </label>
 
         <div className="mt-5 overflow-x-auto rounded-xl border border-neutral-200">
           <table className="w-full text-[12px]">
@@ -372,15 +434,14 @@ export const PedidosProblematicos: React.FC = () => {
               <tr>
                 <th scope="col" className="px-3 py-2 text-left font-bold">Número do pedido</th>
                 {def.campos.map((campo) => <th key={campo.k} scope="col" className="px-3 py-2 text-left font-bold">{campo.rotulo}</th>)}
-                <th scope="col" className="px-3 py-2 text-left font-bold">Atualizado</th>
                 <th scope="col" className="px-3 py-2"><span className="sr-only">Ações</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {carregando ? (
-                <tr><td colSpan={def.campos.length + 3} className="px-3 py-8 text-center text-neutral-500"><Loader2 className="mx-auto h-5 w-5 animate-spin" aria-label="Carregando" /></td></tr>
+                <tr><td colSpan={def.campos.length + 2} className="px-3 py-8 text-center text-neutral-500"><Loader2 className="mx-auto h-5 w-5 animate-spin" aria-label="Carregando" /></td></tr>
               ) : lista.length === 0 ? (
-                <tr><td colSpan={def.campos.length + 3} className="px-3 py-8 text-center text-neutral-500">{def.vazio}</td></tr>
+                <tr><td colSpan={def.campos.length + 2} className="px-3 py-8 text-center text-neutral-500">{todos.length > 0 ? 'Nenhum pedido pendente: as realizadas estão ocultas (marque “Mostrar realizadas”).' : def.vazio}</td></tr>
               ) : lista.map((registro) => (
                 <tr key={registro.id}>
                   <td className="px-3 py-2">
@@ -389,6 +450,17 @@ export const PedidosProblematicos: React.FC = () => {
                   </td>
                   {def.campos.map((campo) => (
                     <td key={campo.k} className="px-3 py-2">
+                      {campo.tipo === 'status' ? (
+                        <select
+                          key={`${registro.id}-status-${statusDe(registro)}`}
+                          defaultValue={statusDe(registro)}
+                          aria-label={`Status do pedido ${registro.numeroPedido}`}
+                          onChange={(e) => salvarCampo(registro, campo, e.target.value)}
+                          className={`min-w-[130px] cursor-pointer rounded-lg border border-transparent px-2 py-1.5 text-[12px] font-bold focus:border-yellow-500 focus:outline-none ${classeStatus(statusDe(registro))}`}
+                        >
+                          {(Object.keys(NOMES_STATUS) as StatusRegistro[]).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
+                        </select>
+                      ) : (
                       <input
                         key={`${registro.id}-${campo.k}-${textoDoCampo(registro, campo)}`}
                         type={campo.tipo}
@@ -400,17 +472,11 @@ export const PedidosProblematicos: React.FC = () => {
                         onBlur={(e) => salvarCampo(registro, campo, e.target.value)}
                         onChange={campo.tipo === 'date' ? (e) => salvarCampo(registro, campo, e.target.value) : undefined}
                         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                        className="w-full min-w-[140px] rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[12px] text-neutral-900 hover:border-neutral-200 focus:border-yellow-500 focus:bg-white focus:outline-none"
+                        className={`w-full rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[12px] text-neutral-900 hover:border-neutral-200 focus:border-yellow-500 focus:bg-white focus:outline-none ${campo.k === 'formaPagamento' ? 'min-w-[340px]' : 'min-w-[140px]'}`}
                       />
-                      {campo.tipo === 'number' && registro[campo.k] !== null && registro[campo.k] !== undefined && registro[campo.k] !== '' && (
-                        <span className="block px-2 text-[10px] text-neutral-400">{formatCurrency(Number(registro[campo.k]))}</span>
                       )}
                     </td>
                   ))}
-                  <td className="whitespace-nowrap px-3 py-2 text-[11px] text-neutral-500">
-                    {registro.atualizadoEm ? new Date(registro.atualizadoEm).toLocaleDateString('pt-BR') : '—'}
-                    {registro.atualizadoPor && <span className="block">{registro.atualizadoPor}</span>}
-                  </td>
                   <td className="px-3 py-2 text-right">
                     <button type="button" onClick={() => remover(registro)} aria-label={`Excluir registro do pedido ${registro.numeroPedido}`} title="Excluir este registro" className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-3 py-1.5 text-[11px] font-bold text-neutral-600 hover:border-red-300 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
