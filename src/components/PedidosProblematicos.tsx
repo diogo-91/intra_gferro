@@ -101,6 +101,35 @@ export const PedidosProblematicos: React.FC = () => {
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Acompanha o PCP: o que for cadastrado, editado ou excluído lá aparece aqui em poucos segundos. A conferência não
+  // mexe na tela enquanto alguém está digitando numa célula ou enquanto uma gravação está em andamento.
+  const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+  const [semConexao, setSemConexao] = useState(false);
+  const dadosNaTela = useRef<Dados>(VAZIO);
+  dadosNaTela.current = dados;
+  const conferir = useCallback(async () => {
+    if (document.hidden || emGravacao.current.size > 0) return;
+    const digitando = document.activeElement instanceof HTMLInputElement && !!document.activeElement.closest('tbody');
+    try {
+      const resposta = await chamar<Dados>('/api/problematicos');
+      if (!Array.isArray(resposta?.urgentes) || !Array.isArray(resposta?.devolucoes) || !Array.isArray(resposta?.defeitos)) return;
+      setSemConexao(false);
+      setAtualizadoEm(new Date());
+      const mudou = JSON.stringify({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos }) !== JSON.stringify(dadosNaTela.current);
+      if (!mudou || digitando || emGravacao.current.size > 0) return;
+      setDados({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos });
+    } catch {
+      setSemConexao(true); // mantém o que já está na tela e tenta de novo no próximo ciclo
+    }
+  }, []);
+  useEffect(() => {
+    const intervalo = setInterval(conferir, 10_000);
+    const aoVoltar = () => { if (!document.hidden) conferir(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    return () => { clearInterval(intervalo); document.removeEventListener('visibilitychange', aoVoltar); window.removeEventListener('focus', aoVoltar); };
+  }, [conferir]);
   useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(''), 5000); return () => clearTimeout(t); }, [aviso]);
 
   // ---- busca do pedido (por número ou nome do cliente) ----
@@ -238,6 +267,13 @@ export const PedidosProblematicos: React.FC = () => {
           Registre os pedidos urgentes, as devoluções e os clientes com defeito. Escolha o pedido pela busca: os dados dele são preenchidos sozinhos. Os registros são os mesmos do PCP.
         </p>
       </div>
+
+      {atualizadoEm && (
+        <p className="-mt-3 flex items-center gap-1.5 text-[11px] text-neutral-500" role="status">
+          <span className={`h-1.5 w-1.5 rounded-full ${semConexao ? 'bg-amber-500' : 'animate-pulse bg-emerald-500'}`} aria-hidden="true" />
+          {semConexao ? 'Sem conexão com o PCP agora; mostrando a última lista e tentando de novo…' : `Acompanhando o PCP · conferido às ${atualizadoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+        </p>
+      )}
 
       {erroGeral && (
         <div role="alert" className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
