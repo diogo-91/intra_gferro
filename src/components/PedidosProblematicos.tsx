@@ -527,7 +527,7 @@ export const PedidosProblematicos: React.FC = () => {
       </div>
 
       {/* Filtros | fila | detalhes */}
-      <div className="grid items-start gap-3 md:grid-cols-[210px_minmax(0,1fr)] 2xl:grid-cols-[210px_minmax(0,1fr)_300px]">
+      <div className="grid items-start gap-3 md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)_300px]">
         <aside className={`${cartao} p-4 md:sticky md:top-2`} aria-label="Filtros">
           <div className="mb-3.5 flex items-center justify-between text-sm text-neutral-900">
             <b className="inline-flex items-center gap-1.5 font-extrabold"><Filter className="h-4 w-4" aria-hidden="true" /> Filtros</b>
@@ -670,7 +670,7 @@ export const PedidosProblematicos: React.FC = () => {
         </section>
 
         {/* Detalhes do pedido selecionado */}
-        <aside data-edicao className={`${cartao} p-4 md:col-span-2 2xl:sticky 2xl:top-2 2xl:col-span-1`} aria-label="Detalhes do pedido">
+        <aside data-edicao className={`${cartao} p-4 md:col-span-2 xl:sticky xl:top-2 xl:col-span-1`} aria-label="Detalhes do pedido">
           <div className="mb-3.5 flex items-center gap-2.5">
             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${def.cor === 'verde' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-yellow-600'}`}><List className="h-4 w-4" aria-hidden="true" /></span>
             <h2 className="text-[15px] font-extrabold text-neutral-900">Detalhes do pedido</h2>
