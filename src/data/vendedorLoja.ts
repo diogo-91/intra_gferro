@@ -40,6 +40,7 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'LUIZ MARCOS MONTEIRO': 'lucas', // cadastro antigo do mesmo vendedor
   'Edson Cavalcante': 'lucas',
   'EDSON RODRIGUES CAVALCANTE': 'lucas', // cadastro antigo do mesmo vendedor
+  'LUCAS AMARAL COSTA': 'lucas',
 
   'SAMUEL WOLFGAN SILVA': 'paulo',
   'Elson Marcelo Braga da Silva': 'paulo',
