@@ -63,6 +63,7 @@ const VENDEDOR_LOJA: Record<string, string> = {
   'Rosemeire Lopes Eleutério': 'tatui',
   'Hamilton Ricardo Gonçalves': 'tatui',
   'Samuel Rodrigues da silva': 'tatui', // gerente da Unidade 5
+  'Luiz Felipe Cury Hilal': 'tatui',
 };
 
 // Vendedores informados pela GFERRO que ainda não aparecem na API do Nomus.
