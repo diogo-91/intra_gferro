@@ -27,7 +27,7 @@ export function idPositivo(valor: unknown): number {
 }
 
 /** Chama a API do PCP em nome de `usuario` (aparece como "atualizado por" no PCP) e devolve o JSON dela. */
-export async function chamarPcp(metodo: 'GET' | 'POST' | 'PATCH' | 'DELETE', caminho: string, usuario: string, corpo?: unknown): Promise<any> {
+export async function chamarPcp(metodo: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', caminho: string, usuario: string, corpo?: unknown): Promise<any> {
   const cabecalhos: Record<string, string> = { Accept: 'application/json', 'x-pcp-usuario': encodeURIComponent(usuario.slice(0, 60)) };
   if (PCP_TOKEN) cabecalhos['x-pcp-token'] = PCP_TOKEN;
   if (corpo !== undefined) cabecalhos['Content-Type'] = 'application/json';
@@ -41,4 +41,20 @@ export async function chamarPcp(metodo: 'GET' | 'POST' | 'PATCH' | 'DELETE', cam
   const dados: any = await resposta.json().catch(() => null);
   if (!resposta.ok) throw new ErroProblematicos(String(dados?.erro ?? dados?.error ?? `O PCP respondeu com erro ${resposta.status}.`), resposta.status === 401 || resposta.status === 403 ? 502 : resposta.status);
   return dados;
+}
+
+/** Busca uma imagem anexada (print de uma devolução) no PCP. Só repassa imagens comuns, nunca outro tipo de arquivo. */
+export async function buscarPrintNoPcp(id: number, usuario: string): Promise<{ tipo: string; dados: Buffer }> {
+  const cabecalhos: Record<string, string> = { 'x-pcp-usuario': encodeURIComponent(usuario.slice(0, 60)) };
+  if (PCP_TOKEN) cabecalhos['x-pcp-token'] = PCP_TOKEN;
+  let resposta: Response;
+  try {
+    resposta = await fetch(`${PCP_URL}/api/problematicos/prints/${id}`, { headers: cabecalhos, signal: AbortSignal.timeout(TEMPO_LIMITE_MS) });
+  } catch {
+    throw new ErroProblematicos('Não foi possível falar com o PCP agora. Tente de novo em instantes.', 502);
+  }
+  if (!resposta.ok) throw new ErroProblematicos('Print não encontrado.', resposta.status === 404 ? 404 : 502);
+  const tipo = (resposta.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(tipo)) throw new ErroProblematicos('O arquivo não é uma imagem válida.', 502);
+  return { tipo, dados: Buffer.from(await resposta.arrayBuffer()) };
 }

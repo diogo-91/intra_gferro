@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CalendarDays, Check, Download, Filter, Layers, List, Loader2, MoreHorizontal, Plus, RefreshCw, RotateCcw, Search, Trash2, Users, X } from 'lucide-react';
-import { formatCurrency, formatDataIsoParaBr } from '../utils/format';
+import { AlertTriangle, Check, Clock, Download, Filter, List, ListChecks, Loader2, MoreHorizontal, Plus, RefreshCw, RotateCcw, Search, Trash2, Users, X } from 'lucide-react';
+import { formatDataIsoParaBr } from '../utils/format';
+import { AcoesDevolucao, type EtapaResumo } from './AcoesDevolucao';
 
 type Aba = 'urgentes' | 'devolucoes' | 'defeitos';
 type StatusRegistro = 'NAO_REALIZADA' | 'REALIZADA';
@@ -71,29 +72,28 @@ const TABELAS: Record<Aba, TabelaDef> = {
   },
 };
 
-const OPCOES_DATA: Record<'futura' | 'cadastro', Array<[string, string]>> = {
-  futura: [['', 'Todas as datas'], ['vencidas', 'Vencidas'], ['hoje', 'Hoje'], ['semana', 'Próximos 7 dias'], ['sem', 'Sem data']],
-  cadastro: [['', 'Todas as datas'], ['hoje', 'Cadastradas hoje'], ['7', 'Últimos 7 dias'], ['30', 'Últimos 30 dias']],
-};
-
 interface Registro {
   id: number;
   numeroPedido: number;
   cliente: string;
   criadoEm?: string;
   status?: StatusRegistro;
+  atualizadoEm?: string;
+  atualizadoPor?: string;
+  /** Só nas devoluções: situação das 5 etapas do atendimento (SAC, Vera, Dirceu, Decisão, Financeiro). */
+  etapas?: EtapaResumo[];
+  etapasFeitas?: number;
   [campo: string]: unknown;
 }
 type Dados = Record<Aba, Registro[]>;
-interface Filtro { q: string; data: string; status: 'pendentes' | 'realizadas' | 'todas' }
-interface Resumo { pendentes: number; ultimos7: number; anteriores7: number; serie: number[] }
+interface Filtro { q: string; de: string; ate: string; status: 'pendentes' | 'realizadas' | 'todas'; ordem: 'recentes' | 'data' | 'pedido' }
 
 interface PedidoEncontrado { numero: number; cliente: string; origem: 'pcp' | 'nomus' }
 interface PedidoEscolhido { numero: number; cliente: string; carregando: boolean; aviso: string; prazoEntrega: string | null; preenchido: boolean; valor: number | null; valorTotal: number | null }
 
 const VAZIO: Dados = { urgentes: [], devolucoes: [], defeitos: [] };
 const ERRO_RESPOSTA_INVALIDA = 'O servidor não respondeu como esperado. Atualize a página; se continuar, o servidor ainda não foi atualizado com esta funcionalidade.';
-const filtroInicial = (): Filtro => ({ q: '', data: '', status: 'pendentes' });
+const filtroInicial = (): Filtro => ({ q: '', de: '', ate: '', status: 'pendentes', ordem: 'recentes' });
 
 async function chamar<T = any>(url: string, init?: RequestInit): Promise<T> {
   const resposta = await fetch(url, init && init.body ? { ...init, headers: { 'Content-Type': 'application/json' } } : init);
@@ -110,56 +110,19 @@ const textoDoCampo = (registro: Registro, campo: CampoDef) => {
   return valor === null || valor === undefined ? '' : String(valor);
 };
 
+const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 // ---- datas (sempre no fuso de São Paulo, como no PCP) ----
 const diaSP = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : '');
 const hojeSP = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-const somarDias = (iso: string, n: number) => {
-  const [a, m, d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
-};
-const diasEntre = (de: string, ate: string) => Math.round((Date.parse(ate) - Date.parse(de)) / 86_400_000);
+const quando = (iso?: string) => (iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 
-/** Indicadores do cartão: pendentes e ritmo de novos cadastros (últimos 7 dias contra os 7 anteriores). */
-function resumir(registros: Registro[], hoje: string): Resumo {
-  const serie = new Array<number>(14).fill(0);
-  for (const r of registros) {
-    if (!r.criadoEm || Number.isNaN(new Date(r.criadoEm).getTime())) continue;
-    const atras = diasEntre(diaSP(r.criadoEm), hoje);
-    if (atras >= 0 && atras <= 13) serie[13 - atras]++;
-  }
-  const soma = (de: number, ate: number) => serie.slice(de, ate).reduce((s, n) => s + n, 0);
-  return { pendentes: registros.filter((r) => statusDe(r) !== 'REALIZADA').length, ultimos7: soma(7, 14), anteriores7: soma(0, 7), serie };
-}
-
-function tendencia(r: Resumo): { classe: string; texto: string } {
-  if (r.anteriores7 === 0 && r.ultimos7 === 0) return { classe: 'bg-neutral-100 text-neutral-500', texto: 'sem novos' };
-  if (r.anteriores7 === 0) return { classe: 'bg-yellow-100 text-neutral-700', texto: `+${r.ultimos7} novos` };
-  const pct = Math.round(((r.ultimos7 - r.anteriores7) / r.anteriores7) * 100);
-  if (pct === 0) return { classe: 'bg-neutral-100 text-neutral-500', texto: '= igual' };
-  return pct > 0 ? { classe: 'bg-yellow-100 text-neutral-700', texto: `↑ +${pct}%` } : { classe: 'bg-emerald-100 text-emerald-700', texto: `↓ −${Math.abs(pct)}%` };
-}
-
-const Minigrafico: React.FC<{ serie: number[]; cor: 'ouro' | 'verde' }> = ({ serie, cor }) => {
-  const max = Math.max(1, ...serie);
-  const w = 130, h = 46, pad = 5;
-  const pontos = serie.map((v, i): [number, number] => [pad + (i * (w - 2 * pad)) / (serie.length - 1), h - pad - (v / max) * (h - 2 * pad)]);
-  const linha = pontos.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
-  const [ux, uy] = pontos[pontos.length - 1];
-  const traco = cor === 'verde' ? '#2fa56f' : '#f5c000';
-  const id = `pp-grad-${cor}`;
-  return (
-    <svg className="ml-auto h-6 w-20 shrink-0" viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={traco} stopOpacity=".28" />
-          <stop offset="1" stopColor={traco} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`${linha} L${ux.toFixed(1)} ${h} L${pontos[0][0].toFixed(1)} ${h} Z`} fill={`url(#${id})`} />
-      <path d={linha} fill="none" stroke={traco} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={ux.toFixed(1)} cy={uy.toFixed(1)} r="3.2" fill={traco} />
-    </svg>
-  );
+/** Colunas extras de cada fila (depois de Pedido e Cliente, antes de Status). */
+type ColunaFila = { k: string; rot: string; tipo?: 'data' | 'brl' | 'etapas' };
+const COLUNAS: Record<Aba, ColunaFila[]> = {
+  urgentes: [{ k: 'dataEntregaCombinada', rot: 'Data de entrega', tipo: 'data' }],
+  devolucoes: [{ k: 'formaPagamento', rot: 'Forma de pagamento' }, { k: 'valor', rot: 'Valor (R$)', tipo: 'brl' }, { k: 'etapas', rot: 'Etapas', tipo: 'etapas' }],
+  defeitos: [{ k: 'causa', rot: 'Causa' }, { k: 'motorista', rot: 'Motorista' }, { k: 'prazoAcao', rot: 'Prazo da ação', tipo: 'data' }],
 };
 
 const classeStatus = (status: StatusRegistro) => (status === 'REALIZADA' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-neutral-800');
@@ -176,6 +139,10 @@ export const PedidosProblematicos: React.FC = () => {
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [semConexao, setSemConexao] = useState(false);
   const [atualizando, setAtualizando] = useState(false);
+  const [selecionados, setSelecionados] = useState<Record<Aba, number | null>>({ urgentes: null, devolucoes: null, defeitos: null }); // registro aberto no painel da direita
+  const [acoesDe, setAcoesDe] = useState<number | null>(null); // devolução cujas Ações estão abertas
+  const [escolhaAberta, setEscolhaAberta] = useState(false);
+  const [escolhaQ, setEscolhaQ] = useState('');
 
   // modal de cadastro
   const [modalAberto, setModalAberto] = useState(false);
@@ -227,7 +194,7 @@ export const PedidosProblematicos: React.FC = () => {
   const conferir = useCallback(async () => {
     if (document.hidden || emGravacao.current.size > 0) return;
     const ativo = document.activeElement;
-    const digitando = (ativo instanceof HTMLInputElement || ativo instanceof HTMLSelectElement) && !!ativo.closest('tbody');
+    const digitando = (ativo instanceof HTMLInputElement || ativo instanceof HTMLSelectElement || ativo instanceof HTMLTextAreaElement) && !!ativo.closest('[data-edicao]');
     try {
       const resposta = await chamar<Dados>('/api/problematicos');
       if (!respostaValida(resposta)) return;
@@ -251,31 +218,37 @@ export const PedidosProblematicos: React.FC = () => {
   // ---- lista filtrada ----
 
   const todos = dados[aba];
-  const lista = todos.filter((r) => {
+  const filtrados = todos.filter((r) => {
     const q = filtro.q.trim().toLowerCase();
     if (filtro.status === 'pendentes' && statusDe(r) === 'REALIZADA') return false;
     if (filtro.status === 'realizadas' && statusDe(r) !== 'REALIZADA') return false;
     if (q && ![r.numeroPedido, r.cliente, r.causa, r.motorista, r.acao, r.formaPagamento].join(' ').toLowerCase().includes(q)) return false;
-    if (filtro.data) {
+    if (filtro.de || filtro.ate) {
       const bruto = r[def.data.campo];
       const d = def.data.tipo === 'cadastro' ? diaSP(String(bruto ?? '')) : String(bruto ?? '');
-      if (def.data.tipo === 'futura') {
-        if (filtro.data === 'vencidas' && !(d && d < hoje)) return false;
-        if (filtro.data === 'hoje' && d !== hoje) return false;
-        if (filtro.data === 'semana' && !(d && d >= hoje && d <= somarDias(hoje, 7))) return false;
-        if (filtro.data === 'sem' && d) return false;
-      } else {
-        if (filtro.data === 'hoje' && d !== hoje) return false;
-        if (filtro.data === '7' && !(d && d >= somarDias(hoje, -6))) return false;
-        if (filtro.data === '30' && !(d && d >= somarDias(hoje, -29))) return false;
-      }
+      if (!d || (filtro.de && d < filtro.de) || (filtro.ate && d > filtro.ate)) return false;
     }
     return true;
   });
-
-  const resumos: Record<Aba, Resumo> = { urgentes: resumir(dados.urgentes, hoje), devolucoes: resumir(dados.devolucoes, hoje), defeitos: resumir(dados.defeitos, hoje) };
+  const chaveData = (r: Registro) => (def.data.tipo === 'cadastro' ? diaSP(r.criadoEm) : String(r[def.data.campo] ?? '')) || '';
+  const lista = [...filtrados].sort((a, b) => {
+    if (filtro.ordem === 'pedido') return b.numeroPedido - a.numeroPedido;
+    if (filtro.ordem === 'data') return chaveData(a) === '' ? 1 : chaveData(b) === '' ? -1 : chaveData(a).localeCompare(chaveData(b));
+    return b.id - a.id;
+  });
+  const idSelecionado = lista.some((r) => r.id === selecionados[aba]) ? selecionados[aba] : lista[0]?.id ?? null;
+  const registroAberto = lista.find((r) => r.id === idSelecionado) ?? null;
+  const feitas = todos.filter((r) => statusDe(r) === 'REALIZADA').length;
+  const abertas = todos.length - feitas;
+  const pendentesDe = (chave: Aba) => dados[chave].filter((r) => statusDe(r) !== 'REALIZADA').length;
 
   const mudarFiltro = (parcial: Partial<Filtro>) => setFiltros((atual) => ({ ...atual, [aba]: { ...atual[aba], ...parcial } }));
+  const escolherRegistro = (id: number) => setSelecionados((atual) => ({ ...atual, [aba]: id }));
+  const atualizouEtapas = useCallback((id: number, etapas: EtapaResumo[], etapasFeitas: number) => {
+    setDados((atual) => ({ ...atual, devolucoes: atual.devolucoes.map((r) => (r.id === id ? { ...r, etapas, etapasFeitas } : r)) }));
+  }, []);
+  const abrirAcoes = (id: number) => { setEscolhaAberta(false); setAcoesDe(id); };
+  const devolucaoAberta = acoesDe === null ? null : dados.devolucoes.find((r) => r.id === acoesDe) ?? null;
 
   // ---- modal de cadastro ----
 
@@ -450,7 +423,7 @@ export const PedidosProblematicos: React.FC = () => {
       if (!s.preenchido) return 'O Nomus não trouxe forma de pagamento/valor deste pedido: preencha à mão.';
       const dividido = s.valorTotal !== null && s.valor !== null && Math.abs(s.valorTotal - s.valor) > 0.005;
       return dividido
-        ? <>Forma de pagamento preenchida pelo pedido de venda. O valor é o da <b>entrada</b> ({formatCurrency(s.valor ?? 0)}); o total do pedido é {formatCurrency(s.valorTotal ?? 0)}.</>
+        ? <>Forma de pagamento preenchida pelo pedido de venda. O valor é o da <b>entrada</b> ({brl(s.valor ?? 0)}); o total do pedido é {brl(s.valorTotal ?? 0)}.</>
         : 'Forma de pagamento e valor (pago de uma vez) preenchidos com os dados do pedido de venda do Nomus.';
     }
     return '';
@@ -461,6 +434,28 @@ export const PedidosProblematicos: React.FC = () => {
   const botao = 'inline-flex items-center gap-1.5 rounded-[10px] border border-neutral-200 bg-white px-3 py-1.5 text-xs font-bold text-neutral-700 hover:border-yellow-400 hover:bg-yellow-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400';
   const botaoAmarelo = 'inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-b from-yellow-300 to-yellow-400 px-4 py-1.5 text-xs font-extrabold text-neutral-900 shadow-md shadow-yellow-400/30 hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-600 disabled:opacity-50';
   const Icone = def.icone;
+  const cartao = 'rounded-2xl border border-neutral-200 bg-white shadow-sm';
+  const celulaCabecalho = 'sticky top-0 z-[1] border-b border-neutral-100 bg-neutral-50 px-2 py-2.5 text-left text-[11px] font-extrabold text-neutral-600';
+  const colunas = COLUNAS[aba];
+  const periodo = def.data.tipo === 'cadastro' ? 'do cadastro' : def.data.rotulo === 'Data de entrega' ? 'da data de entrega' : 'do prazo da ação';
+  const celulaDaFila = (c: ColunaFila, r: Registro): React.ReactNode => {
+    if (c.tipo === 'etapas') {
+      const etapas = r.etapas || [];
+      return (
+        <button type="button" onClick={() => abrirAcoes(r.id)} aria-label={`Ações do pedido ${r.numeroPedido}: ${r.etapasFeitas || 0} de 5 etapas`} title={etapas.map((e) => `${e.nome}: ${e.feita ? 'feita' : 'pendente'}`).join(' · ')} className="inline-flex items-center gap-[3px] rounded-lg px-1.5 py-[3px] hover:bg-yellow-50">
+          {etapas.map((e) => <i key={e.nome} className={`h-[9px] w-[9px] rounded-full ${e.feita ? 'bg-yellow-400' : 'bg-slate-200'}`} />)}
+          <b className="ml-1 text-[10.5px] text-slate-500">{r.etapasFeitas || 0}/5</b>
+        </button>
+      );
+    }
+    const v = r[c.k];
+    if (c.tipo === 'data') {
+      const atraso = !!v && String(v) < hoje && statusDe(r) !== 'REALIZADA' && def.data.tipo === 'futura';
+      return v ? <span className={atraso ? 'font-bold text-red-700' : ''}>{formatDataIsoParaBr(String(v))}</span> : <span className="text-slate-300">—</span>;
+    }
+    if (c.tipo === 'brl') return v === null || v === undefined ? <span className="text-slate-300">—</span> : brl(Number(v));
+    return v ? <span className="line-clamp-2 max-w-[170px]" title={String(v)}>{String(v)}</span> : <span className="text-slate-300">—</span>;
+  };
 
   return (
     <div className="space-y-4">
@@ -508,38 +503,6 @@ export const PedidosProblematicos: React.FC = () => {
       )}
       {aviso && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">{aviso}</div>}
 
-      {/* Indicadores: um por tabela, em uma linha */}
-      <section className="grid gap-2.5 lg:grid-cols-3" aria-label="Indicadores">
-        {(Object.keys(TABELAS) as Aba[]).map((chave) => {
-          const t = TABELAS[chave];
-          const r = resumos[chave];
-          const tr = tendencia(r);
-          const IconeKpi = t.icone;
-          return (
-            <button
-              key={chave}
-              type="button"
-              onClick={() => setAba(chave)}
-              title="vs. últimos 7 dias"
-              aria-label={`${t.aba}: ${r.pendentes} pendentes`}
-              className={`flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2 text-left shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${chave === aba ? 'border-yellow-400 ring-[3px] ring-yellow-300/30' : 'border-yellow-100 hover:border-yellow-300'}`}
-            >
-              <span className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] ${t.cor === 'verde' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-yellow-600'}`}>
-                <IconeKpi className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5">
-                <b className="text-xs font-bold text-neutral-600">{t.aba.replace('Pedidos ', '').replace('de ', '')}</b>
-                <div className="flex items-center gap-1.5">
-                  <strong className="text-[21px] font-black leading-none tabular-nums tracking-tight text-neutral-900">{r.pendentes}</strong>
-                  <span className={`whitespace-nowrap rounded-xl px-1.5 py-0.5 text-[9.5px] font-extrabold ${tr.classe}`} title="Novos cadastros: últimos 7 dias contra os 7 anteriores">{tr.texto}</span>
-                </div>
-              </div>
-              <Minigrafico serie={r.serie} cor={t.cor} />
-            </button>
-          );
-        })}
-      </section>
-
       {/* Abas em pílula */}
       <div role="tablist" aria-label="Tabelas" className="flex flex-wrap gap-2">
         {(Object.keys(TABELAS) as Aba[]).map((chave) => {
@@ -557,139 +520,261 @@ export const PedidosProblematicos: React.FC = () => {
             >
               <IconeAba className="h-[15px] w-[15px]" aria-hidden="true" />
               <span>{t.aba}</span>
-              <i className={`inline-grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-extrabold not-italic ${selecionada ? 'bg-white text-neutral-900' : 'bg-neutral-100 text-neutral-600'}`}>{resumos[chave].pendentes}</i>
+              <i className={`inline-grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-extrabold not-italic ${selecionada ? 'bg-white text-neutral-900' : 'bg-neutral-100 text-neutral-600'}`}>{pendentesDe(chave)}</i>
             </button>
           );
         })}
       </div>
 
-      {/* Lista */}
-      <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm" aria-label={def.listaTitulo}>
-        <div className="mb-3 flex flex-wrap items-center gap-2.5">
-          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${def.cor === 'verde' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-yellow-600'}`}>
-            <List className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-[15px] font-extrabold tracking-tight text-neutral-900">{def.listaTitulo}</h2>
-            <p className="text-[11.5px] text-neutral-500">{def.listaSub}</p>
+      {/* Filtros | fila | detalhes */}
+      <div className="grid items-start gap-3 md:grid-cols-[210px_minmax(0,1fr)] 2xl:grid-cols-[210px_minmax(0,1fr)_300px]">
+        <aside className={`${cartao} p-4 md:sticky md:top-2`} aria-label="Filtros">
+          <div className="mb-3.5 flex items-center justify-between text-sm text-neutral-900">
+            <b className="inline-flex items-center gap-1.5 font-extrabold"><Filter className="h-4 w-4" aria-hidden="true" /> Filtros</b>
+            <button type="button" onClick={() => setFiltros((atual) => ({ ...atual, [aba]: { ...filtroInicial(), ordem: atual[aba].ordem } }))} className="text-[11.5px] font-bold text-yellow-800 underline">Limpar filtros</button>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <button type="button" onClick={() => carregar(true)} className={botao}>
-              <RefreshCw className={`h-3.5 w-3.5 ${atualizando ? 'animate-spin' : ''}`} aria-hidden="true" /> Atualizar
-            </button>
-            <div className="relative">
-              <button type="button" onClick={() => setMenuAberto((v) => !v)} aria-label="Mais opções" aria-expanded={menuAberto} className={`${botao} px-2.5`}>
-                <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-              {menuAberto && (
-                <div className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[200px] rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg">
-                  <button type="button" onClick={exportarCsv} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-neutral-700 hover:bg-yellow-50">
-                    <Download className="h-3.5 w-3.5" aria-hidden="true" /> Exportar CSV da lista
-                  </button>
-                </div>
-              )}
+          <label className="mb-3.5 block text-[11.5px] font-bold text-slate-500">Buscar por pedido ou cliente
+            <span className="mt-1.5 flex h-9 items-center gap-2 rounded-[10px] border border-neutral-200 bg-white px-2.5 focus-within:border-yellow-400 focus-within:ring-2 focus-within:ring-yellow-300/40">
+              <Search className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden="true" />
+              <input type="search" value={filtro.q} onChange={(e) => mudarFiltro({ q: e.target.value })} placeholder="Nº do pedido ou nome do cliente" className="min-w-0 flex-1 bg-transparent text-xs font-medium text-neutral-800 outline-none" />
+            </span>
+          </label>
+          <div className="mb-3.5 text-[11.5px] font-bold text-slate-500">Período {periodo}
+            <div className="mt-1.5 grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
+              <input type="date" value={filtro.de} onChange={(e) => mudarFiltro({ de: e.target.value })} aria-label="Data inicial" className={`${entradaFiltro} min-w-0 px-1.5 !text-[11px]`} />
+              <span className="text-[11px] font-medium text-slate-400">até</span>
+              <input type="date" value={filtro.ate} onChange={(e) => mudarFiltro({ ate: e.target.value })} aria-label="Data final" className={`${entradaFiltro} min-w-0 px-1.5 !text-[11px]`} />
             </div>
-            <button type="button" onClick={abrirModal} className={botaoAmarelo}>
-              <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar
-            </button>
           </div>
-        </div>
-
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="mr-1 inline-flex items-center gap-1.5 text-xs font-bold text-neutral-700"><Filter className="h-4 w-4" aria-hidden="true" /> Filtros rápidos</span>
-          <label className="relative block min-w-[200px] max-w-xs flex-1">
-            <span className="sr-only">Filtrar por pedido ou cliente</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" aria-hidden="true" />
-            <input type="search" value={filtro.q} onChange={(e) => mudarFiltro({ q: e.target.value })} placeholder="Pedido ou cliente" className={`${entradaFiltro} w-full pl-9 pr-3`} />
-          </label>
-          <label className="relative block">
-            <span className="sr-only">Filtrar por {def.data.rotulo}</span>
-            <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" aria-hidden="true" />
-            <select value={filtro.data} onChange={(e) => mudarFiltro({ data: e.target.value })} className={`${entradaFiltro} min-w-[160px] cursor-pointer pl-9 pr-3`}>
-              {OPCOES_DATA[def.data.tipo].map(([valor, nome]) => <option key={valor} value={valor}>{valor === '' ? def.data.rotulo : nome}</option>)}
-            </select>
-          </label>
-          <label className="relative block">
-            <span className="sr-only">Filtrar por status</span>
-            <Layers className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" aria-hidden="true" />
-            <select value={filtro.status} onChange={(e) => mudarFiltro({ status: e.target.value as Filtro['status'] })} className={`${entradaFiltro} min-w-[160px] cursor-pointer pl-9 pr-3`}>
+          <label className="mb-3.5 block text-[11.5px] font-bold text-slate-500">Status
+            <select value={filtro.status} onChange={(e) => mudarFiltro({ status: e.target.value as Filtro['status'] })} className={`${entradaFiltro} mt-1.5 block w-full cursor-pointer px-2`}>
               <option value="pendentes">Não realizadas</option>
               <option value="realizadas">Realizadas</option>
               <option value="todas">Todas</option>
             </select>
           </label>
-        </div>
-
-        {carregando ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-neutral-400" aria-label="Carregando" /></div>
-        ) : lista.length === 0 ? (
-          <div className="flex flex-col items-center rounded-2xl bg-gradient-to-b from-yellow-50 to-white px-4 py-8 text-center">
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-yellow-100 text-yellow-500"><Icone className="h-7 w-7" aria-hidden="true" /></span>
-            <h3 className="mt-3 text-base font-extrabold text-neutral-900">{todos.length > 0 ? 'Nenhum registro com esses filtros.' : def.vazio}</h3>
-            <p className="mt-1 text-xs text-neutral-500">{todos.length > 0 ? 'Ajuste os filtros acima para ver outros registros.' : def.vazioSub}</p>
+          <label className="mb-3.5 flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <input type="checkbox" checked={filtro.status !== 'pendentes'} onChange={(e) => mudarFiltro({ status: e.target.checked ? 'todas' : 'pendentes' })} className="accent-yellow-400" />
+            Mostrar realizadas ({feitas})
+          </label>
+          <div className="text-[11.5px] font-bold text-slate-500">Atalhos
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {([['todas', 'Todos', todos.length], ['pendentes', 'Não realizada', abertas], ['realizadas', 'Realizada', feitas]] as const).map(([valor, nome, n]) => (
+                <button key={valor} type="button" onClick={() => mudarFiltro({ status: valor })} className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${filtro.status === valor ? 'border-yellow-400 bg-yellow-300 text-neutral-900' : 'border-neutral-200 bg-white text-slate-600 hover:border-yellow-400'}`}>{nome} ({n})</button>
+              ))}
+            </div>
           </div>
-        ) : (
-          <>
-            <div className="max-h-[480px] overflow-auto rounded-xl border border-neutral-100">
-              <table className="w-full min-w-[560px] border-separate border-spacing-0 text-xs">
-                <thead>
-                  <tr>
-                    <th scope="col" className="sticky top-0 z-[1] border-b border-neutral-100 bg-neutral-50 px-3 py-2.5 text-left text-[11px] font-extrabold text-neutral-600">Número do pedido</th>
-                    {def.campos.map((campo) => <th key={campo.k} scope="col" className="sticky top-0 z-[1] whitespace-nowrap border-b border-neutral-100 bg-neutral-50 px-3 py-2.5 text-left text-[11px] font-extrabold text-neutral-600">{campo.rotulo}</th>)}
-                    <th scope="col" className="sticky top-0 z-[1] border-b border-neutral-100 bg-neutral-50 px-3 py-2.5"><span className="sr-only">Ações</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lista.map((registro) => (
-                    <tr key={registro.id} className="group">
-                      <td className="border-b border-neutral-100 bg-white px-3 py-2 group-hover:bg-yellow-50/60">
-                        <b className="text-neutral-900">{registro.numeroPedido}</b>
-                        {registro.cliente && <span className="block text-[11px] font-semibold text-neutral-400">{registro.cliente}</span>}
-                      </td>
-                      {def.campos.map((campo) => (
-                        <td key={campo.k} className="border-b border-neutral-100 bg-white px-3 py-2 group-hover:bg-yellow-50/60">
-                          {campo.tipo === 'status' ? (
+        </aside>
+
+        <section className={`${cartao} min-w-0 p-4`} aria-label={def.listaTitulo}>
+          <div className="mb-3 flex flex-wrap items-center gap-2.5">
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${def.cor === 'verde' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-yellow-600'}`}>
+              <List className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-extrabold tracking-tight text-neutral-900">{def.listaTitulo} <span className="text-[13px] font-semibold text-slate-400">({lista.length})</span></h2>
+              <p className="text-[11.5px] text-neutral-500">{def.listaSub}</p>
+            </div>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <label className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] text-slate-500">Ordenar por
+                <select value={filtro.ordem} onChange={(e) => mudarFiltro({ ordem: e.target.value as Filtro['ordem'] })} aria-label="Ordenar" className={`${entradaFiltro} h-8 cursor-pointer px-2`}>
+                  <option value="recentes">Mais recentes</option>
+                  <option value="data">{def.data.tipo === 'futura' ? `${def.data.rotulo} (mais próxima)` : 'Data do cadastro (mais antiga)'}</option>
+                  <option value="pedido">Número do pedido</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => carregar(true)} aria-label="Atualizar" title="Atualizar" className={`${botao} px-2.5`}>
+                <RefreshCw className={`h-3.5 w-3.5 ${atualizando ? 'animate-spin' : ''}`} aria-hidden="true" />
+              </button>
+              <div className="relative">
+                <button type="button" onClick={() => setMenuAberto((v) => !v)} aria-label="Mais opções" aria-expanded={menuAberto} className={`${botao} px-2.5`}>
+                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+                {menuAberto && (
+                  <div className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[200px] rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg">
+                    <button type="button" onClick={exportarCsv} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-neutral-700 hover:bg-yellow-50">
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" /> Exportar CSV da lista
+                    </button>
+                  </div>
+                )}
+              </div>
+              {aba === 'devolucoes' && (
+                <button type="button" onClick={() => { setEscolhaQ(''); setEscolhaAberta(true); }} className={`${botao} border-yellow-400 bg-yellow-100 font-extrabold text-yellow-900 hover:bg-yellow-200`}>
+                  <ListChecks className="h-[15px] w-[15px]" aria-hidden="true" /> Ações
+                </button>
+              )}
+              <button type="button" onClick={abrirModal} className={botaoAmarelo}>
+                <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar
+              </button>
+            </div>
+          </div>
+
+          {carregando ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-neutral-400" aria-label="Carregando" /></div>
+          ) : lista.length === 0 ? (
+            <div className="flex flex-col items-center rounded-2xl bg-gradient-to-b from-yellow-50 to-white px-4 py-8 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-yellow-100 text-yellow-500"><Icone className="h-7 w-7" aria-hidden="true" /></span>
+              <h3 className="mt-3 text-base font-extrabold text-neutral-900">{todos.length > 0 ? 'Nenhum registro com esses filtros.' : def.vazio}</h3>
+              <p className="mt-1 text-xs text-neutral-500">{todos.length > 0 ? 'Ajuste os filtros ao lado para ver outros registros.' : def.vazioSub}</p>
+            </div>
+          ) : (
+            <>
+              <div data-edicao className="max-h-[560px] overflow-auto rounded-xl border border-neutral-100">
+                <table className="w-full border-separate border-spacing-0 text-xs">
+                  <thead>
+                    <tr>
+                      <th scope="col" className={`${celulaCabecalho} w-[34px]`}><span className="sr-only">Tipo</span></th>
+                      <th scope="col" className={celulaCabecalho}>Pedido</th>
+                      <th scope="col" className={celulaCabecalho}>Cliente</th>
+                      {colunas.map((c) => <th key={c.k} scope="col" className={`${celulaCabecalho} whitespace-nowrap`}>{c.rot}</th>)}
+                      <th scope="col" className={celulaCabecalho}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lista.map((registro) => {
+                      const aberto = registro.id === idSelecionado;
+                      const fundo = aberto ? 'bg-yellow-100' : 'bg-white group-hover:bg-yellow-50/60';
+                      return (
+                        <tr
+                          key={registro.id}
+                          onClick={(e) => { if (!(e.target as HTMLElement).closest('select, button, input, textarea, a')) escolherRegistro(registro.id); }}
+                          onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); escolherRegistro(registro.id); } }}
+                          tabIndex={0}
+                          aria-selected={aberto}
+                          className="group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-400"
+                        >
+                          <td className={`border-b border-neutral-100 py-2 pl-2 pr-0 ${fundo} ${aberto ? 'shadow-[inset_3px_0_0_#fbc41a]' : ''} ${def.cor === 'verde' ? 'text-emerald-600' : 'text-yellow-600'}`}><Icone className="h-[17px] w-[17px]" aria-hidden="true" /></td>
+                          <td className={`border-b border-neutral-100 px-2 py-2 ${fundo}`}><b className="text-neutral-900">{registro.numeroPedido}</b></td>
+                          <td className={`max-w-[130px] min-w-[90px] border-b border-neutral-100 px-2 py-2 text-neutral-700 ${fundo}`}>{registro.cliente || '—'}</td>
+                          {colunas.map((c) => <td key={c.k} className={`border-b border-neutral-100 px-2 py-2 ${fundo}`}>{celulaDaFila(c, registro)}</td>)}
+                          <td className={`border-b border-neutral-100 px-2 py-2 ${fundo}`}>
                             <select
                               key={`${registro.id}-status-${statusDe(registro)}`}
                               defaultValue={statusDe(registro)}
                               aria-label={`Status do pedido ${registro.numeroPedido}`}
-                              onChange={(e) => salvarCampo(registro, campo, e.target.value)}
-                              className={`h-[30px] min-w-[125px] cursor-pointer rounded-[10px] border border-transparent px-2.5 text-[11.5px] font-bold focus:border-yellow-400 focus:outline-none ${classeStatus(statusDe(registro))}`}
+                              onChange={(e) => salvarCampo(registro, STATUS, e.target.value)}
+                              className={`h-[30px] min-w-[108px] cursor-pointer rounded-[10px] border border-transparent px-1.5 text-[11.5px] font-bold focus:border-yellow-400 focus:outline-none ${classeStatus(statusDe(registro))}`}
                             >
                               {(Object.keys(NOMES_STATUS) as StatusRegistro[]).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
                             </select>
-                          ) : (
-                            <input
-                              key={`${registro.id}-${campo.k}-${textoDoCampo(registro, campo)}`}
-                              type={campo.tipo}
-                              defaultValue={textoDoCampo(registro, campo)}
-                              {...(campo.tipo === 'number' ? { min: 0, step: '0.01' } : {})}
-                              {...(campo.tipo === 'date' ? { min: '2000-01-01', max: '2100-12-31' } : {})}
-                              {...(campo.max ? { maxLength: campo.max } : {})}
-                              aria-label={`${campo.rotulo} do pedido ${registro.numeroPedido}`}
-                              onBlur={(e) => salvarCampo(registro, campo, e.target.value)}
-                              onChange={campo.tipo === 'date' ? (e) => salvarCampo(registro, campo, e.target.value) : undefined}
-                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                              className={`h-8 w-full rounded-[10px] border border-transparent bg-transparent px-2.5 text-xs text-neutral-800 hover:border-neutral-200 hover:bg-white focus:border-yellow-400 focus:bg-yellow-50/40 focus:outline-none focus:ring-2 focus:ring-yellow-300/40 ${campo.k === 'formaPagamento' ? 'min-w-[340px]' : campo.k === 'acao' ? 'min-w-[260px]' : 'min-w-[130px]'}`}
-                            />
-                          )}
-                        </td>
-                      ))}
-                      <td className="w-[110px] border-b border-neutral-100 bg-white px-3 py-2 text-right group-hover:bg-yellow-50/60">
-                        <button type="button" onClick={() => remover(registro)} aria-label={`Excluir registro do pedido ${registro.numeroPedido}`} title="Excluir este registro" className="inline-flex items-center gap-1.5 rounded-[10px] border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-bold text-neutral-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          Excluir
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-[11px] text-neutral-400">Exibindo {lista.length} {lista.length === 1 ? 'registro' : 'registros'}{lista.length !== todos.length ? ` de ${todos.length}` : ''}</p>
+            </>
+          )}
+        </section>
+
+        {/* Detalhes do pedido selecionado */}
+        <aside data-edicao className={`${cartao} p-4 md:col-span-2 2xl:sticky 2xl:top-2 2xl:col-span-1`} aria-label="Detalhes do pedido">
+          <div className="mb-3.5 flex items-center gap-2.5">
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${def.cor === 'verde' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-yellow-600'}`}><List className="h-4 w-4" aria-hidden="true" /></span>
+            <h2 className="text-[15px] font-extrabold text-neutral-900">Detalhes do pedido</h2>
+          </div>
+          {!registroAberto ? (
+            <p className="text-[12.5px] leading-normal text-slate-500">Selecione um registro na fila para ver os detalhes e editar.</p>
+          ) : (
+            <div key={`${aba}-${registroAberto.id}`}>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-[17px] font-extrabold tracking-tight text-neutral-900">Pedido nº {registroAberto.numeroPedido}</h3>
+                <select
+                  key={`${registroAberto.id}-status-${statusDe(registroAberto)}`}
+                  defaultValue={statusDe(registroAberto)}
+                  aria-label={`Status do pedido ${registroAberto.numeroPedido}`}
+                  onChange={(e) => salvarCampo(registroAberto, STATUS, e.target.value)}
+                  className={`h-[30px] cursor-pointer rounded-[10px] border border-transparent px-1.5 text-[11.5px] font-bold focus:border-yellow-400 focus:outline-none ${classeStatus(statusDe(registroAberto))}`}
+                >
+                  {(Object.keys(NOMES_STATUS) as StatusRegistro[]).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
+                </select>
+              </div>
+              <div className="mb-3 grid grid-cols-2 gap-2.5 text-[11px] text-slate-400">
+                <div><span className="mb-0.5 block">Cliente</span><b className="text-[12.5px] font-bold text-slate-700">{registroAberto.cliente || '—'}</b></div>
+                <div><span className="mb-0.5 block">Categoria</span><b className="inline-block rounded-full bg-yellow-300 px-2.5 py-0.5 text-[11.5px] font-bold text-neutral-900">{def.aba.replace(/^Pedidos (de )?/, '')}</b></div>
+              </div>
+              <div className="mb-3 grid gap-2.5">
+                {def.campos.filter((c) => c.tipo !== 'status').map((campo) => {
+                  const valor = textoDoCampo(registroAberto, campo);
+                  const classe = 'mt-1 block w-full min-w-0 rounded-[10px] border border-neutral-200 bg-white px-2.5 py-[7px] text-[12.5px] font-medium text-neutral-900 focus:border-yellow-400 focus:bg-yellow-50/40 focus:outline-none focus:ring-2 focus:ring-yellow-300/40';
+                  const rotulo = `${campo.rotulo} do pedido ${registroAberto.numeroPedido}`;
+                  return (
+                    <label key={campo.k} className="block text-[11px] font-bold text-slate-500">
+                      {campo.rotulo}
+                      {campo.tipo === 'text' && (campo.max ?? 0) >= 300 ? (
+                        <textarea
+                          key={`${registroAberto.id}-${campo.k}-${valor}`}
+                          defaultValue={valor}
+                          rows={2}
+                          maxLength={campo.max}
+                          aria-label={rotulo}
+                          onBlur={(e) => salvarCampo(registroAberto, campo, e.target.value)}
+                          className={`${classe} resize-y`}
+                        />
+                      ) : (
+                        <input
+                          key={`${registroAberto.id}-${campo.k}-${valor}`}
+                          type={campo.tipo}
+                          defaultValue={valor}
+                          aria-label={rotulo}
+                          {...(campo.tipo === 'number' ? { min: 0, step: '0.01' } : {})}
+                          {...(campo.tipo === 'date' ? { min: '2000-01-01', max: '2100-12-31', onChange: (e: React.ChangeEvent<HTMLInputElement>) => salvarCampo(registroAberto, campo, e.target.value) } : {})}
+                          {...(campo.max ? { maxLength: campo.max } : {})}
+                          onBlur={(e) => salvarCampo(registroAberto, campo, e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          className={classe}
+                        />
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+
+              {aba === 'devolucoes' && (
+                <div className="mt-1 border-t border-slate-100 pt-3">
+                  <h4 className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-slate-700"><Clock className="h-3.5 w-3.5" aria-hidden="true" /> Etapas do atendimento <i className="ml-auto text-[11px] font-extrabold not-italic text-slate-500">{registroAberto.etapasFeitas || 0}/5</i></h4>
+                  <ol className="m-0 list-none p-0">
+                    {(registroAberto.etapas || []).map((e, i, todas) => (
+                      <li key={e.nome} className="relative grid grid-cols-[14px_minmax(0,1fr)_auto] gap-2.5 pb-3 last:pb-0.5">
+                        {i < todas.length - 1 && <span className={`absolute bottom-[-2px] left-[6px] top-[14px] w-0.5 ${e.feita ? 'bg-emerald-200' : 'bg-slate-200'}`} aria-hidden="true" />}
+                        <i className={`z-[1] mt-[3px] h-3 w-3 rounded-full ring-[3px] ring-white ${e.feita ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                        <div className="min-w-0">
+                          <b className={`block text-[12.5px] ${e.feita ? 'font-extrabold text-neutral-900' : 'font-bold text-slate-400'}`}>{e.nome}</b>
+                          <small className="mt-px block break-words text-[11.5px] leading-snug text-slate-500">{e.feita ? (e.detalhe || 'Preenchida.') : 'Ainda não preenchida.'}</small>
+                        </div>
+                        <time className="max-w-[92px] text-right text-[10.5px] text-slate-400">{e.em ? quando(e.em).replace(', ', ' às ') : ''}</time>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <h4 className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-slate-700"><Clock className="h-3.5 w-3.5" aria-hidden="true" /> Histórico</h4>
+                <ul className="m-0 list-none p-0 text-[11.5px]">
+                  <li className="flex gap-2 py-[3px]"><i className="mt-1 h-[9px] w-[9px] shrink-0 rounded-full bg-yellow-400" /><div><b className="block font-bold text-slate-700">Cadastrado</b><small className="text-slate-400">{quando(registroAberto.criadoEm)}</small></div></li>
+                  {registroAberto.atualizadoEm && registroAberto.atualizadoEm !== registroAberto.criadoEm && (
+                    <li className="flex gap-2 py-[3px]"><i className="mt-1 h-[9px] w-[9px] shrink-0 rounded-full bg-slate-300" /><div><b className="block font-bold text-slate-700">Última alteração{registroAberto.atualizadoPor ? ` por ${registroAberto.atualizadoPor}` : ''}</b><small className="text-slate-400">{quando(registroAberto.atualizadoEm)}</small></div></li>
+                  )}
+                </ul>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                {aba === 'devolucoes' && (
+                  <button type="button" onClick={() => abrirAcoes(registroAberto.id)} className={`${botao} border-yellow-400 bg-yellow-100 font-extrabold text-yellow-900 hover:bg-yellow-200`}>
+                    <ListChecks className="h-[15px] w-[15px]" aria-hidden="true" /> Abrir ações
+                  </button>
+                )}
+                <button type="button" onClick={() => remover(registroAberto)} aria-label={`Excluir registro do pedido ${registroAberto.numeroPedido}`} title="Excluir este registro" className="ml-auto inline-flex items-center gap-1.5 rounded-[10px] border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-bold text-neutral-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Excluir
+                </button>
+              </div>
             </div>
-            <p className="mt-2 text-[11px] text-neutral-400">{lista.length} {lista.length === 1 ? 'registro' : 'registros'}{lista.length !== todos.length ? ` de ${todos.length}` : ''}</p>
-          </>
-        )}
-      </section>
+          )}
+        </aside>
+      </div>
 
       {/* Modal de cadastro */}
       {modalAberto && (
@@ -793,6 +878,47 @@ export const PedidosProblematicos: React.FC = () => {
             </div>
           </form>
         </div>
+      )}
+
+      {/* Escolher a devolução cujas Ações serão abertas */}
+      {escolhaAberta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-[2px]" onClick={() => setEscolhaAberta(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Escolher devolução" className="max-h-[92vh] w-full max-w-[440px] overflow-auto rounded-[20px] bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-5 pb-3 pt-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ListChecks className="h-5 w-5" aria-hidden="true" /></span>
+              <div>
+                <h2 className="text-base font-extrabold tracking-tight text-neutral-900">Ações da devolução</h2>
+                <p className="mt-0.5 text-xs leading-snug text-neutral-500">Escolha a devolução para registrar as etapas do atendimento.</p>
+              </div>
+              <button type="button" onClick={() => setEscolhaAberta(false)} aria-label="Fechar" className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200"><X className="h-4 w-4" aria-hidden="true" /></button>
+            </div>
+            <div className="px-5 pb-5">
+              <div className="flex h-10 items-center gap-2 rounded-[10px] border border-neutral-200 bg-white px-3 focus-within:border-yellow-400 focus-within:ring-2 focus-within:ring-yellow-300/40">
+                <Search className="h-[18px] w-[18px] shrink-0 text-neutral-400" aria-hidden="true" />
+                <input autoFocus type="search" autoComplete="off" value={escolhaQ} onChange={(e) => setEscolhaQ(e.target.value)} placeholder="Pedido ou cliente" className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none" />
+              </div>
+              <ul className="m-0 mt-2.5 max-h-[46vh] list-none overflow-auto p-0">
+                {(() => {
+                  const q = escolhaQ.trim().toLowerCase();
+                  const opcoes = dados.devolucoes.filter((r) => statusDe(r) !== 'REALIZADA' && (!q || `${r.numeroPedido} ${r.cliente}`.toLowerCase().includes(q)));
+                  return opcoes.length ? opcoes.map((r) => (
+                    <li key={r.id}>
+                      <button type="button" onClick={() => abrirAcoes(r.id)} className="grid w-full grid-cols-[70px_1fr_auto] items-center gap-2.5 border-b border-slate-100 px-2.5 py-[9px] text-left text-[13px] hover:bg-yellow-50">
+                        <b>{r.numeroPedido}</b><span className="truncate">{r.cliente || 'sem nome'}</span>
+                        <i className="rounded-full bg-yellow-300 px-2 py-px text-[11px] font-extrabold not-italic text-neutral-900">{r.etapasFeitas || 0}/5</i>
+                      </button>
+                    </li>
+                  )) : <li className="px-3 py-2 text-xs text-neutral-500">Nenhuma devolução em aberto. Use &quot;Adicionar&quot; para cadastrar.</li>;
+                })()}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ações da devolução: etapas do atendimento */}
+      {devolucaoAberta && (
+        <AcoesDevolucao devolucao={{ id: devolucaoAberta.id, numeroPedido: devolucaoAberta.numeroPedido, cliente: devolucaoAberta.cliente }} onFechar={() => setAcoesDe(null)} onAtualizou={atualizouEtapas} />
       )}
     </div>
   );
