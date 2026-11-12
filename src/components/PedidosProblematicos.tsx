@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Check, Clock, Download, Filter, List, ListChecks, Loader2, MoreHorizontal, Plus, RefreshCw, RotateCcw, Search, Trash2, Users, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Clock, Download, Filter, List, ListChecks, Loader2, MoreHorizontal, Plus, RefreshCw, RotateCcw, Search, Trash2, Users, X } from 'lucide-react';
 import { formatDataIsoParaBr } from '../utils/format';
 import { AcoesDevolucao, type EtapaResumo } from './AcoesDevolucao';
 
-type Aba = 'urgentes' | 'devolucoes' | 'defeitos';
-type StatusRegistro = 'NAO_REALIZADA' | 'REALIZADA';
+type Aba = 'urgentes' | 'devolucoes' | 'defeitos' | 'convertidos';
+type AbaDoPcp = Exclude<Aba, 'convertidos'>;
+type StatusRegistro = 'NAO_REALIZADA' | 'REALIZADA' | 'PERDIDO';
 type Icone = React.FC<{ className?: string }>;
 
 interface CampoDef {
@@ -16,7 +17,7 @@ interface CampoDef {
 }
 
 // Todo registro nasce "Não realizada"; ao marcar "Realizada" ele some da lista (continua gravado no PCP; o filtro Status traz de volta).
-const NOMES_STATUS: Record<StatusRegistro, string> = { NAO_REALIZADA: 'Não realizada', REALIZADA: 'Realizada' };
+const NOMES_STATUS: Record<StatusRegistro, string> = { NAO_REALIZADA: 'Não realizada', REALIZADA: 'Realizada', PERDIDO: 'Perdido' };
 const STATUS: CampoDef = { k: 'status', rotulo: 'Status', tipo: 'status' };
 
 interface TabelaDef {
@@ -35,7 +36,7 @@ interface TabelaDef {
 }
 
 // As três tabelas do PCP. Os registros ficam no PCP: esta tela é a mesma lista, em outro lugar.
-const TABELAS: Record<Aba, TabelaDef> = {
+const TABELAS_DO_PCP: Record<AbaDoPcp, TabelaDef> = {
   urgentes: {
     aba: 'Pedidos Urgentes', icone: AlertTriangle, cor: 'ouro',
     cardTitulo: 'Cadastrar novo pedido urgente', cardSub: 'Inclua um pedido com prioridade de tratamento.',
@@ -72,6 +73,17 @@ const TABELAS: Record<Aba, TabelaDef> = {
   },
 };
 
+// "Pedidos Convertidos": as devoluções que chegaram ao status Realizada (a aba é feita dos mesmos registros).
+const TABELAS: Record<Aba, TabelaDef> = {
+  ...TABELAS_DO_PCP,
+  convertidos: {
+    ...TABELAS_DO_PCP.devolucoes,
+    aba: 'Pedidos Convertidos', icone: CheckCircle2, cor: 'verde',
+    listaTitulo: 'Pedidos convertidos', listaSub: 'Devoluções com status Realizada.',
+    vazio: 'Nenhum pedido convertido ainda.', vazioSub: 'Os pedidos de devolução marcados como Realizada aparecem aqui.',
+  },
+};
+
 interface Registro {
   id: number;
   numeroPedido: number;
@@ -86,14 +98,15 @@ interface Registro {
   [campo: string]: unknown;
 }
 type Dados = Record<Aba, Registro[]>;
-interface Filtro { q: string; de: string; ate: string; status: 'pendentes' | 'realizadas' | 'todas'; ordem: 'recentes' | 'data' | 'pedido' }
+interface Filtro { q: string; de: string; ate: string; status: 'pendentes' | 'realizadas' | 'perdidas' | 'todas'; ordem: 'recentes' | 'data' | 'pedido' }
 
 interface PedidoEncontrado { numero: number; cliente: string; origem: 'pcp' | 'nomus' }
 interface PedidoEscolhido { numero: number; cliente: string; carregando: boolean; aviso: string; prazoEntrega: string | null; preenchido: boolean; valor: number | null; valorTotal: number | null }
 
-const VAZIO: Dados = { urgentes: [], devolucoes: [], defeitos: [] };
+const VAZIO: Dados = { urgentes: [], devolucoes: [], defeitos: [], convertidos: [] };
+type RespostaPcp = Record<AbaDoPcp, Registro[]>;
 const ERRO_RESPOSTA_INVALIDA = 'O servidor não respondeu como esperado. Atualize a página; se continuar, o servidor ainda não foi atualizado com esta funcionalidade.';
-const filtroInicial = (): Filtro => ({ q: '', de: '', ate: '', status: 'pendentes', ordem: 'recentes' });
+const filtroInicial = (aba?: Aba): Filtro => ({ q: '', de: '', ate: '', status: aba === 'convertidos' ? 'todas' : 'pendentes', ordem: 'recentes' });
 
 async function chamar<T = any>(url: string, init?: RequestInit): Promise<T> {
   const resposta = await fetch(url, init && init.body ? { ...init, headers: { 'Content-Type': 'application/json' } } : init);
@@ -103,7 +116,31 @@ async function chamar<T = any>(url: string, init?: RequestInit): Promise<T> {
   return corpo;
 }
 
-const statusDe = (registro: Registro): StatusRegistro => (registro.status === 'REALIZADA' ? 'REALIZADA' : 'NAO_REALIZADA');
+const statusDe = (registro: Registro): StatusRegistro => (registro.status === 'REALIZADA' ? 'REALIZADA' : registro.status === 'PERDIDO' ? 'PERDIDO' : 'NAO_REALIZADA');
+
+/** Devoluções (e a aba Convertidos, que é feita delas) têm o status Perdido a mais. */
+const ehDevolucao = (aba: Aba) => aba === 'devolucoes' || aba === 'convertidos';
+const rota = (aba: Aba): AbaDoPcp => (aba === 'convertidos' ? 'devolucoes' : aba);
+const opcoesStatus = (aba: Aba, atual: StatusRegistro) => (Object.keys(NOMES_STATUS) as StatusRegistro[]).filter((v) => v !== 'PERDIDO' || ehDevolucao(aba) || atual === 'PERDIDO');
+const montar = (r: RespostaPcp): Dados => ({ urgentes: r.urgentes, devolucoes: r.devolucoes, defeitos: r.defeitos, convertidos: r.devolucoes.filter((d) => d.status === 'REALIZADA') });
+
+/** O registro aparece na lista com este filtro? (Perdido só aparece quando pedido de propósito.) */
+function passaNoFiltro(r: Registro, aba: Aba, f: Filtro): boolean {
+  const st = statusDe(r);
+  if (f.status === 'pendentes' && st !== 'NAO_REALIZADA') return false;
+  if (f.status === 'realizadas' && st !== 'REALIZADA') return false;
+  if (f.status === 'perdidas' && st !== 'PERDIDO') return false;
+  if (f.status === 'todas' && st === 'PERDIDO') return false;
+  const q = f.q.trim().toLowerCase();
+  if (q && ![r.numeroPedido, r.cliente, r.causa, r.motorista, r.acao, r.formaPagamento].join(' ').toLowerCase().includes(q)) return false;
+  if (f.de || f.ate) {
+    const t = TABELAS[aba];
+    const bruto = r[t.data.campo];
+    const d = t.data.tipo === 'cadastro' ? diaSP(String(bruto ?? '')) : String(bruto ?? '');
+    if (!d || (f.de && d < f.de) || (f.ate && d > f.ate)) return false;
+  }
+  return true;
+}
 const textoDoCampo = (registro: Registro, campo: CampoDef) => {
   if (campo.tipo === 'status') return statusDe(registro);
   const valor = registro[campo.k];
@@ -119,13 +156,14 @@ const quando = (iso?: string) => (iso ? new Date(iso).toLocaleString('pt-BR', { 
 
 /** Colunas extras de cada fila (depois de Pedido e Cliente, antes de Status). */
 type ColunaFila = { k: string; rot: string; tipo?: 'data' | 'brl' | 'etapas' };
-const COLUNAS: Record<Aba, ColunaFila[]> = {
+const COLUNAS_DO_PCP: Record<AbaDoPcp, ColunaFila[]> = {
   urgentes: [{ k: 'dataEntregaCombinada', rot: 'Data de entrega', tipo: 'data' }],
   devolucoes: [{ k: 'formaPagamento', rot: 'Forma de pagamento' }, { k: 'valor', rot: 'Valor (R$)', tipo: 'brl' }, { k: 'etapas', rot: 'Etapas', tipo: 'etapas' }],
   defeitos: [{ k: 'causa', rot: 'Causa' }, { k: 'motorista', rot: 'Motorista' }, { k: 'prazoAcao', rot: 'Prazo da ação', tipo: 'data' }],
 };
+const COLUNAS: Record<Aba, ColunaFila[]> = { ...COLUNAS_DO_PCP, convertidos: COLUNAS_DO_PCP.devolucoes };
 
-const classeStatus = (status: StatusRegistro) => (status === 'REALIZADA' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-neutral-800');
+const classeStatus = (status: StatusRegistro) => (status === 'REALIZADA' ? 'bg-emerald-50 text-emerald-700' : status === 'PERDIDO' ? 'bg-slate-200 text-slate-600' : 'bg-yellow-100 text-neutral-800');
 
 export const PedidosProblematicos: React.FC = () => {
   const [aba, setAba] = useState<Aba>('urgentes');
@@ -133,13 +171,13 @@ export const PedidosProblematicos: React.FC = () => {
   const [carregando, setCarregando] = useState(true);
   const [erroGeral, setErroGeral] = useState('');
   const [aviso, setAviso] = useState('');
-  const [filtros, setFiltros] = useState<Record<Aba, Filtro>>({ urgentes: filtroInicial(), devolucoes: filtroInicial(), defeitos: filtroInicial() });
-  const [desfazer, setDesfazer] = useState<{ aba: Aba; id: number; numero: number } | null>(null);
+  const [filtros, setFiltros] = useState<Record<Aba, Filtro>>({ urgentes: filtroInicial(), devolucoes: filtroInicial(), defeitos: filtroInicial(), convertidos: filtroInicial('convertidos') });
+  const [desfazer, setDesfazer] = useState<{ aba: Aba; id: number; numero: number; mensagem: string; anterior: StatusRegistro } | null>(null);
   const [menuAberto, setMenuAberto] = useState(false);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [semConexao, setSemConexao] = useState(false);
   const [atualizando, setAtualizando] = useState(false);
-  const [selecionados, setSelecionados] = useState<Record<Aba, number | null>>({ urgentes: null, devolucoes: null, defeitos: null }); // registro aberto no painel da direita
+  const [selecionados, setSelecionados] = useState<Record<Aba, number | null>>({ urgentes: null, devolucoes: null, defeitos: null, convertidos: null }); // registro aberto no painel da direita
   const [acoesDe, setAcoesDe] = useState<number | null>(null); // devolução cujas Ações estão abertas
   const [escolhaAberta, setEscolhaAberta] = useState(false);
   const [escolhaQ, setEscolhaQ] = useState('');
@@ -165,15 +203,15 @@ export const PedidosProblematicos: React.FC = () => {
   const filtro = filtros[aba];
   const hoje = hojeSP();
 
-  const guardar = (resposta: Dados) => setDados({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos });
-  const respostaValida = (r: any): r is Dados => Array.isArray(r?.urgentes) && Array.isArray(r?.devolucoes) && Array.isArray(r?.defeitos);
+  const guardar = (resposta: RespostaPcp) => setDados(montar(resposta));
+  const respostaValida = (r: any): r is RespostaPcp => Array.isArray(r?.urgentes) && Array.isArray(r?.devolucoes) && Array.isArray(r?.defeitos);
 
   const carregar = useCallback(async (manual = false) => {
     if (manual) setAtualizando(true);
     try {
-      const resposta = await chamar<Dados>('/api/problematicos');
+      const resposta = await chamar<RespostaPcp>('/api/problematicos');
       if (!respostaValida(resposta)) throw new Error(ERRO_RESPOSTA_INVALIDA);
-      setDados({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos });
+      setDados(montar(resposta));
       setErroGeral('');
       setSemConexao(false);
       setAtualizadoEm(new Date());
@@ -196,13 +234,14 @@ export const PedidosProblematicos: React.FC = () => {
     const ativo = document.activeElement;
     const digitando = (ativo instanceof HTMLInputElement || ativo instanceof HTMLSelectElement || ativo instanceof HTMLTextAreaElement) && !!ativo.closest('[data-edicao]');
     try {
-      const resposta = await chamar<Dados>('/api/problematicos');
+      const resposta = await chamar<RespostaPcp>('/api/problematicos');
       if (!respostaValida(resposta)) return;
       setSemConexao(false);
       setAtualizadoEm(new Date());
-      const mudou = JSON.stringify({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos }) !== JSON.stringify(dadosNaTela.current);
+      const novos = montar(resposta);
+      const mudou = JSON.stringify(novos) !== JSON.stringify(dadosNaTela.current);
       if (!mudou || digitando || emGravacao.current.size > 0) return;
-      setDados({ urgentes: resposta.urgentes, devolucoes: resposta.devolucoes, defeitos: resposta.defeitos });
+      setDados(novos);
     } catch {
       setSemConexao(true); // mantém o que já está na tela e tenta de novo no próximo ciclo
     }
@@ -218,18 +257,7 @@ export const PedidosProblematicos: React.FC = () => {
   // ---- lista filtrada ----
 
   const todos = dados[aba];
-  const filtrados = todos.filter((r) => {
-    const q = filtro.q.trim().toLowerCase();
-    if (filtro.status === 'pendentes' && statusDe(r) === 'REALIZADA') return false;
-    if (filtro.status === 'realizadas' && statusDe(r) !== 'REALIZADA') return false;
-    if (q && ![r.numeroPedido, r.cliente, r.causa, r.motorista, r.acao, r.formaPagamento].join(' ').toLowerCase().includes(q)) return false;
-    if (filtro.de || filtro.ate) {
-      const bruto = r[def.data.campo];
-      const d = def.data.tipo === 'cadastro' ? diaSP(String(bruto ?? '')) : String(bruto ?? '');
-      if (!d || (filtro.de && d < filtro.de) || (filtro.ate && d > filtro.ate)) return false;
-    }
-    return true;
-  });
+  const filtrados = todos.filter((r) => passaNoFiltro(r, aba, filtro));
   const chaveData = (r: Registro) => (def.data.tipo === 'cadastro' ? diaSP(r.criadoEm) : String(r[def.data.campo] ?? '')) || '';
   const lista = [...filtrados].sort((a, b) => {
     if (filtro.ordem === 'pedido') return b.numeroPedido - a.numeroPedido;
@@ -239,13 +267,15 @@ export const PedidosProblematicos: React.FC = () => {
   const idSelecionado = lista.some((r) => r.id === selecionados[aba]) ? selecionados[aba] : lista[0]?.id ?? null;
   const registroAberto = lista.find((r) => r.id === idSelecionado) ?? null;
   const feitas = todos.filter((r) => statusDe(r) === 'REALIZADA').length;
-  const abertas = todos.length - feitas;
-  const pendentesDe = (chave: Aba) => dados[chave].filter((r) => statusDe(r) !== 'REALIZADA').length;
+  const perdidas = todos.filter((r) => statusDe(r) === 'PERDIDO').length;
+  const abertas = todos.length - feitas - perdidas;
+  const pendentesDe = (chave: Aba) => (chave === 'convertidos' ? dados.convertidos.length : dados[chave].filter((r) => statusDe(r) === 'NAO_REALIZADA').length);
 
   const mudarFiltro = (parcial: Partial<Filtro>) => setFiltros((atual) => ({ ...atual, [aba]: { ...atual[aba], ...parcial } }));
   const escolherRegistro = (id: number) => setSelecionados((atual) => ({ ...atual, [aba]: id }));
   const atualizouEtapas = useCallback((id: number, etapas: EtapaResumo[], etapasFeitas: number) => {
-    setDados((atual) => ({ ...atual, devolucoes: atual.devolucoes.map((r) => (r.id === id ? { ...r, etapas, etapasFeitas } : r)) }));
+    const atualizar = (lista: Registro[]) => lista.map((r) => (r.id === id ? { ...r, etapas, etapasFeitas } : r));
+    setDados((atual) => ({ ...atual, devolucoes: atualizar(atual.devolucoes), convertidos: atualizar(atual.convertidos) }));
   }, []);
   const abrirAcoes = (id: number) => { setEscolhaAberta(false); setAcoesDe(id); };
   const devolucaoAberta = acoesDe === null ? null : dados.devolucoes.find((r) => r.id === acoesDe) ?? null;
@@ -327,7 +357,7 @@ export const PedidosProblematicos: React.FC = () => {
     }
     setSalvando(true);
     try {
-      guardar(await chamar<Dados>(`/api/problematicos/${aba}`, { method: 'POST', body: JSON.stringify(corpo) }));
+      guardar(await chamar<RespostaPcp>(`/api/problematicos/${rota(aba)}`, { method: 'POST', body: JSON.stringify(corpo) }));
       setModalAberto(false); // o cadastro fecha ao concluir
       setAviso(corpo.status === 'REALIZADA' ? `Pedido ${selecionado.numero} cadastrado como realizada: oculto da lista.` : `Pedido ${selecionado.numero} cadastrado em ${def.aba}.`);
     } catch (e: any) {
@@ -350,9 +380,21 @@ export const PedidosProblematicos: React.FC = () => {
     if (emGravacao.current.has(chave)) return;
     emGravacao.current.add(chave);
     try {
-      guardar(await chamar<Dados>(`/api/problematicos/${aba}/${registro.id}`, { method: 'PATCH', body: JSON.stringify({ [campo.k]: novo }) }));
+      const anterior = statusDe(registro);
+      const resposta = await chamar<RespostaPcp>(`/api/problematicos/${rota(aba)}/${registro.id}`, { method: 'PATCH', body: JSON.stringify({ [campo.k]: novo }) });
+      guardar(resposta);
       setErroGeral('');
-      if (campo.tipo === 'status' && novo === 'REALIZADA' && filtro.status === 'pendentes') setDesfazer({ aba, id: registro.id, numero: registro.numeroPedido });
+      if (campo.tipo === 'status' && novo !== anterior) {
+        // O registro saiu da lista com o filtro atual? Avisa e oferece desfazer.
+        const atualizado = montar(resposta)[aba].find((x) => x.id === registro.id);
+        if (!atualizado || !passaNoFiltro(atualizado, aba, filtro)) {
+          const numero = registro.numeroPedido;
+          const mensagem = novo === 'PERDIDO' ? `Pedido ${numero} marcado como perdido e removido da tela.`
+            : novo === 'REALIZADA' && aba === 'devolucoes' ? `Pedido ${numero} realizado: agora está em Pedidos Convertidos.`
+            : `Pedido ${numero} marcado como ${NOMES_STATUS[novo as StatusRegistro].toLowerCase()} e ocultado.`;
+          setDesfazer({ aba, id: registro.id, numero, mensagem, anterior });
+        }
+      }
     } catch (e: any) {
       setErroGeral(e.message);
       carregar(); // volta o que estava gravado
@@ -363,10 +405,10 @@ export const PedidosProblematicos: React.FC = () => {
 
   const desfazerRealizada = async () => {
     if (!desfazer) return;
-    const { aba: abaDoRegistro, id } = desfazer;
+    const { aba: abaDoRegistro, id, anterior } = desfazer;
     setDesfazer(null);
     try {
-      guardar(await chamar<Dados>(`/api/problematicos/${abaDoRegistro}/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'NAO_REALIZADA' }) }));
+      guardar(await chamar<RespostaPcp>(`/api/problematicos/${rota(abaDoRegistro)}/${id}`, { method: 'PATCH', body: JSON.stringify({ status: anterior }) }));
     } catch (e: any) {
       setErroGeral(e.message);
     }
@@ -375,7 +417,7 @@ export const PedidosProblematicos: React.FC = () => {
   const remover = async (registro: Registro) => {
     if (!window.confirm(`Excluir o registro do pedido ${registro.numeroPedido}?`)) return;
     try {
-      guardar(await chamar<Dados>(`/api/problematicos/${aba}/${registro.id}`, { method: 'DELETE' }));
+      guardar(await chamar<RespostaPcp>(`/api/problematicos/${rota(aba)}/${registro.id}`, { method: 'DELETE' }));
       setErroGeral('');
     } catch (e: any) {
       setErroGeral(e.message);
@@ -497,7 +539,7 @@ export const PedidosProblematicos: React.FC = () => {
       )}
       {desfazer && (
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">
-          Pedido {desfazer.numero} marcado como realizada e ocultado.
+          {desfazer.mensagem}
           <button type="button" onClick={desfazerRealizada} className="rounded-full border border-emerald-300 bg-white px-3 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100">Desfazer</button>
         </div>
       )}
@@ -531,7 +573,7 @@ export const PedidosProblematicos: React.FC = () => {
         <aside className={`${cartao} p-4 md:sticky md:top-2`} aria-label="Filtros">
           <div className="mb-3.5 flex items-center justify-between text-sm text-neutral-900">
             <b className="inline-flex items-center gap-1.5 font-extrabold"><Filter className="h-4 w-4" aria-hidden="true" /> Filtros</b>
-            <button type="button" onClick={() => setFiltros((atual) => ({ ...atual, [aba]: { ...filtroInicial(), ordem: atual[aba].ordem } }))} className="text-[11.5px] font-bold text-yellow-800 underline">Limpar filtros</button>
+            <button type="button" onClick={() => setFiltros((atual) => ({ ...atual, [aba]: { ...filtroInicial(aba), ordem: atual[aba].ordem } }))} className="text-[11.5px] font-bold text-yellow-800 underline">Limpar filtros</button>
           </div>
           <label className="mb-3.5 block text-[11.5px] font-bold text-slate-500">Buscar por pedido ou cliente
             <span className="mt-1.5 flex h-9 items-center gap-2 rounded-[10px] border border-neutral-200 bg-white px-2.5 focus-within:border-yellow-400 focus-within:ring-2 focus-within:ring-yellow-300/40">
@@ -546,10 +588,12 @@ export const PedidosProblematicos: React.FC = () => {
               <input type="date" value={filtro.ate} onChange={(e) => mudarFiltro({ ate: e.target.value })} aria-label="Data final" className={`${entradaFiltro} min-w-0 px-1.5 !text-[11px]`} />
             </div>
           </div>
+          {aba !== 'convertidos' && (<>
           <label className="mb-3.5 block text-[11.5px] font-bold text-slate-500">Status
             <select value={filtro.status} onChange={(e) => mudarFiltro({ status: e.target.value as Filtro['status'] })} className={`${entradaFiltro} mt-1.5 block w-full cursor-pointer px-2`}>
               <option value="pendentes">Não realizadas</option>
               <option value="realizadas">Realizadas</option>
+              {ehDevolucao(aba) && <option value="perdidas">Perdidas</option>}
               <option value="todas">Todas</option>
             </select>
           </label>
@@ -559,11 +603,12 @@ export const PedidosProblematicos: React.FC = () => {
           </label>
           <div className="text-[11.5px] font-bold text-slate-500">Atalhos
             <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {([['todas', 'Todos', todos.length], ['pendentes', 'Não realizada', abertas], ['realizadas', 'Realizada', feitas]] as const).map(([valor, nome, n]) => (
+              {([['todas', 'Todos', todos.length - perdidas], ['pendentes', 'Não realizada', abertas], ['realizadas', 'Realizada', feitas], ...(ehDevolucao(aba) ? [['perdidas', 'Perdido', perdidas]] : [])] as Array<[Filtro['status'], string, number]>).map(([valor, nome, n]) => (
                 <button key={valor} type="button" onClick={() => mudarFiltro({ status: valor })} className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${filtro.status === valor ? 'border-yellow-400 bg-yellow-300 text-neutral-900' : 'border-neutral-200 bg-white text-slate-600 hover:border-yellow-400'}`}>{nome} ({n})</button>
               ))}
             </div>
           </div>
+          </>)}
         </aside>
 
         <section className={`${cartao} min-w-0 p-4`} aria-label={def.listaTitulo}>
@@ -603,9 +648,11 @@ export const PedidosProblematicos: React.FC = () => {
                   <ListChecks className="h-[15px] w-[15px]" aria-hidden="true" /> Ações
                 </button>
               )}
-              <button type="button" onClick={abrirModal} className={botaoAmarelo}>
-                <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar
-              </button>
+              {aba !== 'convertidos' && (
+                <button type="button" onClick={abrirModal} className={botaoAmarelo}>
+                  <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar
+                </button>
+              )}
             </div>
           </div>
 
@@ -655,7 +702,7 @@ export const PedidosProblematicos: React.FC = () => {
                               onChange={(e) => salvarCampo(registro, STATUS, e.target.value)}
                               className={`h-[30px] min-w-[108px] cursor-pointer rounded-[10px] border border-transparent px-1.5 text-[11.5px] font-bold focus:border-yellow-400 focus:outline-none ${classeStatus(statusDe(registro))}`}
                             >
-                              {(Object.keys(NOMES_STATUS) as StatusRegistro[]).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
+                              {opcoesStatus(aba, statusDe(registro)).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
                             </select>
                           </td>
                         </tr>
@@ -688,7 +735,7 @@ export const PedidosProblematicos: React.FC = () => {
                   onChange={(e) => salvarCampo(registroAberto, STATUS, e.target.value)}
                   className={`h-[30px] cursor-pointer rounded-[10px] border border-transparent px-1.5 text-[11.5px] font-bold focus:border-yellow-400 focus:outline-none ${classeStatus(statusDe(registroAberto))}`}
                 >
-                  {(Object.keys(NOMES_STATUS) as StatusRegistro[]).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
+                  {opcoesStatus(aba, statusDe(registroAberto)).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
                 </select>
               </div>
               <div className="mb-3 grid grid-cols-2 gap-2.5 text-[11px] text-slate-400">
@@ -732,7 +779,7 @@ export const PedidosProblematicos: React.FC = () => {
                 })}
               </div>
 
-              {aba === 'devolucoes' && (
+              {ehDevolucao(aba) && (
                 <div className="mt-1 border-t border-slate-100 pt-3">
                   <h4 className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-slate-700"><Clock className="h-3.5 w-3.5" aria-hidden="true" /> Etapas do atendimento <i className="ml-auto text-[11px] font-extrabold not-italic text-slate-500">{registroAberto.etapasFeitas || 0}/5</i></h4>
                   <ol className="m-0 list-none p-0">
@@ -762,7 +809,7 @@ export const PedidosProblematicos: React.FC = () => {
               </div>
 
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                {aba === 'devolucoes' && (
+                {ehDevolucao(aba) && (
                   <button type="button" onClick={() => abrirAcoes(registroAberto.id)} className={`${botao} border-yellow-400 bg-yellow-100 font-extrabold text-yellow-900 hover:bg-yellow-200`}>
                     <ListChecks className="h-[15px] w-[15px]" aria-hidden="true" /> Abrir ações
                   </button>
@@ -846,7 +893,7 @@ export const PedidosProblematicos: React.FC = () => {
                     onChange={(e) => setValores((atual) => ({ ...atual, status: e.target.value }))}
                     className={`${entradaModal} cursor-pointer font-bold ${classeStatus((valores.status || 'NAO_REALIZADA') as StatusRegistro)}`}
                   >
-                    {(Object.keys(NOMES_STATUS) as StatusRegistro[]).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
+                    {opcoesStatus(aba, (valores.status || 'NAO_REALIZADA') as StatusRegistro).map((v) => <option key={v} value={v}>{NOMES_STATUS[v]}</option>)}
                   </select>
                 </div>
               ) : (
@@ -900,7 +947,7 @@ export const PedidosProblematicos: React.FC = () => {
               <ul className="m-0 mt-2.5 max-h-[46vh] list-none overflow-auto p-0">
                 {(() => {
                   const q = escolhaQ.trim().toLowerCase();
-                  const opcoes = dados.devolucoes.filter((r) => statusDe(r) !== 'REALIZADA' && (!q || `${r.numeroPedido} ${r.cliente}`.toLowerCase().includes(q)));
+                  const opcoes = dados.devolucoes.filter((r) => statusDe(r) === 'NAO_REALIZADA' && (!q || `${r.numeroPedido} ${r.cliente}`.toLowerCase().includes(q)));
                   return opcoes.length ? opcoes.map((r) => (
                     <li key={r.id}>
                       <button type="button" onClick={() => abrirAcoes(r.id)} className="grid w-full grid-cols-[70px_1fr_auto] items-center gap-2.5 border-b border-slate-100 px-2.5 py-[9px] text-left text-[13px] hover:bg-yellow-50">
