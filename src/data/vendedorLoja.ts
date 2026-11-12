@@ -90,6 +90,17 @@ const VENDEDOR_LOJA_NORMALIZADO: Record<string, string> = Object.fromEntries(
   Object.entries(VENDEDOR_LOJA).map(([nome, lojaId]) => [normalizar(nome), lojaId])
 );
 
+// Vendedores que têm dois cadastros no Nomus (o antigo e o novo) são a mesma pessoa: nas telas aparecem como um só,
+// com as vendas somadas. Chave: nome do cadastro antigo; valor: nome que passa a valer.
+const NOME_CANONICO_NORMALIZADO: Record<string, string> = {
+  [normalizar('LUIZ MARCOS MONTEIRO')]: 'Luiz Monteiro',
+  [normalizar('EDSON RODRIGUES CAVALCANTE')]: 'Edson Cavalcante',
+};
+
+export function nomeCanonicoDoVendedor(nome: string): string {
+  return NOME_CANONICO_NORMALIZADO[normalizar(nome)] ?? nome;
+}
+
 export function lojaDoVendedor(nome: string): string | undefined {
   const nomeNormalizado = normalizar(nome);
   const vinculoExato = VENDEDOR_LOJA_NORMALIZADO[nomeNormalizado];

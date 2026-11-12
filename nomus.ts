@@ -25,7 +25,7 @@
 import type { ContaReceber, ContaPagar, ContaConcluida, DreConta, DreFinanceira, DreLinha, FluxoCaixaMes, ResumoFinanceiro } from './src/types';
 import { aplicarReprogramacoes } from './reprogramacoes';
 import { CLASSIFICACOES_FINANCEIRAS, GRUPOS_CLASSIFICACAO_FINANCEIRA, nomeClassificacaoFinanceira, grupoDaClassificacao, grupoDaClassificacaoPorNome } from './src/data/classificacoesFinanceiras';
-import { LOJAS, lojaDoVendedor } from './src/data/vendedorLoja';
+import { LOJAS, lojaDoVendedor, nomeCanonicoDoVendedor } from './src/data/vendedorLoja';
 import {
   ATUALIZADO_EM_FECHAMENTO_AGOSTO_2026,
   FECHAMENTO_VENDAS_AGOSTO_2026,
@@ -759,7 +759,7 @@ function valorFretesEOutrosPedido(pedido: Pedido): number {
 async function getVendedores(): Promise<Vendedor[]> {
   const agora = Date.now();
   if (cacheVendedores && agora - cacheVendedores.atualizadoEm < CACHE_TTL_MS) {
-    return cacheVendedores.vendedores;
+    return unificarCadastrosDeVendedores(cacheVendedores.vendedores);
   }
 
   if (!cacheVendedoresEmAndamento) {
@@ -780,7 +780,16 @@ async function getVendedores(): Promise<Vendedor[]> {
   }
 
   const resultado = cacheVendedores ?? (await cacheVendedoresEmAndamento);
-  return resultado.vendedores;
+  return unificarCadastrosDeVendedores(resultado.vendedores);
+}
+
+/** Vendedor com cadastro antigo e novo no Nomus passa a ter um nome só (ver nomeCanonicoDoVendedor): o ranking soma os dois. */
+function unificarCadastrosDeVendedores(vendedores: Vendedor[]): Vendedor[] {
+  return vendedores.map((vendedor) => {
+    if (!vendedor.nome) return vendedor;
+    const nome = nomeCanonicoDoVendedor(vendedor.nome);
+    return nome === vendedor.nome ? vendedor : { ...vendedor, nome };
+  });
 }
 
 let cacheUnidades: { atualizadoEm: number; mapa: Map<number, string> } | null = carregarCacheUnidadesDoDisco();
