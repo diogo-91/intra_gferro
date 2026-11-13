@@ -32,6 +32,9 @@ interface Resposta {
   pedidos: PedidoCombinado[];
 }
 
+// Última resposta guardada na memória do navegador: ao voltar para a tela ela já aparece cheia e é atualizada em segundo plano.
+let ultimaResposta: Resposta | null = null;
+
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const semAcento = (t: string) => t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -65,7 +68,7 @@ const cabecalho = 'sticky top-0 z-[1] whitespace-nowrap border-b border-neutral-
 const celula = 'border-b border-neutral-100 px-3 py-2.5 align-top';
 
 export const PedidosCombinados: React.FC = () => {
-  const [dados, setDados] = useState<Resposta | null>(null);
+  const [dados, setDados] = useState<Resposta | null>(ultimaResposta);
   const [erro, setErro] = useState('');
   const [busca, setBusca] = useState('');
   const [situacao, setSituacao] = useState<'todos' | Situacao>('todos');
@@ -75,6 +78,7 @@ export const PedidosCombinados: React.FC = () => {
       const resposta = await fetch('/api/dashboard/pedidos-combinados');
       const corpo = await resposta.json().catch(() => null);
       if (!resposta.ok || !corpo || !Array.isArray(corpo.pedidos)) throw new Error(corpo?.error || 'Não foi possível carregar os pedidos combinados.');
+      ultimaResposta = corpo;
       setDados(corpo);
       setErro('');
     } catch (e: any) {
@@ -141,7 +145,11 @@ export const PedidosCombinados: React.FC = () => {
               </button>
             ))}
           </div>
-          <span className="ml-auto text-[11px] text-neutral-400">{plural(lista.length, 'pedido', 'pedidos')} · {brl(valorTotal)}</span>
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-neutral-400">
+            {plural(lista.length, 'pedido', 'pedidos')} · {brl(valorTotal)}
+            {dados && <span title="Hora da última leitura do Nomus">· Nomus às {new Date(dados.atualizadoEm).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}</span>}
+            {dados?.atualizando && <Loader2 className="h-3 w-3 animate-spin" aria-label="Atualizando em segundo plano" />}
+          </span>
         </div>
 
         {!dados && !erro ? (
