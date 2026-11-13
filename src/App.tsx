@@ -33,6 +33,7 @@ import { PedidosAbertos } from './components/PedidosAbertos';
 import { Entregas } from './components/Entregas';
 import { MapaPedidos } from './components/MapaPedidos';
 import { PedidosProblematicos } from './components/PedidosProblematicos';
+import { PedidosCombinados } from './components/PedidosCombinados';
 import { Producao } from './components/Producao';
 import { AIAssistantModal } from './components/AIAssistantModal';
 import { NovoComunicadoModal } from './components/NovoComunicadoModal';
@@ -297,6 +298,7 @@ export default function App() {
           {activeTab === 'dashboard-entregas' && <Entregas />}
           {activeTab === 'dashboard-mapa' && <MapaPedidos />}
           {activeTab === 'pedidos-problematicos' && <PedidosProblematicos />}
+          {activeTab === 'pedidos-combinados' && <PedidosCombinados />}
 
           {activeTab === 'producao' && <Producao />}
 
