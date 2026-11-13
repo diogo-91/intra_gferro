@@ -33,7 +33,7 @@ import { agruparSaidas } from './src/saidasFinanceiras';
 import { iniciarAtualizacaoPedidosAbertos, montarRespostaPedidosAbertos } from './pedidosAbertos';
 import { iniciarAtualizacaoEntregas, montarRespostaEntregas, validarPeriodoEntregas } from './entregasPainel';
 import { montarRespostaMapa, montarRespostaMapaAEntregar, validarPeriodoMapa } from './mapaPedidos';
-import { atualizarCombinado, buscarPedidos, criarCombinado, ErroPedidosCombinados, listarCombinados, removerCombinado } from './pedidosCombinados';
+import { montarRespostaPedidosCombinados } from './pedidosCombinados';
 import { buscarPrintNoPcp, chamarPcp, ErroProblematicos, idPositivo, tipoProblematico } from './problematicos';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
@@ -872,26 +872,16 @@ Contexto da GFERRO:
     }
   });
 
-  // Dashboard > Pedidos > Pedidos combinados: pedidos cuja entrega foi combinada com alguém (com quem e até quando).
-  const tratarCombinados = (executar: (req: express.Request, usuario: string) => Promise<unknown>, mensagemPadrao: string): express.RequestHandler => async (req, res) => {
+  // Dashboard > Pedidos > Pedidos combinados: pedidos liberados cuja observação no Nomus cita o Dirceu. Responde na hora com o
+  // último estado guardado (a leitura do Nomus roda em segundo plano).
+  app.get('/api/dashboard/pedidos-combinados', async (_req, res) => {
     try {
-      const sessao = await obterSessao(req);
-      res.json(await executar(req, (sessao?.nome || sessao?.email || 'Intranet').trim()));
+      res.json(await montarRespostaPedidosCombinados());
     } catch (error: any) {
-      if (!(error instanceof ErroPedidosCombinados)) console.error('Erro nos pedidos combinados:', error);
-      res.status(error instanceof ErroPedidosCombinados ? error.status : 500).json({ error: error instanceof ErroPedidosCombinados ? error.message : mensagemPadrao });
+      console.error('Erro ao montar os pedidos combinados:', error);
+      res.status(500).json({ error: 'Erro ao buscar os pedidos combinados.' });
     }
-  };
-  const idCombinado = (valor: unknown) => {
-    const n = Number(valor);
-    if (!Number.isInteger(n) || n <= 0) throw new ErroPedidosCombinados('Número inválido.');
-    return n;
-  };
-  app.get('/api/dashboard/pedidos-combinados', tratarCombinados(() => listarCombinados(), 'Erro ao buscar os pedidos combinados.'));
-  app.get('/api/dashboard/pedidos-combinados/buscar', tratarCombinados((req) => buscarPedidos(req.query.q), 'Erro ao buscar o pedido.'));
-  app.post('/api/dashboard/pedidos-combinados', tratarCombinados((req, usuario) => criarCombinado(req.body, usuario), 'Erro ao cadastrar o pedido combinado.'));
-  app.patch('/api/dashboard/pedidos-combinados/:id', tratarCombinados((req, usuario) => atualizarCombinado(idCombinado(req.params.id), req.body, usuario), 'Erro ao atualizar o pedido combinado.'));
-  app.delete('/api/dashboard/pedidos-combinados/:id', tratarCombinados(async (req) => { await removerCombinado(idCombinado(req.params.id)); return { ok: true }; }, 'Erro ao excluir o pedido combinado.'));
+  });
 
   // Dashboard > Entregas: entregas lançadas no apontamento de produção, ligadas ao pedido do Nomus (vendedor, loja,
   // valor, recebimento na entrega e prazo). Responde na hora com o último estado guardado.

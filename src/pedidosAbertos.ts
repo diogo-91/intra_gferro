@@ -29,6 +29,8 @@ export interface PedidoAbertoLinha {
   saldoEmTitulos: number; // soma do que falta nessas parcelas
   vencidoReceber: number; // parte desse saldo com vencimento já passado
   proximoVencimento: string | null; // aaaa-mm-dd — vencimento mais próximo (ou o mais antigo, se já venceu)
+  /** Observação do pedido no Nomus, quando cita o Dirceu (pedido liberado por ele). */
+  observacaoDirceu?: string;
 }
 
 export interface RespostaPedidosAbertos {
@@ -43,6 +45,8 @@ export interface RespostaPedidosAbertos {
   historicoParcial?: boolean;
   /** A última tentativa de atualizar falhou: a lista é a da última leitura bem-sucedida. */
   erroAtualizacao?: string;
+  /** As observações dos pedidos ainda estão sendo lidas (primeira leitura completa depois desta novidade). */
+  observacoesPendentes?: boolean;
   pedidos: PedidoAbertoLinha[];
 }
 

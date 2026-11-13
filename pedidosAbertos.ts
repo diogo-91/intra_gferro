@@ -44,6 +44,7 @@ interface Estado {
   varreduraCompletaEm: number;
   pedidosAtualizadoEm: number;
   historicoCompleto: boolean; // false enquanto a primeira leitura ainda traz os pedidos antigos
+  observacoesLidas: boolean; // false até uma leitura completa trazer as observações dos pedidos (Pedidos combinados)
   financeiro: Record<string, FinanceiroGuardado>; // por número do pedido
   vendedores: Record<string, string>; // id -> nome
   pcp: Record<string, PcpGuardado>; // por número do pedido
@@ -51,7 +52,7 @@ interface Estado {
 }
 
 const estadoVazio = (): Estado => ({
-  versao: 3, pedidos: {}, varreduraCompletaEm: 0, pedidosAtualizadoEm: 0, historicoCompleto: false, financeiro: {}, vendedores: {}, pcp: {}, ultimoErro: null,
+  versao: 3, pedidos: {}, varreduraCompletaEm: 0, pedidosAtualizadoEm: 0, historicoCompleto: false, observacoesLidas: false, financeiro: {}, vendedores: {}, pcp: {}, ultimoErro: null,
 });
 
 let estado: Estado | null = null;
@@ -62,7 +63,9 @@ async function lerArquivo(arquivo: string): Promise<Estado | null> {
     const dados = JSON.parse(await readFile(arquivo, 'utf-8'));
     if (dados?.versao !== 2 && dados?.versao !== 3) return null;
     // A versão 2 (sem vendedores/PCP guardados) tem o mesmo formato de pedidos e financeiro.
-    return { ...estadoVazio(), ...dados, versao: 3, historicoCompleto: dados.historicoCompleto ?? dados.varreduraCompletaEm > 0, ultimoErro: dados.ultimoErro ?? null };
+    // Estado guardado antes das observações: continua valendo na tela e pede uma leitura completa em segundo plano.
+    const comObservacoes = dados.observacoesLidas === true;
+    return { ...estadoVazio(), ...dados, versao: 3, historicoCompleto: dados.historicoCompleto ?? dados.varreduraCompletaEm > 0, observacoesLidas: comObservacoes, varreduraCompletaEm: comObservacoes ? dados.varreduraCompletaEm : 0, ultimoErro: dados.ultimoErro ?? null };
   } catch {
     return null;
   }
@@ -189,6 +192,7 @@ async function varreduraCompleta(atual: Estado, inicio: number): Promise<void> {
   atual.pedidosAtualizadoEm = inicio;
   atual.varreduraCompletaEm = inicio;
   atual.historicoCompleto = true;
+  atual.observacoesLidas = true;
 }
 
 async function executarAtualizacao(relerFinanceiro: boolean): Promise<void> {
@@ -312,6 +316,7 @@ export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): P
       itensPcp: pcp?.itens ?? null,
       financeiro,
     }, hoje);
+    if (linha && pedido.obsDirceu) linha.observacaoDirceu = pedido.obsDirceu;
     if (linha) linhas.push(linha);
   }
 
@@ -320,6 +325,7 @@ export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): P
     ...(emAndamento ? { atualizando: true } : {}),
     ...(financeiroPendente ? { financeiroPendente: true } : {}),
     ...(!atual.historicoCompleto ? { historicoParcial: true } : {}),
+    ...(!atual.observacoesLidas ? { observacoesPendentes: true } : {}),
     ...(atual.ultimoErro ? { erroAtualizacao: atual.ultimoErro.mensagem } : {}),
     pedidos: ordenarPedidosAbertos(linhas),
   };

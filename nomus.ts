@@ -957,6 +957,15 @@ export interface PedidoParaPainel {
   dataModificacao?: string;
   valorTotal: number;
   itens: Array<{ status?: number; dataEntrega?: string }>;
+  /** Texto das observações do pedido, guardado só quando cita o Dirceu (pedidos liberados por ele: "Pedidos combinados"). */
+  obsDirceu?: string;
+}
+
+/** Junta as observações do pedido (internas e gerais) e devolve o texto se alguma citar "Dirceu" (sem diferenciar maiúscula nem acento). */
+function observacaoQueCitaDirceu(pedido: Pedido): string | undefined {
+  const partes = [pedido.observacoesInternas, pedido.observacoes].map((t) => String(t ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const texto = [...new Set(partes)].join(' | ');
+  return /\bdirceu\b/i.test(texto.normalize('NFD').replace(/\p{Diacritic}/gu, '')) ? texto.slice(0, 500) : undefined;
 }
 
 const paraPedidoDoPainel = (pedido: Pedido): PedidoParaPainel => ({
@@ -968,6 +977,7 @@ const paraPedidoDoPainel = (pedido: Pedido): PedidoParaPainel => ({
   dataModificacao: pedido.dataModificacao,
   valorTotal: parseNum(pedido.valorTotal),
   itens: (pedido.itensPedido || []).map((item) => ({ status: item.status, dataEntrega: item.dataEntrega })),
+  ...(observacaoQueCitaDirceu(pedido) ? { obsDirceu: observacaoQueCitaDirceu(pedido) } : {}),
 });
 
 /**
