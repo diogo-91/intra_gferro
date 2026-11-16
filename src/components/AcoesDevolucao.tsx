@@ -52,7 +52,7 @@ function etapaFeita(k: Etapa, d: AcoesDados, t: Textos): boolean {
   return !!d.financeiro.realizada;
 }
 
-const lerComoBase64 = (blob: Blob) => new Promise<string>((ok, falha) => {
+export const lerComoBase64 = (blob: Blob) => new Promise<string>((ok, falha) => {
   const leitor = new FileReader();
   leitor.onload = () => ok(String(leitor.result).split(',')[1] || '');
   leitor.onerror = () => falha(new Error('Não foi possível ler a imagem.'));
@@ -60,7 +60,7 @@ const lerComoBase64 = (blob: Blob) => new Promise<string>((ok, falha) => {
 });
 
 /** Imagens grandes (foto de celular, tela cheia) são reduzidas antes de enviar: o print continua legível e o banco não incha. */
-async function prepararImagem(arquivo: File): Promise<{ nome: string; tipo: string; dados: string }> {
+export async function prepararImagem(arquivo: File): Promise<{ nome: string; tipo: string; dados: string }> {
   if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(arquivo.type)) throw new Error(`"${arquivo.name || 'arquivo'}" não é uma imagem PNG, JPG, WEBP ou GIF.`);
   const nome = arquivo.name && arquivo.name !== 'image.png' ? arquivo.name : `print-${new Date().toLocaleString('pt-BR').replace(/[/:]/g, '-').replace(', ', '_')}.png`;
   if (arquivo.type === 'image/gif' || arquivo.size <= 1_200_000) {

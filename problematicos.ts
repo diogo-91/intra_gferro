@@ -43,18 +43,25 @@ export async function chamarPcp(metodo: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELE
   return dados;
 }
 
+const TIPOS_IMAGEM = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
 /** Busca uma imagem anexada (print de uma devolução) no PCP. Só repassa imagens comuns, nunca outro tipo de arquivo. */
-export async function buscarPrintNoPcp(id: number, usuario: string): Promise<{ tipo: string; dados: Buffer }> {
+export const buscarPrintNoPcp = (id: number, usuario: string) => buscarArquivoNoPcp(`/api/problematicos/prints/${id}`, usuario, TIPOS_IMAGEM);
+
+/** Busca um anexo de Clientes / Defeitos (imagem comum ou PDF) no PCP. */
+export const buscarAnexoNoPcp = (id: number, usuario: string) => buscarArquivoNoPcp(`/api/problematicos/anexos/${id}`, usuario, [...TIPOS_IMAGEM, 'application/pdf']);
+
+async function buscarArquivoNoPcp(caminho: string, usuario: string, tiposAceitos: string[]): Promise<{ tipo: string; dados: Buffer }> {
   const cabecalhos: Record<string, string> = { 'x-pcp-usuario': encodeURIComponent(usuario.slice(0, 60)) };
   if (PCP_TOKEN) cabecalhos['x-pcp-token'] = PCP_TOKEN;
   let resposta: Response;
   try {
-    resposta = await fetch(`${PCP_URL}/api/problematicos/prints/${id}`, { headers: cabecalhos, signal: AbortSignal.timeout(TEMPO_LIMITE_MS) });
+    resposta = await fetch(`${PCP_URL}${caminho}`, { headers: cabecalhos, signal: AbortSignal.timeout(TEMPO_LIMITE_MS) });
   } catch {
     throw new ErroProblematicos('Não foi possível falar com o PCP agora. Tente de novo em instantes.', 502);
   }
-  if (!resposta.ok) throw new ErroProblematicos('Print não encontrado.', resposta.status === 404 ? 404 : 502);
+  if (!resposta.ok) throw new ErroProblematicos('Arquivo não encontrado.', resposta.status === 404 ? 404 : 502);
   const tipo = (resposta.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(tipo)) throw new ErroProblematicos('O arquivo não é uma imagem válida.', 502);
+  if (!tiposAceitos.includes(tipo)) throw new ErroProblematicos('O arquivo não é do tipo esperado.', 502);
   return { tipo, dados: Buffer.from(await resposta.arrayBuffer()) };
 }

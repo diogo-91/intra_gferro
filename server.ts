@@ -34,7 +34,7 @@ import { iniciarAtualizacaoPedidosAbertos, montarRespostaPedidosAbertos } from '
 import { iniciarAtualizacaoEntregas, montarRespostaEntregas, validarPeriodoEntregas } from './entregasPainel';
 import { montarRespostaMapa, montarRespostaMapaAEntregar, validarPeriodoMapa } from './mapaPedidos';
 import { montarRespostaPedidosCombinados } from './pedidosCombinados';
-import { buscarPrintNoPcp, chamarPcp, ErroProblematicos, idPositivo, tipoProblematico } from './problematicos';
+import { buscarAnexoNoPcp, buscarPrintNoPcp, chamarPcp, ErroProblematicos, idPositivo, tipoProblematico } from './problematicos';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
 import { enviarMensagemChat, listarMensagensChat, PASTA_ANEXOS_CHAT, type MensagemChatInterno } from './chatInterno';
@@ -925,6 +925,20 @@ Contexto da GFERRO:
     }
   });
   app.delete('/api/problematicos/prints/:id', repassarParaPcp((req, usuario) => chamarPcp('DELETE', `/api/problematicos/prints/${idPositivo(req.params.id)}`, usuario), 'Erro ao remover o print.'));
+
+  // Clientes / Defeitos > anexos (imagem ou PDF).
+  app.post('/api/problematicos/defeitos/:id/anexos', repassarParaPcp((req, usuario) => chamarPcp('POST', `/api/problematicos/defeitos/${idPositivo(req.params.id)}/anexos`, usuario, req.body || {}), 'Erro ao anexar o arquivo.'));
+  app.get('/api/problematicos/anexos/:id', async (req, res) => {
+    try {
+      const sessao = await obterSessao(req);
+      const anexo = await buscarAnexoNoPcp(idPositivo(req.params.id), (sessao?.nome || sessao?.email || 'Intranet').trim());
+      res.set({ 'Content-Type': anexo.tipo, 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox", 'Cache-Control': 'private, max-age=3600' }).send(anexo.dados);
+    } catch (error: any) {
+      if (!(error instanceof ErroProblematicos)) console.error('Erro ao buscar o anexo:', error);
+      res.status(error instanceof ErroProblematicos ? error.status : 500).json({ error: error instanceof ErroProblematicos ? error.message : 'Erro ao buscar o anexo.' });
+    }
+  });
+  app.delete('/api/problematicos/anexos/:id', repassarParaPcp((req, usuario) => chamarPcp('DELETE', `/api/problematicos/anexos/${idPositivo(req.params.id)}`, usuario), 'Erro ao remover o anexo.'));
   app.post('/api/problematicos/:tipo', repassarParaPcp((req, usuario) => chamarPcp('POST', `/api/problematicos/${tipoProblematico(req.params.tipo)}`, usuario, req.body || {}), 'Erro ao cadastrar o registro.'));
   app.patch('/api/problematicos/:tipo/:id', repassarParaPcp((req, usuario) => chamarPcp('PATCH', `/api/problematicos/${tipoProblematico(req.params.tipo)}/${idPositivo(req.params.id)}`, usuario, req.body || {}), 'Erro ao atualizar o registro.'));
   app.delete('/api/problematicos/:tipo/:id', repassarParaPcp((req, usuario) => chamarPcp('DELETE', `/api/problematicos/${tipoProblematico(req.params.tipo)}/${idPositivo(req.params.id)}`, usuario), 'Erro ao excluir o registro.'));

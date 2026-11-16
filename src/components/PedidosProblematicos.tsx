@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Check, CheckCircle2, Clock, Download, Filter, List, ListChecks, Loader2, MoreHorizontal, Plus, RefreshCw, RotateCcw, Search, Trash2, Users, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Clock, Download, Filter, List, ListChecks, Loader2, MoreHorizontal, Paperclip, Plus, RefreshCw, RotateCcw, Search, Trash2, Users, X } from 'lucide-react';
 import { formatDataIsoParaBr } from '../utils/format';
-import { AcoesDevolucao, type EtapaResumo } from './AcoesDevolucao';
+import { AcoesDevolucao, lerComoBase64, prepararImagem, type EtapaResumo } from './AcoesDevolucao';
 
 type Aba = 'urgentes' | 'devolucoes' | 'defeitos' | 'convertidos';
 type AbaDoPcp = Exclude<Aba, 'convertidos'>;
@@ -19,6 +19,7 @@ interface CampoDef {
 // Todo registro nasce "Não realizada"; ao marcar "Realizada" ele some da lista (continua gravado no PCP; o filtro Status traz de volta).
 const NOMES_STATUS: Record<StatusRegistro, string> = { NAO_REALIZADA: 'Não realizada', REALIZADA: 'Realizada', PERDIDO: 'Perdido' };
 const STATUS: CampoDef = { k: 'status', rotulo: 'Status', tipo: 'status' };
+const TELEFONE: CampoDef = { k: 'telefone', rotulo: 'Telefone', tipo: 'text', max: 40 };
 
 interface TabelaDef {
   aba: string;
@@ -42,7 +43,7 @@ const TABELAS_DO_PCP: Record<AbaDoPcp, TabelaDef> = {
     cardTitulo: 'Cadastrar novo pedido urgente', cardSub: 'Inclua um pedido com prioridade de tratamento.',
     listaTitulo: 'Pedidos urgentes', listaSub: 'Fila de pedidos com prioridade de tratamento.',
     vazio: 'Nenhum pedido urgente cadastrado.', vazioSub: 'Não há pedidos urgentes para exibir no momento.',
-    campos: [{ k: 'dataEntregaCombinada', rotulo: 'Data de entrega combinada', tipo: 'date', obrigatorio: true }, STATUS],
+    campos: [TELEFONE, { k: 'dataEntregaCombinada', rotulo: 'Data de entrega combinada', tipo: 'date', obrigatorio: true }, STATUS],
     data: { campo: 'dataEntregaCombinada', rotulo: 'Data de entrega', tipo: 'futura' },
   },
   devolucoes: {
@@ -51,6 +52,7 @@ const TABELAS_DO_PCP: Record<AbaDoPcp, TabelaDef> = {
     listaTitulo: 'Pedidos de devolução', listaSub: 'Pedidos devolvidos e o valor a devolver.',
     vazio: 'Nenhuma devolução cadastrada.', vazioSub: 'Não há devoluções para exibir no momento.',
     campos: [
+      TELEFONE,
       { k: 'formaPagamento', rotulo: 'Forma de pagamento', tipo: 'text', max: 300 },
       { k: 'valor', rotulo: 'Valor da devolução', tipo: 'number' },
       STATUS,
@@ -63,6 +65,7 @@ const TABELAS_DO_PCP: Record<AbaDoPcp, TabelaDef> = {
     listaTitulo: 'Clientes / defeitos', listaSub: 'Defeitos reclamados e o que será feito.',
     vazio: 'Nenhum registro de defeito cadastrado.', vazioSub: 'Não há defeitos para exibir no momento.',
     campos: [
+      TELEFONE,
       { k: 'causa', rotulo: 'Causa', tipo: 'text', max: 500, obrigatorio: true },
       { k: 'motorista', rotulo: 'Motorista', tipo: 'text', max: 100 },
       { k: 'acao', rotulo: 'Ação', tipo: 'text', max: 500 },
@@ -84,6 +87,9 @@ const TABELAS: Record<Aba, TabelaDef> = {
   },
 };
 
+interface AnexoInfo { id: number; nome: string; tipo: string; tamanho: number }
+interface NovoAnexo { nome: string; tipo: string; dados: string }
+
 interface Registro {
   id: number;
   numeroPedido: number;
@@ -92,6 +98,10 @@ interface Registro {
   status?: StatusRegistro;
   atualizadoEm?: string;
   atualizadoPor?: string;
+  /** Telefone do cliente (digitado ou do cadastro do PCP/Nomus). */
+  telefone?: string;
+  /** Só em Clientes / Defeitos: imagens e PDFs anexados. */
+  anexos?: AnexoInfo[];
   /** Só nas devoluções: situação das 5 etapas do atendimento (SAC, Vera, Dirceu, Decisão, Financeiro). */
   etapas?: EtapaResumo[];
   etapasFeitas?: number;
@@ -132,7 +142,7 @@ function passaNoFiltro(r: Registro, aba: Aba, f: Filtro): boolean {
   if (f.status === 'perdidas' && st !== 'PERDIDO') return false;
   if (f.status === 'todas' && st === 'PERDIDO') return false;
   const q = f.q.trim().toLowerCase();
-  if (q && ![r.numeroPedido, r.cliente, r.causa, r.motorista, r.acao, r.formaPagamento].join(' ').toLowerCase().includes(q)) return false;
+  if (q && ![r.numeroPedido, r.cliente, r.telefone, r.causa, r.motorista, r.acao, r.formaPagamento].join(' ').toLowerCase().includes(q)) return false;
   if (f.de || f.ate) {
     const t = TABELAS[aba];
     const bruto = r[t.data.campo];
@@ -181,6 +191,8 @@ export const PedidosProblematicos: React.FC = () => {
   const [acoesDe, setAcoesDe] = useState<number | null>(null); // devolução cujas Ações estão abertas
   const [escolhaAberta, setEscolhaAberta] = useState(false);
   const [escolhaQ, setEscolhaQ] = useState('');
+  const [pendentes, setPendentes] = useState<NovoAnexo[]>([]); // anexos escolhidos no cadastro de um defeito (sobem junto com o registro)
+  const [enviandoAnexo, setEnviandoAnexo] = useState(false);
 
   // modal de cadastro
   const [modalAberto, setModalAberto] = useState(false);
@@ -196,9 +208,12 @@ export const PedidosProblematicos: React.FC = () => {
   const buscaAtual = useRef('');
   const emGravacao = useRef(new Set<string>());
   const campoBusca = useRef<HTMLInputElement>(null);
+  const valoresRef = useRef<Record<string, string>>({});
+  const auto = useRef({ forma: '', valor: '', telefone: '' }); // o que o formulário preencheu sozinho (para trocar ao escolher outro pedido)
   const dadosNaTela = useRef<Dados>(VAZIO);
   dadosNaTela.current = dados;
 
+  valoresRef.current = valores;
   const def = TABELAS[aba];
   const filtro = filtros[aba];
   const hoje = hojeSP();
@@ -285,6 +300,8 @@ export const PedidosProblematicos: React.FC = () => {
   const abrirModal = () => {
     setSelecionado(null);
     setValores({});
+    setPendentes([]);
+    auto.current = { forma: '', valor: '', telefone: '' };
     setBusca('');
     setResultados(null);
     setErroBusca('');
@@ -328,15 +345,19 @@ export const PedidosProblematicos: React.FC = () => {
     try {
       const d = await chamar<any>(`/api/problematicos/pedidos/${numero}`);
       let preenchido = false;
+      // Preenche sozinho só o que está vazio ou o que veio do pedido anterior (o que a pessoa digitou vale mais).
+      const atual = valoresRef.current;
+      const patch: Record<string, string> = {};
+      if (!atual.telefone || atual.telefone === auto.current.telefone) patch.telefone = String(d.telefone || '');
       if (abaAtual === 'devolucoes') {
-        // Devolução: forma de pagamento e valor saem do pedido de venda no Nomus, sem apagar o que já foi digitado.
-        setValores((atual) => ({
-          ...atual,
-          formaPagamento: atual.formaPagamento ? atual.formaPagamento : String(d.formaPagamento || ''),
-          valor: atual.valor ? atual.valor : String(d.valor ?? ''),
-        }));
+        // Devolução: forma de pagamento e valor saem do pedido de venda no Nomus.
+        if (!atual.formaPagamento || atual.formaPagamento === auto.current.forma) patch.formaPagamento = String(d.formaPagamento || '');
+        if (!atual.valor || atual.valor === auto.current.valor) patch.valor = String(d.valor ?? '');
         preenchido = !!(d.formaPagamento || (d.valor !== null && d.valor !== undefined));
       }
+      const depois = { ...atual, ...patch };
+      auto.current = { telefone: depois.telefone ?? '', forma: depois.formaPagamento ?? '', valor: depois.valor ?? '' };
+      setValores((anterior) => ({ ...anterior, ...patch }));
       setSelecionado((atual) => (atual?.numero === numero ? { numero, cliente: d.cliente || cliente, carregando: false, aviso: d.aviso || '', prazoEntrega: d.prazoEntrega ?? null, preenchido, valor: typeof d.valor === 'number' ? d.valor : null, valorTotal: typeof d.valorTotal === 'number' ? d.valorTotal : null } : atual));
     } catch (e: any) {
       setSelecionado(null);
@@ -357,15 +378,86 @@ export const PedidosProblematicos: React.FC = () => {
     }
     setSalvando(true);
     try {
-      guardar(await chamar<RespostaPcp>(`/api/problematicos/${rota(aba)}`, { method: 'POST', body: JSON.stringify(corpo) }));
+      const criado = await chamar<RespostaPcp & { id: number }>(`/api/problematicos/${rota(aba)}`, { method: 'POST', body: JSON.stringify(corpo) });
+      guardar(criado);
+      if (typeof criado.id === 'number') escolherRegistro(criado.id);
+      // Anexos escolhidos no cadastro: sobem agora que o registro existe (se algum falhar, o registro fica e o painel permite reenviar).
+      let falhas = 0;
+      if (aba === 'defeitos' && typeof criado.id === 'number') {
+        for (const anexo of pendentes) {
+          try { guardar(await chamar<RespostaPcp>(`/api/problematicos/defeitos/${criado.id}/anexos`, { method: 'POST', body: JSON.stringify(anexo) })); } catch { falhas++; }
+        }
+      }
+      setPendentes([]);
       setModalAberto(false); // o cadastro fecha ao concluir
-      setAviso(corpo.status === 'REALIZADA' ? `Pedido ${selecionado.numero} cadastrado como realizada: oculto da lista.` : `Pedido ${selecionado.numero} cadastrado em ${def.aba}.`);
+      setAviso(falhas
+        ? `Pedido ${selecionado.numero} cadastrado, mas ${falhas} anexo(s) não subiram. Anexe de novo pelo painel de detalhes.`
+        : corpo.status === 'REALIZADA' ? `Pedido ${selecionado.numero} cadastrado como realizada: oculto da lista.` : `Pedido ${selecionado.numero} cadastrado em ${def.aba}.`);
     } catch (e: any) {
       setErroForm(e.message);
     } finally {
       setSalvando(false);
     }
   };
+
+  // ---- anexos de Clientes / Defeitos (imagem ou PDF) ----
+
+  const prepararAnexo = async (arquivo: File): Promise<NovoAnexo> => {
+    if (arquivo.type === 'application/pdf') {
+      if (arquivo.size > 5 * 1024 * 1024) throw new Error(`"${arquivo.name}" passa de 5 MB.`);
+      return { nome: arquivo.name, tipo: arquivo.type, dados: await lerComoBase64(arquivo) };
+    }
+    return prepararImagem(arquivo);
+  };
+
+  const juntarPendentes = async (arquivos: File[]) => {
+    for (const arquivo of arquivos) {
+      if (pendentes.length >= 15) { setErroForm('No máximo 15 anexos por registro.'); break; }
+      try { const anexo = await prepararAnexo(arquivo); setPendentes((atual) => (atual.length >= 15 ? atual : [...atual, anexo])); } catch (e: any) { setErroForm(e.message); }
+    }
+  };
+
+  const anexarDefeito = async (id: number, arquivos: File[]) => {
+    setEnviandoAnexo(true);
+    for (const arquivo of arquivos) {
+      try {
+        const corpo = await prepararAnexo(arquivo);
+        guardar(await chamar<RespostaPcp>(`/api/problematicos/defeitos/${id}/anexos`, { method: 'POST', body: JSON.stringify(corpo) }));
+        setErroGeral('');
+      } catch (e: any) {
+        setErroGeral(e.message);
+      }
+    }
+    setEnviandoAnexo(false);
+  };
+
+  // O arquivo é buscado com o login atual e aberto numa aba nova (a janela é aberta já no clique, para o navegador não bloquear).
+  const abrirAnexo = async (anexo: AnexoInfo) => {
+    const janela = window.open('', '_blank');
+    try {
+      const resposta = await fetch(`/api/problematicos/anexos/${anexo.id}`);
+      if (!resposta.ok) throw new Error((await resposta.json().catch(() => null))?.error || 'Não foi possível abrir o anexo.');
+      const url = URL.createObjectURL(await resposta.blob());
+      if (janela) janela.location.href = url; else window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e: any) {
+      janela?.close();
+      setErroGeral(e.message);
+    }
+  };
+
+  const removerAnexo = async (anexo: AnexoInfo) => {
+    if (!window.confirm(`Remover o anexo "${anexo.nome}"?`)) return;
+    try {
+      guardar(await chamar<RespostaPcp>(`/api/problematicos/anexos/${anexo.id}`, { method: 'DELETE' }));
+      setErroGeral('');
+    } catch (e: any) {
+      setErroGeral(e.message);
+    }
+  };
+
+  const imagensColadas = (e: React.ClipboardEvent) => [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
+  const tamanhoLegivel = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
   // ---- edição na tabela ----
 
@@ -691,8 +783,8 @@ export const PedidosProblematicos: React.FC = () => {
                           className="group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-400"
                         >
                           <td className={`border-b border-neutral-100 py-2 pl-2 pr-0 ${fundo} ${aberto ? 'shadow-[inset_3px_0_0_#fbc41a]' : ''} ${def.cor === 'verde' ? 'text-emerald-600' : 'text-yellow-600'}`}><Icone className="h-[17px] w-[17px]" aria-hidden="true" /></td>
-                          <td className={`border-b border-neutral-100 px-2 py-2 ${fundo}`}><b className="text-neutral-900">{registro.numeroPedido}</b></td>
-                          <td className={`max-w-[130px] min-w-[90px] border-b border-neutral-100 px-2 py-2 text-neutral-700 ${fundo}`}>{registro.cliente || '—'}</td>
+                          <td className={`border-b border-neutral-100 px-2 py-2 ${fundo}`}><b className="text-neutral-900">{registro.numeroPedido}</b>{(registro.anexos ?? []).length > 0 && <span className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[10px] font-extrabold text-yellow-800" title={`${registro.anexos?.length} anexo(s)`}><Paperclip className="h-[11px] w-[11px]" aria-hidden="true" />{registro.anexos?.length}</span>}</td>
+                          <td className={`max-w-[130px] min-w-[90px] border-b border-neutral-100 px-2 py-2 text-neutral-700 ${fundo}`}>{registro.cliente || '—'}{registro.telefone && <span className="block text-[10.5px] text-slate-400">{registro.telefone}</span>}</td>
                           {colunas.map((c) => <td key={c.k} className={`border-b border-neutral-100 px-2 py-2 ${fundo}`}>{celulaDaFila(c, registro)}</td>)}
                           <td className={`border-b border-neutral-100 px-2 py-2 ${fundo}`}>
                             <select
@@ -717,7 +809,7 @@ export const PedidosProblematicos: React.FC = () => {
         </section>
 
         {/* Detalhes do pedido selecionado */}
-        <aside data-edicao className={`${cartao} p-4 md:col-span-2 xl:sticky xl:top-2 xl:col-span-1`} aria-label="Detalhes do pedido">
+        <aside data-edicao onPaste={(e) => { if (aba !== 'defeitos' || !registroAberto) return; const imagens = imagensColadas(e); if (!imagens.length) return; e.preventDefault(); void anexarDefeito(registroAberto.id, imagens); }} className={`${cartao} p-4 md:col-span-2 xl:sticky xl:top-2 xl:col-span-1`} aria-label="Detalhes do pedido">
           <div className="mb-3.5 flex items-center gap-2.5">
             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${def.cor === 'verde' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-yellow-600'}`}><List className="h-4 w-4" aria-hidden="true" /></span>
             <h2 className="text-[15px] font-extrabold text-neutral-900">Detalhes do pedido</h2>
@@ -779,6 +871,32 @@ export const PedidosProblematicos: React.FC = () => {
                 })}
               </div>
 
+              {aba === 'defeitos' && (
+                <div className="mt-1 border-t border-slate-100 pt-3">
+                  <h4 className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-slate-700"><Paperclip className="h-3.5 w-3.5" aria-hidden="true" /> Anexos <i className="ml-auto text-[11px] font-extrabold not-italic text-slate-500">{(registroAberto.anexos ?? []).length}</i></h4>
+                  <div className="flex items-center gap-2.5">
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-dashed border-yellow-400 bg-yellow-50 px-3 py-1.5 text-xs font-extrabold text-yellow-900 hover:bg-yellow-100">
+                      <Paperclip className="h-3.5 w-3.5" aria-hidden="true" /> Anexar arquivo
+                      <input type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" onChange={(e) => { const arquivos = [...(e.target.files ?? [])]; e.target.value = ''; void anexarDefeito(registroAberto.id, arquivos); }} />
+                    </label>
+                    <span className="text-[10.5px] text-slate-400">imagem ou PDF (até 5 MB) · ou cole com Ctrl+V</span>
+                  </div>
+                  <ul className="m-0 mt-2 grid list-none gap-1.5 p-0">
+                    {(registroAberto.anexos ?? []).map((a) => (
+                      <li key={a.id} className="flex items-center gap-1.5">
+                        <button type="button" onClick={() => void abrirAnexo(a)} title={`Abrir ${a.nome}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-yellow-100 bg-yellow-50/60 px-2.5 py-1.5 text-left text-[11.5px] text-slate-700 hover:border-yellow-400 hover:bg-yellow-100">
+                          <b className="shrink-0 rounded-md bg-yellow-300 px-1.5 py-px text-[9.5px] text-neutral-900">{a.tipo === 'application/pdf' ? 'PDF' : 'IMG'}</b>
+                          <span className="min-w-0 flex-1 truncate">{a.nome}</span>
+                          <small className="shrink-0 text-[10.5px] text-slate-400">{tamanhoLegivel(a.tamanho)}</small>
+                        </button>
+                        <button type="button" onClick={() => void removerAnexo(a)} aria-label={`Remover ${a.nome}`} className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-slate-100 text-[15px] leading-none text-slate-500 hover:bg-red-100 hover:text-red-700">×</button>
+                      </li>
+                    ))}
+                    {enviandoAnexo && <li className="text-[11.5px] font-bold text-yellow-800">Enviando…</li>}
+                  </ul>
+                </div>
+              )}
+
               {ehDevolucao(aba) && (
                 <div className="mt-1 border-t border-slate-100 pt-3">
                   <h4 className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-slate-700"><Clock className="h-3.5 w-3.5" aria-hidden="true" /> Etapas do atendimento <i className="ml-auto text-[11px] font-extrabold not-italic text-slate-500">{registroAberto.etapasFeitas || 0}/5</i></h4>
@@ -833,6 +951,7 @@ export const PedidosProblematicos: React.FC = () => {
             className="max-h-[92vh] w-full max-w-[440px] overflow-auto rounded-[20px] bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => { e.preventDefault(); adicionar(); }}
+            onPaste={(e) => { if (aba !== 'defeitos') return; const imagens = imagensColadas(e); if (!imagens.length) return; e.preventDefault(); void juntarPendentes(imagens); }}
           >
             <div className="flex items-center gap-3 px-5 pb-3 pt-4">
               <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${def.cor === 'verde' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-100 text-yellow-600'}`}><Plus className="h-5 w-5" aria-hidden="true" /></span>
@@ -911,6 +1030,32 @@ export const PedidosProblematicos: React.FC = () => {
                   />
                 </div>
               ))}
+
+              {aba === 'defeitos' && (
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-neutral-700">Anexos</label>
+                  <div className="flex items-center gap-2.5">
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-dashed border-yellow-400 bg-yellow-50 px-3 py-1.5 text-xs font-extrabold text-yellow-900 hover:bg-yellow-100">
+                      <Paperclip className="h-3.5 w-3.5" aria-hidden="true" /> Anexar arquivo
+                      <input type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" onChange={(e) => { const arquivos = [...(e.target.files ?? [])]; e.target.value = ''; void juntarPendentes(arquivos); }} />
+                    </label>
+                    <span className="text-[10.5px] text-slate-400">imagem ou PDF · ou cole com Ctrl+V</span>
+                  </div>
+                  {pendentes.length > 0 && (
+                    <ul className="m-0 mt-2 grid list-none gap-1.5 p-0">
+                      {pendentes.map((a, i) => (
+                        <li key={`${a.nome}-${i}`} className="flex items-center gap-1.5">
+                          <span className="flex min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-yellow-100 bg-yellow-50/60 px-2.5 py-1.5 text-[11.5px] text-slate-700">
+                            <b className="shrink-0 rounded-md bg-yellow-300 px-1.5 py-px text-[9.5px] text-neutral-900">{a.tipo === 'application/pdf' ? 'PDF' : 'IMG'}</b>
+                            <span className="min-w-0 flex-1 truncate">{a.nome}</span>
+                          </span>
+                          <button type="button" onClick={() => setPendentes((atual) => atual.filter((_, j) => j !== i))} aria-label={`Tirar ${a.nome}`} className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-slate-100 text-[15px] leading-none text-slate-500 hover:bg-red-100 hover:text-red-700">×</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               <p className="pt-1 text-[11px] leading-snug text-neutral-500">{dica}</p>
               <p role="alert" className="min-h-4 text-xs font-semibold text-red-700">{erroForm}</p>
