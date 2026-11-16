@@ -49,7 +49,8 @@ import type { ModuloId, SubmoduloId } from './modulos';
 interface Sessao { email: string; nome?: string; administrador: boolean; modulos: ModuloId[]; submodulos: SubmoduloId[] }
 
 // "Programação" e "Saídas" são telas do Financeiro: usam a permissão desse módulo.
-const moduloDaAba = (aba: TabType) => (aba === 'programacao' || aba === 'saidas' ? 'financeiro' : aba) as ModuloId;
+// "Pedidos problemáticos" e "Pedidos combinados" são telas do Dashboard de Pedidos: usam a permissão desse módulo.
+const moduloDaAba = (aba: TabType) => (aba === 'programacao' || aba === 'saidas' ? 'financeiro' : aba === 'pedidos-problematicos' || aba === 'pedidos-combinados' ? 'dashboard-pedidos' : aba) as ModuloId;
 
 export default function App() {
   // Autenticação — verifica o cookie de sessão (ver auth.ts) antes de
