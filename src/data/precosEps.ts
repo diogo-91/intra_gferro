@@ -16,7 +16,7 @@ export interface PrecosFamiliaEps {
 
 export const PRECOS_EPS: Record<FamiliaEps, PrecosFamiliaEps> = {
   trapezio: { familia: 'trapezio', nome: 'Trapézio', precoBloco: 230, placasPorBloco: 40, precoFornecedor: 9.5 },
-  forro: { familia: 'forro', nome: 'Telha forro', precoBloco: 230, placasPorBloco: 20, precoFornecedor: 9.5 },
+  forro: { familia: 'forro', nome: 'Telha forro', precoBloco: 230, placasPorBloco: 20, precoFornecedor: 20 },
 };
 
 /** Família do tipo de placa do Apontamento (TRAPEZIO_TR25, TRAPEZIO_TR40, FORRO_TR25, FORRO_TR40). */
