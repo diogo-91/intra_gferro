@@ -113,12 +113,12 @@ export const RelatorioEps: React.FC = () => {
   const baixarCsv = () => {
     const esc = (x: unknown) => { const s = String(x ?? ''); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const num = (n: number) => n.toFixed(2).replace('.', ',');
-    const cab = ['Data', 'Colaborador', 'Tipo', 'Blocos', 'Placas', 'Esperado', 'Custo interno (R$)', 'Valor fornecedor (R$)', 'Diferença - Caixa 2 (R$)', 'Diferença (%)', 'Observação'];
+    const cab = ['Data', 'Colaborador', 'Tipo', 'Blocos', 'Placas', 'Esperado', 'Placa interna (R$)', 'Placa fornecedor (R$)', 'Custo interno (R$)', 'Valor fornecedor (R$)', 'Diferença - Caixa 2 (R$)', 'Diferença (%)', 'Observação'];
     const linhas = [...lancamentos].sort((a, b) => a.em.localeCompare(b.em)).map((l) => {
       const c = comparar(l);
-      return [formatDataIsoParaBr(l.data), l.colaborador.nome ?? '', l.tipoRotulo, l.blocos, l.placas, l.esperado, num(c.custoInterno), num(c.valorFornecedor), num(c.diferenca), c.percentual === null ? '' : (c.percentual * 100).toFixed(1).replace('.', ','), l.observacao ?? ''].map(esc).join(';');
+      return [formatDataIsoParaBr(l.data), l.colaborador.nome ?? '', l.tipoRotulo, l.blocos, l.placas, l.esperado, num(custoPlacaInterna(PRECOS_EPS[familiaDoTipoEps(l.tipo)])), num(PRECOS_EPS[familiaDoTipoEps(l.tipo)].precoFornecedor), num(c.custoInterno), num(c.valorFornecedor), num(c.diferenca), c.percentual === null ? '' : (c.percentual * 100).toFixed(1).replace('.', ','), l.observacao ?? ''].map(esc).join(';');
     });
-    linhas.push(['TOTAL', '', '', total.blocos, total.placas, esperadoTotal, num(total.custoInterno), num(total.valorFornecedor), num(total.diferenca), total.percentual === null ? '' : (total.percentual * 100).toFixed(1).replace('.', ','), ''].map(esc).join(';'));
+    linhas.push(['TOTAL', '', '', total.blocos, total.placas, esperadoTotal, '', '', num(total.custoInterno), num(total.valorFornecedor), num(total.diferenca), total.percentual === null ? '' : (total.percentual * 100).toFixed(1).replace('.', ','), ''].map(esc).join(';'));
     const url = URL.createObjectURL(new Blob(['﻿' + [cab.join(';'), ...linhas].join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' }));
     const link = Object.assign(document.createElement('a'), { href: url, download: `placas-eps-${inicio}-a-${fim}.csv` });
     document.body.append(link);
@@ -182,9 +182,9 @@ export const RelatorioEps: React.FC = () => {
             <section className={cartao} aria-label="Por tipo de placa">
               <h2 className="mb-2 text-sm font-extrabold text-neutral-900">Por tipo de placa</h2>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[680px] border-collapse">
+                <table className="w-full min-w-[900px] border-collapse">
                   <thead><tr>
-                    <th className={cabecalho}>Tipo</th><th className={`${cabecalho} text-right`}>Blocos</th><th className={`${cabecalho} text-right`}>Placas</th><th className={`${cabecalho} text-right`}>Custo interno</th><th className={`${cabecalho} text-right`}>Fornecedor</th><th className={`${cabecalho} text-right`}>Caixa 2</th><th className={`${cabecalho} text-right`}>%</th>
+                    <th className={cabecalho}>Tipo</th><th className={`${cabecalho} text-right`}>Blocos</th><th className={`${cabecalho} text-right`}>Placas</th><th className={`${cabecalho} text-right`}>Placa interna</th><th className={`${cabecalho} text-right`}>Placa fornecedor</th><th className={`${cabecalho} text-right`} title="Custo interno ÷ placas produzidas (com a perda)">Custo real/placa</th><th className={`${cabecalho} text-right`}>Custo interno</th><th className={`${cabecalho} text-right`}>Fornecedor</th><th className={`${cabecalho} text-right`}>Caixa 2</th><th className={`${cabecalho} text-right`}>%</th>
                   </tr></thead>
                   <tbody>
                     {linhasTipo.map((t) => (
@@ -192,18 +192,24 @@ export const RelatorioEps: React.FC = () => {
                         <td className={`${celula} font-semibold`}>{t.rotulo}</td>
                         <td className={`${celula} text-right tabular-nums`}>{inteiro(t.blocos)}</td>
                         <td className={`${celula} text-right tabular-nums`}>{inteiro(t.placas)}</td>
+                        <td className={`${celula} text-right tabular-nums`}>{brl(custoPlacaInterna(PRECOS_EPS[t.familia]))}</td>
+                        <td className={`${celula} text-right tabular-nums`}>{brl(PRECOS_EPS[t.familia].precoFornecedor)}</td>
+                        <td className={`${celula} text-right tabular-nums`}>{t.placas > 0 ? brl(t.custoInterno / t.placas) : '—'}</td>
                         <td className={`${celula} text-right tabular-nums`}>{brl(t.custoInterno)}</td>
                         <td className={`${celula} text-right tabular-nums`}>{brl(t.valorFornecedor)}</td>
                         <td className={`${celula} text-right font-bold tabular-nums ${classeDiferenca(t.diferenca)}`}>{dinheiroComSinal(t.diferenca)}</td>
                         <td className={`${celula} text-right tabular-nums ${classeDiferenca(t.diferenca)}`}>{pctComSinal(t.percentual)}</td>
                       </tr>
                     ))}
-                    {linhasTipo.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-xs text-neutral-400">Nenhum lançamento neste período.</td></tr>}
+                    {linhasTipo.length === 0 && <tr><td colSpan={10} className="px-3 py-6 text-center text-xs text-neutral-400">Nenhum lançamento neste período.</td></tr>}
                     {linhasTipo.length > 0 && (
                       <tr className="bg-neutral-50 font-extrabold">
                         <td className={celula}>Total</td>
                         <td className={`${celula} text-right tabular-nums`}>{inteiro(total.blocos)}</td>
                         <td className={`${celula} text-right tabular-nums`}>{inteiro(total.placas)}</td>
+                        <td className={`${celula} text-right tabular-nums text-neutral-400`}>—</td>
+                        <td className={`${celula} text-right tabular-nums text-neutral-400`}>—</td>
+                        <td className={`${celula} text-right tabular-nums`}>{total.placas > 0 ? brl(total.custoInterno / total.placas) : '—'}</td>
                         <td className={`${celula} text-right tabular-nums`}>{brl(total.custoInterno)}</td>
                         <td className={`${celula} text-right tabular-nums`}>{brl(total.valorFornecedor)}</td>
                         <td className={`${celula} text-right tabular-nums ${classeDiferenca(total.diferenca)}`}>{dinheiroComSinal(total.diferenca)}</td>
@@ -243,9 +249,9 @@ export const RelatorioEps: React.FC = () => {
           <section className={cartao} aria-label="Lançamentos">
             <h2 className="mb-2 text-sm font-extrabold text-neutral-900">Lançamentos <span className="text-xs font-semibold text-neutral-400">({lancamentos.length})</span></h2>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] border-collapse">
+              <table className="w-full min-w-[1150px] border-collapse">
                 <thead><tr>
-                  <th className={cabecalho}>Data</th><th className={cabecalho}>Colaborador</th><th className={cabecalho}>Tipo</th><th className={`${cabecalho} text-right`}>Blocos</th><th className={`${cabecalho} text-right`}>Placas</th><th className={`${cabecalho} text-right`}>Custo interno</th><th className={`${cabecalho} text-right`}>Fornecedor</th><th className={`${cabecalho} text-right`}>Caixa 2</th><th className={`${cabecalho} text-right`}>%</th><th className={cabecalho}>Observação</th>
+                  <th className={cabecalho}>Data</th><th className={cabecalho}>Colaborador</th><th className={cabecalho}>Tipo</th><th className={`${cabecalho} text-right`}>Blocos</th><th className={`${cabecalho} text-right`}>Placas</th><th className={`${cabecalho} text-right`}>Placa interna</th><th className={`${cabecalho} text-right`}>Placa fornecedor</th><th className={`${cabecalho} text-right`}>Custo interno</th><th className={`${cabecalho} text-right`}>Fornecedor</th><th className={`${cabecalho} text-right`}>Caixa 2</th><th className={`${cabecalho} text-right`}>%</th><th className={cabecalho}>Observação</th>
                 </tr></thead>
                 <tbody>
                   {lancamentos.map((l) => {
@@ -257,6 +263,8 @@ export const RelatorioEps: React.FC = () => {
                         <td className={`${celula} whitespace-nowrap`}>{l.tipoRotulo}</td>
                         <td className={`${celula} text-right tabular-nums`}>{inteiro(l.blocos)}</td>
                         <td className={`${celula} text-right tabular-nums`}>{inteiro(l.placas)}</td>
+                        <td className={`${celula} text-right tabular-nums`}>{brl(custoPlacaInterna(PRECOS_EPS[familiaDoTipoEps(l.tipo)]))}</td>
+                        <td className={`${celula} text-right tabular-nums`}>{brl(PRECOS_EPS[familiaDoTipoEps(l.tipo)].precoFornecedor)}</td>
                         <td className={`${celula} text-right tabular-nums`}>{brl(c.custoInterno)}</td>
                         <td className={`${celula} text-right tabular-nums`}>{brl(c.valorFornecedor)}</td>
                         <td className={`${celula} text-right font-bold tabular-nums ${classeDiferenca(c.diferenca)}`}>{dinheiroComSinal(c.diferenca)}</td>
@@ -265,7 +273,7 @@ export const RelatorioEps: React.FC = () => {
                       </tr>
                     );
                   })}
-                  {lancamentos.length === 0 && <tr><td colSpan={10} className="px-3 py-8 text-center text-xs text-neutral-400">Nenhum lançamento neste período.</td></tr>}
+                  {lancamentos.length === 0 && <tr><td colSpan={12} className="px-3 py-8 text-center text-xs text-neutral-400">Nenhum lançamento neste período.</td></tr>}
                 </tbody>
               </table>
             </div>
