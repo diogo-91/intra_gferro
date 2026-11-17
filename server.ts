@@ -34,6 +34,7 @@ import { iniciarAtualizacaoPedidosAbertos, montarRespostaPedidosAbertos } from '
 import { iniciarAtualizacaoEntregas, montarRespostaEntregas, validarPeriodoEntregas } from './entregasPainel';
 import { montarRespostaMapa, montarRespostaMapaAEntregar, validarPeriodoMapa } from './mapaPedidos';
 import { montarRespostaPedidosCombinados } from './pedidosCombinados';
+import { buscarEps } from './epsFinanceiro';
 import { buscarAnexoNoPcp, buscarPrintNoPcp, chamarPcp, ErroProblematicos, idPositivo, tipoProblematico } from './problematicos';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
@@ -1104,6 +1105,18 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao baixar PDF do relatório de produção:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao gerar PDF', details: error.message });
+    }
+  });
+
+  // Dashboard > Financeiro > Placas de EPS: lançamentos do Apontamento de Produção (blocos usados e placas produzidas).
+  app.get('/api/financeiro/eps', async (req, res) => {
+    try {
+      const inicio = validarDataIsoQuery(req.query.inicio, 'inicio');
+      const fim = validarDataIsoQuery(req.query.fim, 'fim');
+      res.json(await buscarEps(inicio, fim));
+    } catch (error: any) {
+      console.error('Erro ao buscar as placas de EPS no Apontamento:', error);
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'Não foi possível ler as placas de EPS no Apontamento de Produção.' });
     }
   });
 

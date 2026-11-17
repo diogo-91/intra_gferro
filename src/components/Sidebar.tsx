@@ -25,6 +25,7 @@ import {
   Truck,
   AlertTriangle,
   Handshake,
+  Boxes,
   Map as MapIcon
 } from 'lucide-react';
 import { TabType, Department } from '../types';
@@ -74,7 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   // "Programação" e "Saídas" são telas do Financeiro: usam a permissão desse módulo.
   // "Pedidos problemáticos" é uma tela do Dashboard de Pedidos: usa a permissão desse módulo.
-  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' || id === 'saidas' ? 'financeiro' : id === 'pedidos-problematicos' || id === 'pedidos-combinados' ? 'dashboard-pedidos' : id) as ModuloId);
+  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' || id === 'saidas' || id === 'financeiro-eps' ? 'financeiro' : id === 'pedidos-problematicos' || id === 'pedidos-combinados' ? 'dashboard-pedidos' : id) as ModuloId);
   const navItems: NavEntry[] = [
     { id: 'informativos', label: 'Informativos Internos', icon: Megaphone },
     { id: 'comunicados', label: 'Comunicados & Feed', icon: Newspaper },
@@ -94,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'dashboard-pedidos', label: 'Pedidos', icon: PackageSearch, subitens: [{ id: 'pedidos-problematicos', label: 'Pedidos problemáticos', icon: AlertTriangle }, { id: 'pedidos-combinados', label: 'Pedidos combinados', icon: Handshake }] },
         { id: 'dashboard-entregas', label: 'Entregas', icon: Truck },
         { id: 'dashboard-mapa', label: 'Mapa', icon: MapIcon },
-        { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }] },
+        { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }, { id: 'financeiro-eps', label: 'Placas de EPS', icon: Boxes }] },
         { id: 'producao', label: 'Produção', icon: Factory },
         { id: 'gestao', label: 'Gestão', icon: Target },
       ],
