@@ -35,6 +35,7 @@ import { iniciarAtualizacaoEntregas, montarRespostaEntregas, validarPeriodoEntre
 import { montarRespostaMapa, montarRespostaMapaAEntregar, validarPeriodoMapa } from './mapaPedidos';
 import { montarRespostaPedidosCombinados } from './pedidosCombinados';
 import { buscarEps } from './epsFinanceiro';
+import { ErroCaixa2, marcarTransferencia, transferenciasDe } from './epsCaixa2';
 import { buscarAnexoNoPcp, buscarPrintNoPcp, chamarPcp, ErroProblematicos, idPositivo, tipoProblematico } from './problematicos';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
@@ -1113,10 +1114,25 @@ Contexto da GFERRO:
     try {
       const inicio = validarDataIsoQuery(req.query.inicio, 'inicio');
       const fim = validarDataIsoQuery(req.query.fim, 'fim');
-      res.json(await buscarEps(inicio, fim));
+      const eps = await buscarEps(inicio, fim);
+      // Junto com os lançamentos vão as confirmações de transferência do Caixa 2 (quem confirmou e quando).
+      res.json({ ...eps, transferencias: await transferenciasDe(eps.lancamentos.map((l) => l.id)) });
     } catch (error: any) {
       console.error('Erro ao buscar as placas de EPS no Apontamento:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Não foi possível ler as placas de EPS no Apontamento de Produção.' });
+    }
+  });
+
+  // Confirma (ou desfaz) que o financeiro transferiu o Caixa 2 de lançamentos do período.
+  app.post('/api/financeiro/eps/caixa2', async (req, res) => {
+    try {
+      const inicio = validarDataIsoQuery(req.body?.inicio, 'inicio');
+      const fim = validarDataIsoQuery(req.body?.fim, 'fim');
+      const sessao = await obterSessao(req);
+      res.json(await marcarTransferencia(inicio, fim, req.body?.ids, req.body?.transferido, (sessao?.nome || sessao?.email || 'Intranet').trim()));
+    } catch (error: any) {
+      if (!(error instanceof ErroCaixa2) && !error.status) console.error('Erro ao confirmar o Caixa 2 das placas de EPS:', error);
+      res.status(error instanceof ErroCaixa2 || error.status ? error.status || 400 : 500).json({ error: error instanceof ErroCaixa2 || error.status ? error.message : 'Não foi possível salvar a confirmação.' });
     }
   });
 

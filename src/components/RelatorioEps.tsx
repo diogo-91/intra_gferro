@@ -19,7 +19,9 @@ interface Lancamento {
   colaborador: { nome: string | null; matricula: string | null };
   observacao: string | null;
 }
-interface Resposta { atualizadoEm: string; desatualizado?: boolean; lancamentos: Lancamento[] }
+interface Transferencia { valor: number; por: string; em: string }
+interface Resposta { atualizadoEm: string; desatualizado?: boolean; lancamentos: Lancamento[]; transferencias?: Record<string, Transferencia> }
+type FiltroCaixa2 = 'todos' | 'pendentes' | 'transferidos';
 
 type Modo = 'hoje' | '7dias' | 'mes' | 'periodo';
 const MODOS: Array<{ id: Modo; rotulo: string }> = [
@@ -66,6 +68,8 @@ export const RelatorioEps: React.FC = () => {
   const [carregando, setCarregando] = useState(!ultimas.has(chave));
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState('');
+  const [filtroCaixa2, setFiltroCaixa2] = useState<FiltroCaixa2>('todos');
+  const [gravando, setGravando] = useState(false);
 
   const carregar = useCallback(async (manual = false) => {
     if (!inicio || !fim || inicio > fim) { setErro(inicio > fim ? 'A data inicial passa da data final.' : ''); return; }
@@ -107,18 +111,41 @@ export const RelatorioEps: React.FC = () => {
   }
   const linhasTipo = [...tipos.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([id, t]) => ({ id, ...t, ...compararEps(t.familia, t.blocos, t.placas) }));
   const total = somarComparativos(lancamentos.map(comparar));
+  // Caixa 2: o que já foi confirmado como transferido pelo financeiro e o que ainda falta transferir.
+  const transferencias = dados?.transferencias ?? {};
+  const comCaixa2 = lancamentos.filter((l) => comparar(l).diferenca > 0);
+  const pendentes = comCaixa2.filter((l) => !transferencias[l.id]);
+  const valorPendente = Math.round(pendentes.reduce((s, l) => s + comparar(l).diferenca, 0) * 100) / 100;
+  const valorTransferido = Math.round(comCaixa2.reduce((s, l) => s + (transferencias[l.id]?.valor ?? 0), 0) * 100) / 100;
+  const lancamentosVisiveis = lancamentos.filter((l) => (filtroCaixa2 === 'pendentes' ? comCaixa2.includes(l) && !transferencias[l.id] : filtroCaixa2 === 'transferidos' ? !!transferencias[l.id] : true));
+  const quandoConfirmou = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+  const marcarTransferencia = async (ids: string[], transferido: boolean, texto: string) => {
+    if (!window.confirm(texto)) return;
+    setGravando(true);
+    try {
+      const resposta = await fetch('/api/financeiro/eps/caixa2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inicio, fim, ids, transferido }) });
+      const corpo = await resposta.json().catch(() => null);
+      if (!resposta.ok) throw new Error(corpo?.error || 'Não foi possível salvar a confirmação.');
+      await carregar();
+    } catch (e: any) {
+      setErro(e.message);
+    } finally {
+      setGravando(false);
+    }
+  };
   const esperadoTotal = lancamentos.reduce((s, l) => s + l.esperado, 0);
   const rendimento = esperadoTotal > 0 ? total.placas / esperadoTotal : null;
 
   const baixarCsv = () => {
     const esc = (x: unknown) => { const s = String(x ?? ''); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const num = (n: number) => n.toFixed(2).replace('.', ',');
-    const cab = ['Data', 'Colaborador', 'Tipo', 'Blocos', 'Placas', 'Esperado', 'Placa interna (R$)', 'Placa fornecedor (R$)', 'Custo interno (R$)', 'Valor fornecedor (R$)', 'Diferença - Caixa 2 (R$)', 'Diferença (%)', 'Observação'];
+    const cab = ['Data', 'Colaborador', 'Tipo', 'Blocos', 'Placas', 'Esperado', 'Placa interna (R$)', 'Placa fornecedor (R$)', 'Custo interno (R$)', 'Valor fornecedor (R$)', 'Diferença - Caixa 2 (R$)', 'Diferença (%)', 'Caixa 2 transferido', 'Confirmado por', 'Confirmado em', 'Observação'];
     const linhas = [...lancamentos].sort((a, b) => a.em.localeCompare(b.em)).map((l) => {
       const c = comparar(l);
-      return [formatDataIsoParaBr(l.data), l.colaborador.nome ?? '', l.tipoRotulo, l.blocos, l.placas, l.esperado, num(custoPlacaInterna(PRECOS_EPS[familiaDoTipoEps(l.tipo)])), num(PRECOS_EPS[familiaDoTipoEps(l.tipo)].precoFornecedor), num(c.custoInterno), num(c.valorFornecedor), num(c.diferenca), c.percentual === null ? '' : (c.percentual * 100).toFixed(1).replace('.', ','), l.observacao ?? ''].map(esc).join(';');
+      return [formatDataIsoParaBr(l.data), l.colaborador.nome ?? '', l.tipoRotulo, l.blocos, l.placas, l.esperado, num(custoPlacaInterna(PRECOS_EPS[familiaDoTipoEps(l.tipo)])), num(PRECOS_EPS[familiaDoTipoEps(l.tipo)].precoFornecedor), num(c.custoInterno), num(c.valorFornecedor), num(c.diferenca), c.percentual === null ? '' : (c.percentual * 100).toFixed(1).replace('.', ','), c.diferenca <= 0 ? '' : transferencias[l.id] ? 'Sim' : 'Não', transferencias[l.id]?.por ?? '', transferencias[l.id] ? quandoConfirmou(transferencias[l.id].em) : '', l.observacao ?? ''].map(esc).join(';');
     });
-    linhas.push(['TOTAL', '', '', total.blocos, total.placas, esperadoTotal, '', '', num(total.custoInterno), num(total.valorFornecedor), num(total.diferenca), total.percentual === null ? '' : (total.percentual * 100).toFixed(1).replace('.', ','), ''].map(esc).join(';'));
+    linhas.push(['TOTAL', '', '', total.blocos, total.placas, esperadoTotal, '', '', num(total.custoInterno), num(total.valorFornecedor), num(total.diferenca), total.percentual === null ? '' : (total.percentual * 100).toFixed(1).replace('.', ','), '', '', '', ''].map(esc).join(';'));
     const url = URL.createObjectURL(new Blob(['﻿' + [cab.join(';'), ...linhas].join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' }));
     const link = Object.assign(document.createElement('a'), { href: url, download: `placas-eps-${inicio}-a-${fim}.csv` });
     document.body.append(link);
@@ -174,6 +201,12 @@ export const RelatorioEps: React.FC = () => {
               <span className="text-[10.5px] font-extrabold uppercase tracking-wide text-yellow-800">Diferença — Caixa 2</span>
               <strong className={`mt-1 block text-2xl font-black ${classeDiferenca(total.diferenca)}`}>{dinheiroComSinal(total.diferenca)}</strong>
               <small className="text-[11px] text-neutral-500">{pctComSinal(total.percentual)} sobre o valor do fornecedor · {total.diferenca >= 0 ? 'a produção interna saiu mais barata' : 'a produção interna saiu mais cara'}</small>
+              {comCaixa2.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-yellow-200 pt-2 text-[11.5px] font-semibold">
+                  <span className="text-emerald-700">✓ Transferido pelo financeiro: {brl(valorTransferido)}</span>
+                  <span className={valorPendente > 0 ? 'text-amber-700' : 'text-neutral-400'}>A transferir: {brl(valorPendente)}</span>
+                </div>
+              )}
             </div>
           </section>
 
@@ -247,15 +280,28 @@ export const RelatorioEps: React.FC = () => {
 
           {/* Lançamentos */}
           <section className={cartao} aria-label="Lançamentos">
-            <h2 className="mb-2 text-sm font-extrabold text-neutral-900">Lançamentos <span className="text-xs font-semibold text-neutral-400">({lancamentos.length})</span></h2>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-extrabold text-neutral-900">Lançamentos <span className="text-xs font-semibold text-neutral-400">({lancamentosVisiveis.length})</span></h2>
+              <div className="ml-2 flex flex-wrap gap-1.5" role="group" aria-label="Caixa 2">
+                {([['todos', 'Todos'], ['pendentes', `A transferir (${pendentes.length})`], ['transferidos', `Transferidos (${comCaixa2.length - pendentes.length})`]] as const).map(([valor, nome]) => (
+                  <button key={valor} type="button" onClick={() => setFiltroCaixa2(valor)} aria-pressed={filtroCaixa2 === valor} className={`rounded-full border px-3 py-1 text-[11px] font-bold ${filtroCaixa2 === valor ? 'border-yellow-500 bg-yellow-300 text-neutral-900' : 'border-neutral-200 bg-white text-neutral-600 hover:border-yellow-400'}`}>{nome}</button>
+                ))}
+              </div>
+              {pendentes.length > 0 && (
+                <button type="button" disabled={gravando} onClick={() => void marcarTransferencia(pendentes.map((l) => l.id), true, `Confirmar que o financeiro transferiu o Caixa 2 de ${pendentes.length} lançamento(s), no total de ${brl(valorPendente)}?`)} className="ml-auto inline-flex items-center gap-1.5 rounded-[10px] border border-yellow-400 bg-yellow-100 px-3 py-1.5 text-xs font-extrabold text-yellow-900 hover:bg-yellow-200 disabled:opacity-50">
+                  ✓ Confirmar todos a transferir ({brl(valorPendente)})
+                </button>
+              )}
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1150px] border-collapse">
+              <table className="w-full min-w-[1400px] border-collapse">
                 <thead><tr>
-                  <th className={cabecalho}>Data</th><th className={cabecalho}>Colaborador</th><th className={cabecalho}>Tipo</th><th className={`${cabecalho} text-right`}>Blocos</th><th className={`${cabecalho} text-right`}>Placas</th><th className={`${cabecalho} text-right`}>Placa interna</th><th className={`${cabecalho} text-right`}>Placa fornecedor</th><th className={`${cabecalho} text-right`}>Custo interno</th><th className={`${cabecalho} text-right`}>Fornecedor</th><th className={`${cabecalho} text-right`}>Caixa 2</th><th className={`${cabecalho} text-right`}>%</th><th className={cabecalho}>Observação</th>
+                  <th className={cabecalho}>Data</th><th className={cabecalho}>Colaborador</th><th className={cabecalho}>Tipo</th><th className={`${cabecalho} text-right`}>Blocos</th><th className={`${cabecalho} text-right`}>Placas</th><th className={`${cabecalho} text-right`}>Placa interna</th><th className={`${cabecalho} text-right`}>Placa fornecedor</th><th className={`${cabecalho} text-right`}>Custo interno</th><th className={`${cabecalho} text-right`}>Fornecedor</th><th className={`${cabecalho} text-right`}>Caixa 2</th><th className={`${cabecalho} text-right`}>%</th><th className={cabecalho}>Caixa 2 transferido</th><th className={cabecalho}>Observação</th>
                 </tr></thead>
                 <tbody>
-                  {lancamentos.map((l) => {
+                  {lancamentosVisiveis.map((l) => {
                     const c = comparar(l);
+                    const feita = transferencias[l.id];
                     return (
                       <tr key={l.id}>
                         <td className={`${celula} whitespace-nowrap`}>{formatDataIsoParaBr(l.data)} <small className="text-[10.5px] text-neutral-400">{hora(l.em)}</small></td>
@@ -269,11 +315,22 @@ export const RelatorioEps: React.FC = () => {
                         <td className={`${celula} text-right tabular-nums`}>{brl(c.valorFornecedor)}</td>
                         <td className={`${celula} text-right font-bold tabular-nums ${classeDiferenca(c.diferenca)}`}>{dinheiroComSinal(c.diferenca)}</td>
                         <td className={`${celula} text-right tabular-nums ${classeDiferenca(c.diferenca)}`}>{pctComSinal(c.percentual)}</td>
+                        <td className={`${celula} whitespace-nowrap`}>
+                          {c.diferenca <= 0 ? <span className="text-slate-300">—</span> : feita ? (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-700" title={`Confirmado por ${feita.por}`}>✓ Transferido</span>
+                              <small className="text-[10.5px] leading-tight text-neutral-400">{feita.por}<br />{quandoConfirmou(feita.em)}</small>
+                              <button type="button" disabled={gravando} onClick={() => void marcarTransferencia([l.id], false, `Desfazer a confirmação de transferência do Caixa 2 (${brl(feita.valor)})?`)} className="rounded-md px-1.5 py-0.5 text-[10.5px] font-bold text-neutral-400 underline hover:text-red-700 disabled:opacity-50">Desfazer</button>
+                            </div>
+                          ) : (
+                            <button type="button" disabled={gravando} onClick={() => void marcarTransferencia([l.id], true, `Confirmar que o financeiro transferiu o Caixa 2 deste lançamento (${brl(c.diferenca)})?`)} className="inline-flex items-center gap-1 rounded-[10px] border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-extrabold text-amber-800 hover:bg-amber-100 disabled:opacity-50">Confirmar transferência</button>
+                          )}
+                        </td>
                         <td className={`${celula} max-w-[220px] text-neutral-500`}>{l.observacao ?? ''}</td>
                       </tr>
                     );
                   })}
-                  {lancamentos.length === 0 && <tr><td colSpan={12} className="px-3 py-8 text-center text-xs text-neutral-400">Nenhum lançamento neste período.</td></tr>}
+                  {lancamentosVisiveis.length === 0 && <tr><td colSpan={13} className="px-3 py-8 text-center text-xs text-neutral-400">{lancamentos.length === 0 ? 'Nenhum lançamento neste período.' : 'Nenhum lançamento com esse filtro.'}</td></tr>}
                 </tbody>
               </table>
             </div>
