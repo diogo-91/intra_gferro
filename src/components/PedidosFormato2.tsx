@@ -64,8 +64,8 @@ function selo(p: PedidoFormato2): { texto: string; classe: string; detalhe?: str
   return { texto: 'Calculando…', classe: 'bg-neutral-100 text-neutral-500' };
 }
 
-const cabecalho = 'sticky top-0 z-[1] whitespace-nowrap border-b border-neutral-100 bg-neutral-50 px-3 py-2.5 text-left text-[11px] font-extrabold text-neutral-600';
-const celula = 'border-b border-neutral-100 px-3 py-2.5 align-top';
+const cabecalho = 'sticky top-0 z-[1] border-b border-neutral-100 bg-neutral-50 px-2 py-2.5 text-left text-[11px] font-extrabold text-neutral-600';
+const celula = 'border-b border-neutral-100 px-2 py-2.5 align-top';
 const chip = (ativo: boolean) => `rounded-full border px-3 py-1.5 text-[11.5px] font-bold ${ativo ? 'border-yellow-500 bg-yellow-300 text-neutral-900' : 'border-neutral-200 bg-white text-slate-600 hover:border-yellow-400'}`;
 
 export const PedidosFormato2: React.FC = () => {
@@ -164,8 +164,8 @@ export const PedidosFormato2: React.FC = () => {
         {!dados && !erro ? (
           <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-neutral-400" aria-label="Carregando" /></div>
         ) : (
-          <div className="max-h-[680px] overflow-auto rounded-xl border border-neutral-100">
-            <table className="w-full min-w-[1080px] border-separate border-spacing-0 text-xs">
+          <div className="max-h-[680px] overflow-y-auto overflow-x-hidden rounded-xl border border-neutral-100">
+            <table className="w-full border-separate border-spacing-0 text-[11.5px]">
               <thead>
                 <tr>
                   <th scope="col" className={cabecalho}>Pedido</th>
@@ -188,24 +188,24 @@ export const PedidosFormato2: React.FC = () => {
                         {p.contrato && <span className="ml-1.5 rounded bg-yellow-200 px-1.5 py-px align-middle text-[9.5px] font-extrabold text-neutral-900">CONTRATO</span>}
                         <span className="block text-[11px] text-neutral-400">emitido em {formatDataIsoParaBr(p.dataEmissao)}</span>
                       </td>
-                      <td className={`${celula} max-w-[200px]`}>{p.cliente}</td>
+                      <td className={celula}>{p.cliente}</td>
                       <td className={celula}>{p.vendedor}</td>
-                      <td className={`${celula} whitespace-nowrap`}>{p.loja}</td>
+                      <td className={celula}>{p.loja}</td>
                       <td className={`${celula} text-right tabular-nums`}>
-                        {p.pago === null ? <span className="text-slate-300">…</span> : <>{brl(p.pago)}<span className="block text-[11px] text-neutral-400">{p.percentualPago !== null ? `${pct(p.percentualPago)} de ${brl(p.valorTotal)}` : ''}</span></>}
+                        {p.pago === null ? <span className="text-slate-300">…</span> : <>{brl(p.pago)}<span className="block text-[11px] text-neutral-400" title={`de ${brl(p.valorTotal)}`}>{p.percentualPago !== null ? pct(p.percentualPago) : ''}</span></>}
                       </td>
                       <td className={`${celula} text-right tabular-nums`}>{p.aReceber === null ? <span className="text-slate-300">…</span> : brl(p.aReceber)}</td>
-                      <td className={`${celula} whitespace-nowrap`}>
+                      <td className={celula}>
                         {p.prazoFim ? (
                           <>
-                            <b className="text-neutral-900">{p.prazoInicio ? `${formatDataIsoParaBr(p.prazoInicio)} a ${formatDataIsoParaBr(p.prazoFim)}` : formatDataIsoParaBr(p.prazoFim)}</b>
+                            <b className="text-neutral-900">{p.prazoInicio ? <>{formatDataIsoParaBr(p.prazoInicio)}<span className="font-normal text-neutral-400"> a </span>{formatDataIsoParaBr(p.prazoFim)}</> : formatDataIsoParaBr(p.prazoFim)}</b>
                             <span className="block text-[11px] text-neutral-400">{p.regraRotulo} · {p.prazoInicio ? `7 a ${p.diasUteis}` : p.diasUteis} dias úteis</span>
                           </>
                         ) : (
                           <><span className="text-slate-300">—</span><span className="block text-[11px] text-neutral-400">{p.regraRotulo}</span></>
                         )}
                       </td>
-                      <td className={`${celula} whitespace-nowrap`}>
+                      <td className={celula}>
                         <span className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-bold ${s.classe}`}>{s.texto}</span>
                         {s.detalhe && <span className="block pl-1 text-[10.5px] text-neutral-400">{s.detalhe}</span>}
                       </td>
