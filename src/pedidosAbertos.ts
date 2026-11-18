@@ -31,6 +31,8 @@ export interface PedidoAbertoLinha {
   proximoVencimento: string | null; // aaaa-mm-dd — vencimento mais próximo (ou o mais antigo, se já venceu)
   /** Observação do pedido no Nomus, quando cita o Dirceu (pedido liberado por ele). */
   observacaoDirceu?: string;
+  /** Alguma observação do pedido no Nomus cita "contrato". */
+  contrato?: boolean;
 }
 
 export interface RespostaPedidosAbertos {

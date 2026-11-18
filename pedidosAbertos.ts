@@ -15,6 +15,8 @@ import { ehPedidoLiberado, montarLinhaPedidoAberto, ordenarPedidosAbertos, type 
 
 const ARQUIVO = path.join(process.cwd(), 'data', 'pedidos-abertos.json');
 
+// 1 = observação que cita o Dirceu; 2 = e também a marca de contrato.
+const OBSERVACOES_VERSAO = 2;
 const INTERVALO_ATUALIZACAO_MS = 10 * 60_000; // o que mudou nos pedidos, vendedores e PCP
 const VARREDURA_COMPLETA_A_CADA_MS = 12 * 60 * 60_000; // rede de segurança caso uma mudança não apareça na data de modificação
 const FINANCEIRO_VALIDO_POR_MS = 30 * 60_000;
@@ -44,7 +46,8 @@ interface Estado {
   varreduraCompletaEm: number;
   pedidosAtualizadoEm: number;
   historicoCompleto: boolean; // false enquanto a primeira leitura ainda traz os pedidos antigos
-  observacoesLidas: boolean; // false até uma leitura completa trazer as observações dos pedidos (Pedidos combinados)
+  observacoesLidas: boolean; // false até uma leitura completa trazer as observações dos pedidos (Pedidos combinados, contratos)
+  observacoesVersao: number; // versão do que se guarda das observações; ao mudar, uma nova leitura completa reaproveita os dados
   financeiro: Record<string, FinanceiroGuardado>; // por número do pedido
   vendedores: Record<string, string>; // id -> nome
   pcp: Record<string, PcpGuardado>; // por número do pedido
@@ -52,7 +55,7 @@ interface Estado {
 }
 
 const estadoVazio = (): Estado => ({
-  versao: 3, pedidos: {}, varreduraCompletaEm: 0, pedidosAtualizadoEm: 0, historicoCompleto: false, observacoesLidas: false, financeiro: {}, vendedores: {}, pcp: {}, ultimoErro: null,
+  versao: 3, pedidos: {}, varreduraCompletaEm: 0, pedidosAtualizadoEm: 0, historicoCompleto: false, observacoesLidas: false, observacoesVersao: 0, financeiro: {}, vendedores: {}, pcp: {}, ultimoErro: null,
 });
 
 let estado: Estado | null = null;
@@ -64,8 +67,8 @@ async function lerArquivo(arquivo: string): Promise<Estado | null> {
     if (dados?.versao !== 2 && dados?.versao !== 3) return null;
     // A versão 2 (sem vendedores/PCP guardados) tem o mesmo formato de pedidos e financeiro.
     // Estado guardado antes das observações: continua valendo na tela e pede uma leitura completa em segundo plano.
-    const comObservacoes = dados.observacoesLidas === true;
-    return { ...estadoVazio(), ...dados, versao: 3, historicoCompleto: dados.historicoCompleto ?? dados.varreduraCompletaEm > 0, observacoesLidas: comObservacoes, varreduraCompletaEm: comObservacoes ? dados.varreduraCompletaEm : 0, ultimoErro: dados.ultimoErro ?? null };
+    const comObservacoes = dados.observacoesLidas === true && dados.observacoesVersao === OBSERVACOES_VERSAO;
+    return { ...estadoVazio(), ...dados, versao: 3, historicoCompleto: dados.historicoCompleto ?? dados.varreduraCompletaEm > 0, observacoesLidas: comObservacoes, observacoesVersao: comObservacoes ? OBSERVACOES_VERSAO : 0, varreduraCompletaEm: comObservacoes ? dados.varreduraCompletaEm : 0, ultimoErro: dados.ultimoErro ?? null };
   } catch {
     return null;
   }
@@ -193,6 +196,7 @@ async function varreduraCompleta(atual: Estado, inicio: number): Promise<void> {
   atual.varreduraCompletaEm = inicio;
   atual.historicoCompleto = true;
   atual.observacoesLidas = true;
+  atual.observacoesVersao = OBSERVACOES_VERSAO;
 }
 
 async function executarAtualizacao(relerFinanceiro: boolean): Promise<void> {
@@ -263,9 +267,9 @@ export async function numerosLiberadosNoNomus(): Promise<Set<number> | null> {
 }
 
 /** Monta a tela só do que está guardado (não consulta o Nomus nem o PCP). */
-export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): Promise<RespostaPedidosAbertos> {
+export async function montarRespostaPedidosAbertos(forcarAtualizacao = false, idadeMaximaMs = INTERVALO_ATUALIZACAO_MS): Promise<RespostaPedidosAbertos> {
   const atual = await carregarDoDisco();
-  const vencido = Date.now() - atual.pedidosAtualizadoEm > INTERVALO_ATUALIZACAO_MS;
+  const vencido = Date.now() - atual.pedidosAtualizadoEm > idadeMaximaMs;
   if (forcarAtualizacao || vencido || !atual.historicoCompleto) void atualizarPedidosAbertos(forcarAtualizacao);
 
   const semDados = Object.keys(atual.pedidos).length === 0 && !atual.historicoCompleto;
@@ -317,6 +321,7 @@ export async function montarRespostaPedidosAbertos(forcarAtualizacao = false): P
       financeiro,
     }, hoje);
     if (linha && pedido.obsDirceu) linha.observacaoDirceu = pedido.obsDirceu;
+    if (linha && pedido.contrato) linha.contrato = true;
     if (linha) linhas.push(linha);
   }
 

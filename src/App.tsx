@@ -34,6 +34,7 @@ import { Entregas } from './components/Entregas';
 import { MapaPedidos } from './components/MapaPedidos';
 import { PedidosProblematicos } from './components/PedidosProblematicos';
 import { PedidosCombinados } from './components/PedidosCombinados';
+import { PedidosFormato2 } from './components/PedidosFormato2';
 import { RelatorioEps } from './components/RelatorioEps';
 import { Producao } from './components/Producao';
 import { AIAssistantModal } from './components/AIAssistantModal';
@@ -51,7 +52,7 @@ interface Sessao { email: string; nome?: string; administrador: boolean; modulos
 
 // "Programação" e "Saídas" são telas do Financeiro: usam a permissão desse módulo.
 // "Pedidos problemáticos" e "Pedidos combinados" são telas do Dashboard de Pedidos: usam a permissão desse módulo.
-const moduloDaAba = (aba: TabType) => (aba === 'programacao' || aba === 'saidas' || aba === 'financeiro-eps' ? 'financeiro' : aba === 'pedidos-problematicos' || aba === 'pedidos-combinados' ? 'dashboard-pedidos' : aba) as ModuloId;
+const moduloDaAba = (aba: TabType) => (aba === 'programacao' || aba === 'saidas' || aba === 'financeiro-eps' ? 'financeiro' : aba === 'pedidos-problematicos' || aba === 'pedidos-combinados' || aba === 'pedidos-formato-2' ? 'dashboard-pedidos' : aba) as ModuloId;
 
 export default function App() {
   // Autenticação — verifica o cookie de sessão (ver auth.ts) antes de
@@ -302,6 +303,7 @@ export default function App() {
           {activeTab === 'dashboard-mapa' && <MapaPedidos />}
           {activeTab === 'pedidos-problematicos' && <PedidosProblematicos />}
           {activeTab === 'pedidos-combinados' && <PedidosCombinados />}
+          {activeTab === 'pedidos-formato-2' && <PedidosFormato2 />}
 
           {activeTab === 'producao' && <Producao />}
 

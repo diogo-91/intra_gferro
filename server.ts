@@ -34,6 +34,7 @@ import { iniciarAtualizacaoPedidosAbertos, montarRespostaPedidosAbertos } from '
 import { iniciarAtualizacaoEntregas, montarRespostaEntregas, validarPeriodoEntregas } from './entregasPainel';
 import { montarRespostaMapa, montarRespostaMapaAEntregar, validarPeriodoMapa } from './mapaPedidos';
 import { montarRespostaPedidosCombinados } from './pedidosCombinados';
+import { montarRespostaPedidosFormato2 } from './pedidosFormato2';
 import { buscarEps } from './epsFinanceiro';
 import { ErroCaixa2, marcarTransferencia, transferenciasDe } from './epsCaixa2';
 import { buscarAnexoNoPcp, buscarPrintNoPcp, chamarPcp, ErroProblematicos, idPositivo, tipoProblematico } from './problematicos';
@@ -871,6 +872,16 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao montar o dashboard de pedidos:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar os pedidos em aberto.', details: error.message });
+    }
+  });
+
+  // Dashboard > Pedidos > Pedidos Formato 2: pedidos liberados classificados pela regra de prazo (contrato, % pago).
+  app.get('/api/dashboard/pedidos-formato2', async (_req, res) => {
+    try {
+      res.json(await montarRespostaPedidosFormato2());
+    } catch (error: any) {
+      console.error('Erro ao montar os pedidos formato 2:', error);
+      res.status(500).json({ error: 'Erro ao buscar os pedidos formato 2.' });
     }
   });
 

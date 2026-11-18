@@ -8,6 +8,7 @@ export type TabType =
   | 'dashboard-pedidos'
   | 'pedidos-problematicos'
   | 'pedidos-combinados'
+  | 'pedidos-formato-2'
   | 'dashboard-entregas'
   | 'dashboard-mapa'
   | 'producao'

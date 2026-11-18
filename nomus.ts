@@ -959,14 +959,25 @@ export interface PedidoParaPainel {
   itens: Array<{ status?: number; dataEntrega?: string }>;
   /** Texto das observações do pedido, guardado só quando cita o Dirceu (pedidos liberados por ele: "Pedidos combinados"). */
   obsDirceu?: string;
+  /** Alguma observação do pedido cita "contrato" (pedido de contrato: regra de prazo própria em "Pedidos Formato 2"). */
+  contrato?: boolean;
 }
 
-/** Junta as observações do pedido (internas e gerais) e devolve o texto se alguma citar "Dirceu" (sem diferenciar maiúscula nem acento). */
-function observacaoQueCitaDirceu(pedido: Pedido): string | undefined {
+/** Junta as observações do pedido (internas e gerais) sem acento e em minúsculas, para procurar palavras nelas. */
+function textoDasObservacoes(pedido: Pedido): string {
   const partes = [pedido.observacoesInternas, pedido.observacoes].map((t) => String(t ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const texto = [...new Set(partes)].join(' | ');
-  return /\bdirceu\b/i.test(texto.normalize('NFD').replace(/\p{Diacritic}/gu, '')) ? texto.slice(0, 500) : undefined;
+  return [...new Set(partes)].join(' | ');
 }
+const semAcentoMinusculo = (t: string) => t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+
+/** O texto das observações, se alguma citar "Dirceu" (sem diferenciar maiúscula nem acento). */
+function observacaoQueCitaDirceu(pedido: Pedido): string | undefined {
+  const texto = textoDasObservacoes(pedido);
+  return /\bdirceu\b/.test(semAcentoMinusculo(texto)) ? texto.slice(0, 500) : undefined;
+}
+
+/** Alguma observação do pedido cita "contrato" (inclui "contratos", "contratado"...). */
+const observacaoCitaContrato = (pedido: Pedido) => semAcentoMinusculo(textoDasObservacoes(pedido)).includes('contrato');
 
 const paraPedidoDoPainel = (pedido: Pedido): PedidoParaPainel => ({
   id: pedido.id,
@@ -978,6 +989,7 @@ const paraPedidoDoPainel = (pedido: Pedido): PedidoParaPainel => ({
   valorTotal: parseNum(pedido.valorTotal),
   itens: (pedido.itensPedido || []).map((item) => ({ status: item.status, dataEntrega: item.dataEntrega })),
   ...(observacaoQueCitaDirceu(pedido) ? { obsDirceu: observacaoQueCitaDirceu(pedido) } : {}),
+  ...(observacaoCitaContrato(pedido) ? { contrato: true } : {}),
 });
 
 /**
