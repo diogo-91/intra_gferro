@@ -37,6 +37,7 @@ import { montarRespostaPedidosCombinados } from './pedidosCombinados';
 import { montarRespostaPedidosFormato2 } from './pedidosFormato2';
 import { buscarEps } from './epsFinanceiro';
 import { ErroCaixa2, marcarTransferencia, transferenciasDe } from './epsCaixa2';
+import { ErroComissoes, montarComissoesFabrica, salvarAjuste, salvarTermoAceite, validarMesComissoes } from './comissoesFabrica';
 import { buscarAnexoNoPcp, buscarPrintNoPcp, chamarPcp, ErroProblematicos, idPositivo, tipoProblematico } from './problematicos';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
@@ -1144,6 +1145,40 @@ Contexto da GFERRO:
     } catch (error: any) {
       if (!(error instanceof ErroCaixa2) && !error.status) console.error('Erro ao confirmar o Caixa 2 das placas de EPS:', error);
       res.status(error instanceof ErroCaixa2 || error.status ? error.status || 400 : 500).json({ error: error instanceof ErroCaixa2 || error.status ? error.message : 'Não foi possível salvar a confirmação.' });
+    }
+  });
+
+  // Dashboard > Financeiro > Comissões Fábrica: pedidos do mês dos vendedores da fábrica (Nomus) e os campos digitados à mão.
+  const erroComissoes = (res: express.Response, error: any, mensagem: string) => {
+    const conhecido = error instanceof ErroComissoes;
+    if (!conhecido) console.error(mensagem, error);
+    res.status(conhecido ? error.status : 500).json({ error: conhecido ? error.message : mensagem });
+  };
+  app.get('/api/financeiro/comissoes-fabrica', async (req, res) => {
+    try {
+      res.json(await montarComissoesFabrica(validarMesComissoes(req.query.mes)));
+    } catch (error: any) {
+      erroComissoes(res, error, 'Não foi possível carregar as comissões da fábrica.');
+    }
+  });
+  const nomeDoUsuario = async (req: express.Request) => {
+    const sessao = await obterSessao(req);
+    return (sessao?.nome || sessao?.email || 'Intranet').trim();
+  };
+  app.put('/api/financeiro/comissoes-fabrica/termo', async (req, res) => {
+    try {
+      await salvarTermoAceite(req.body?.mes, req.body?.codigo, req.body?.valor, await nomeDoUsuario(req));
+      res.json({ ok: true });
+    } catch (error: any) {
+      erroComissoes(res, error, 'Não foi possível salvar o termo de aceite.');
+    }
+  });
+  app.put('/api/financeiro/comissoes-fabrica/ajuste', async (req, res) => {
+    try {
+      await salvarAjuste(req.body?.mes, req.body?.vendedor, req.body?.valor, req.body?.observacao, await nomeDoUsuario(req));
+      res.json({ ok: true });
+    } catch (error: any) {
+      erroComissoes(res, error, 'Não foi possível salvar o ajuste.');
     }
   });
 

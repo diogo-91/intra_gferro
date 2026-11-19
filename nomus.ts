@@ -1711,6 +1711,68 @@ export async function getPedidosDoVendedor(
   return { pedidos: detalhes, atualizadoEm: new Date(atualizadoEm).toISOString() };
 }
 
+export interface PedidoParaComissao {
+  id: number;
+  codigo: string;
+  dataEmissao: string; // aaaa-mm-dd
+  vendedor: string;
+  valorTotal: number;
+  valorRecebido: number;
+  quantidadeParafusos: number;
+  valorParafusos: number;
+  valorFrete: number;
+}
+
+// Pedidos de uma loja num mês (emitidos nele, Liberados ou Atendidos — a mesma regra do Ranking de Vendedores), com
+// o que o fechamento de comissões usa: valor recebido (contas a receber), parafusos e frete ("Fretes e Outros").
+// Mês ainda não lido: dispara a leitura em segundo plano e responde "carregando" (a varredura passa do tempo de um pedido HTTP).
+export async function getPedidosParaComissao(
+  lojaId: string,
+  mes: string
+): Promise<{ pedidos: PedidoParaComissao[]; atualizadoEm: string; carregando: boolean; financeiroCarregando: boolean }> {
+  if (!cachePedidosPorPeriodo.has(chavePedidos('mes', mes)) || !cacheVendedores) {
+    const falhou = (erro: any) => console.error('[nomus] falha ao ler os pedidos das comissões:', erro?.message ?? erro);
+    getPedidosBrutosDoPeriodo('mes', mes).catch(falhou);
+    getVendedores().catch(falhou);
+    return { pedidos: [], atualizadoEm: new Date().toISOString(), carregando: true, financeiroCarregando: false };
+  }
+
+  const [vendedores, todos] = await Promise.all([getVendedores(), getPedidosDoPeriodo('mes', mes)]);
+  const nomes = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
+  const pedidos = todos.filter((pedido) => {
+    const nome = pedido.idPessoaVendedor != null ? nomes.get(pedido.idPessoaVendedor) : undefined;
+    return nome != null && lojaDoVendedor(nome) === lojaId;
+  });
+  const financeiro = await getFinanceiroDosPedidos('mes', mes, todos, false);
+
+  const idsProdutos = new Set<number>();
+  for (const pedido of pedidos) for (const item of pedido.itensPedido || []) if (item.idProduto != null) idsProdutos.add(item.idProduto);
+  const produtos = await Promise.all(Array.from(idsProdutos).map(async (id) => [id, await getProdutoPorId(id)] as const));
+  const idsParafusos = new Set(produtos.filter(([, produto]) => produto?.descricao?.toLocaleLowerCase('pt-BR').includes('parafuso')).map(([id]) => id));
+  const itensDeParafuso = (pedido: Pedido) => (pedido.itensPedido || []).filter((item) => item.idProduto != null && idsParafusos.has(item.idProduto));
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const detalhes = pedidos.flatMap((pedido): PedidoParaComissao[] => {
+    const emissao = dataEmissaoPedido(pedido.dataEmissao);
+    const dataIso = emissao ? `${emissao.getFullYear()}-${pad(emissao.getMonth() + 1)}-${pad(emissao.getDate())}` : '';
+    if (!dataIso.startsWith(mes)) return []; // só os emitidos no próprio mês
+    return [{
+      id: pedido.id,
+      codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
+      dataEmissao: dataIso,
+      vendedor: nomes.get(pedido.idPessoaVendedor as number) as string,
+      valorTotal: parseNum(pedido.valorTotal),
+      valorRecebido: calcularRecebimentoDosPedidos([pedido], financeiro.contas),
+      quantidadeParafusos: itensDeParafuso(pedido).reduce((total, item) => total + parseNum(item.quantidade), 0),
+      valorParafusos: itensDeParafuso(pedido).reduce((total, item) => total + valorEstimadoItem(item), 0),
+      valorFrete: valorFretesEOutrosPedido(pedido),
+    }];
+  });
+
+  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos('mes', mes))?.atualizadoEm ?? Date.now();
+  return { pedidos: detalhes, atualizadoEm: new Date(atualizadoEm).toISOString(), carregando: false, financeiroCarregando: financeiro.carregando };
+}
+
 // Agregação compartilhada por getResumoVendas (todos os pedidos do período)
 // e getResumoVendasPorLoja (só os pedidos dos vendedores daquela loja) —
 // mesmo cálculo, o que muda é só o subconjunto de pedidos recebido.
