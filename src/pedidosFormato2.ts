@@ -10,6 +10,16 @@
 
 import { diasUteisEntre, somarDiasUteis } from './data/diasUteis';
 
+/** Divisão do valor total do pedido: 70% é o custo de produção e 30% é o lucro (que precisa ser transferido). */
+export const PERCENTUAL_CUSTO_PRODUCAO = 0.7;
+export const PERCENTUAL_LUCRO = 0.3;
+
+/** Custo de produção e lucro de um pedido, em centavos exatos: o lucro é arredondado e o custo é o que sobra (a soma sempre fecha). */
+export function dividirValorDoPedido(valorTotal: number): { custoProducao: number; lucro: number } {
+  const lucro = Math.round(valorTotal * PERCENTUAL_LUCRO * 100) / 100;
+  return { custoProducao: Math.round((valorTotal - lucro) * 100) / 100, lucro };
+}
+
 /** Data de corte: só entram pedidos emitidos nesta data ou depois (pedidos antigos não entram). */
 export const DATA_DE_CORTE_FORMATO2 = '2026-11-18';
 

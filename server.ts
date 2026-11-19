@@ -34,7 +34,7 @@ import { iniciarAtualizacaoPedidosAbertos, montarRespostaPedidosAbertos } from '
 import { iniciarAtualizacaoEntregas, montarRespostaEntregas, validarPeriodoEntregas } from './entregasPainel';
 import { montarRespostaMapa, montarRespostaMapaAEntregar, validarPeriodoMapa } from './mapaPedidos';
 import { montarRespostaPedidosCombinados } from './pedidosCombinados';
-import { montarRespostaPedidosFormato2 } from './pedidosFormato2';
+import { ErroPedidosFormato2, montarRespostaPedidosFormato2, salvarLucroTransferido } from './pedidosFormato2';
 import { buscarEps } from './epsFinanceiro';
 import { ErroCaixa2, marcarTransferencia, transferenciasDe } from './epsCaixa2';
 import { ErroComissoes, iniciarAtualizacaoComissoes, montarComissoesFabrica, salvarAjuste, salvarTermoAceite, validarMesComissoes } from './comissoesFabrica';
@@ -883,6 +883,18 @@ Contexto da GFERRO:
     } catch (error: any) {
       console.error('Erro ao montar os pedidos formato 2:', error);
       res.status(500).json({ error: 'Erro ao buscar os pedidos formato 2.' });
+    }
+  });
+  // Confirmação (feita à mão) de que o lucro de um pedido foi transferido.
+  app.put('/api/dashboard/pedidos-formato2/lucro', async (req, res) => {
+    try {
+      const sessao = await obterSessao(req);
+      const usuario = (sessao?.nome || sessao?.email || 'Intranet').trim();
+      res.json({ ok: true, lucroTransferido: await salvarLucroTransferido(req.body?.codigo, req.body?.transferido, usuario) });
+    } catch (error: any) {
+      const conhecido = error instanceof ErroPedidosFormato2;
+      if (!conhecido) console.error('Erro ao salvar a transferência do lucro:', error);
+      res.status(conhecido ? error.status : 500).json({ error: conhecido ? error.message : 'Não foi possível salvar a transferência do lucro.' });
     }
   });
 
