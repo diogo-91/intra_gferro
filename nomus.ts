@@ -1725,6 +1725,65 @@ export interface PedidoParaComissao {
   valorFrete: number;
 }
 
+// Recebimentos (GET /recebimentos): cada entrada de dinheiro lançada no financeiro do Nomus, com "Pedido PD 02529 - Parcela 1
+// de 2" na descrição. É a fonte do "valor recebido" do fechamento de comissões (confere com o que o financeiro lança; as contas
+// a receber ficam atrás quando a baixa demora). Lê desde alguns dias antes do mês — o pagamento pode ser lançado depois da
+// emissão, nunca muito antes — e guarda só o que o cálculo usa. Mesma ideia stale-while-revalidate dos demais caches.
+interface RecebimentoDePedido {
+  id: number;
+  descricaoLancamento?: string;
+  valorRecebido?: string | number;
+}
+interface CacheRecebimentos {
+  atualizadoEm: number;
+  recebimentos: RecebimentoDePedido[];
+}
+const ARQUIVO_RECEBIMENTOS_COMISSOES = path.join(PASTA_CACHE_DISCO, 'comissoes-recebimentos.json');
+const TTL_RECEBIMENTOS_MES_ATUAL_MS = 5 * 60 * 1000;
+const TTL_RECEBIMENTOS_MES_FECHADO_MS = 6 * 60 * 60 * 1000;
+
+function carregarCacheRecebimentosDoDisco(): Map<string, CacheRecebimentos> {
+  try {
+    return new Map(Object.entries(JSON.parse(readFileSync(ARQUIVO_RECEBIMENTOS_COMISSOES, 'utf-8')) as Record<string, CacheRecebimentos>));
+  } catch {
+    return new Map();
+  }
+}
+const cacheRecebimentosPorMes = carregarCacheRecebimentosDoDisco();
+const cacheRecebimentosEmAndamento = new Map<string, Promise<CacheRecebimentos>>();
+
+async function getRecebimentosDoMes(mes: string): Promise<{ recebimentos: RecebimentoDePedido[]; carregando: boolean }> {
+  const cacheado = cacheRecebimentosPorMes.get(mes);
+  const ttl = periodoEhFechado(`mes:${mes}`) ? TTL_RECEBIMENTOS_MES_FECHADO_MS : TTL_RECEBIMENTOS_MES_ATUAL_MS;
+  if (cacheado && Date.now() - cacheado.atualizadoEm < ttl) return { recebimentos: cacheado.recebimentos, carregando: false };
+
+  if (!cacheRecebimentosEmAndamento.has(mes)) {
+    const { baseUrl, apiKey } = getConfig();
+    if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
+    const primeiroDia = parseMesReferencia(mes);
+    if (!primeiroDia) throw new Error('mes inválido');
+    const limite = new Date(primeiroDia.getFullYear(), primeiroDia.getMonth(), primeiroDia.getDate() - 8, 23, 59, 59);
+    const query = comFiltroEmpresa(`dataRecebimento>${formatarDataNomus(limite)}`);
+    const leitura = coletarTudo<RecebimentoDePedido & Record<string, unknown>>('recebimentos', baseUrl, apiKey, query)
+      .then((lidos) => {
+        const novo = { atualizadoEm: Date.now(), recebimentos: lidos.map(({ id, descricaoLancamento, valorRecebido }) => ({ id, descricaoLancamento, valorRecebido })) };
+        cacheRecebimentosPorMes.set(mes, novo);
+        try {
+          mkdirSync(PASTA_CACHE_DISCO, { recursive: true });
+          writeFileSync(ARQUIVO_RECEBIMENTOS_COMISSOES, JSON.stringify(Object.fromEntries(cacheRecebimentosPorMes)), 'utf-8');
+        } catch (err) {
+          console.error('[nomus] falha ao persistir os recebimentos das comissões:', err);
+        }
+        return novo;
+      })
+      .finally(() => cacheRecebimentosEmAndamento.delete(mes));
+    cacheRecebimentosEmAndamento.set(mes, leitura);
+    leitura.catch((err) => console.error(`[nomus] falha ao ler os recebimentos de ${mes}:`, err?.message ?? err));
+  }
+  // A leitura passa do tempo de um pedido HTTP: devolve o que já está guardado (ou vazio na primeira vez) e segue em segundo plano.
+  return { recebimentos: cacheado?.recebimentos ?? [], carregando: true };
+}
+
 // Pedidos de todas as lojas num mês (emitidos nele, Liberados ou Atendidos — a mesma regra do Ranking de Vendedores), com
 // o que o fechamento de comissões usa: valor recebido (contas a receber), parafusos e frete ("Fretes e Outros").
 // Mês ainda não lido: dispara a leitura em segundo plano e responde "carregando" (a varredura passa do tempo de um pedido HTTP).
@@ -1741,7 +1800,12 @@ export async function getPedidosParaComissao(
   const [vendedores, todos] = await Promise.all([getVendedores(), getPedidosDoPeriodo('mes', mes)]);
   const nomes = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
   const pedidos = todos.filter((pedido) => pedido.idPessoaVendedor != null && nomes.has(pedido.idPessoaVendedor));
-  const financeiro = await getFinanceiroDosPedidos('mes', mes, todos, false);
+  const financeiro = await getRecebimentosDoMes(mes);
+  const recebidoPorPedido = new Map<string, number>();
+  for (const recebimento of financeiro.recebimentos) {
+    const codigo = chaveCodigoPedido(recebimento.descricaoLancamento);
+    if (codigo) recebidoPorPedido.set(codigo, (recebidoPorPedido.get(codigo) ?? 0) + Math.max(0, parseNum(recebimento.valorRecebido)));
+  }
 
   const idsProdutos = new Set<number>();
   for (const pedido of pedidos) for (const item of pedido.itensPedido || []) if (item.idProduto != null) idsProdutos.add(item.idProduto);
@@ -1761,7 +1825,7 @@ export async function getPedidosParaComissao(
       vendedor: nomes.get(pedido.idPessoaVendedor as number) as string,
       loja: lojaDoVendedor(nomes.get(pedido.idPessoaVendedor as number) as string) ?? '',
       valorTotal: parseNum(pedido.valorTotal),
-      valorRecebido: calcularRecebimentoDosPedidos([pedido], financeiro.contas),
+      valorRecebido: recebidoPorPedido.get(chaveCodigoPedido(pedido.codigoPedido) ?? '') ?? 0,
       quantidadeParafusos: itensDeParafuso(pedido).reduce((total, item) => total + parseNum(item.quantidade), 0),
       valorParafusos: itensDeParafuso(pedido).reduce((total, item) => total + valorEstimadoItem(item), 0),
       valorFrete: valorFretesEOutrosPedido(pedido),

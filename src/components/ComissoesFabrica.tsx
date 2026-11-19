@@ -211,7 +211,7 @@ export const ComissoesFabrica: React.FC = () => {
 
       {erro && <div role="alert" className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700"><AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" /> {erro}</div>}
       {dados?.carregando && <div role="status" className="flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs font-semibold text-yellow-800"><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Lendo os pedidos do mês no Nomus. Isso pode levar alguns minutos; a tela atualiza sozinha.</div>}
-      {!dados?.carregando && dados?.financeiroCarregando && <div role="status" className="flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs font-semibold text-yellow-800"><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Atualizando os valores recebidos no financeiro do Nomus; o recebido e as comissões de vendas podem mudar nos próximos minutos.</div>}
+      {!dados?.carregando && dados?.financeiroCarregando && <div role="status" className="flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs font-semibold text-yellow-800"><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Lendo os recebimentos no financeiro do Nomus; o recebido e as comissões de vendas podem mudar nos próximos minutos.</div>}
 
       {carregando ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-neutral-400" aria-label="Carregando" /></div>
@@ -399,7 +399,7 @@ export const ComissoesFabrica: React.FC = () => {
             <summary className="cursor-pointer text-sm font-extrabold text-neutral-900">Como é calculado</summary>
             <ul className="mt-2 list-disc space-y-1 pl-5 leading-relaxed">
               <li><b>Pedidos:</b> emitidos no mês pelos vendedores de cada loja e já Liberados ou Atendidos no Nomus — a mesma regra do Ranking de Vendedores.</li>
-              <li><b>Valor recebido:</b> o que já foi pago no financeiro do Nomus até agora; muda conforme entram os pagamentos.</li>
+              <li><b>Valor recebido:</b> soma dos recebimentos do pedido lançados no financeiro do Nomus (a tela Recebimentos); muda conforme entram os pagamentos.</li>
               <li><b>Comissão de vendas:</b> {pct(TAXA_COMISSAO_PADRAO)} do valor recebido. <b>% médio:</b> média simples do % recebido de cada pedido.</li>
               <li><b>Comissão de frete (por pedido):</b> {[...FAIXAS_COMISSAO_FRETE].reverse().map((f, i, todas) => `${brl(f.minimo)}${i < todas.length - 1 ? ` a ${brl(todas[i + 1].minimo - 0.01)}` : ' ou mais'} = ${brl(f.comissao)}`).join('; ')}. Abaixo de {brl(FAIXAS_COMISSAO_FRETE[FAIXAS_COMISSAO_FRETE.length - 1].minimo)} não há comissão. O frete é o campo “Fretes e Outros” do pedido.</li>
               <li><b>Semana:</b> semanas do mês começando no domingo (a semana 1 é a que tem o dia 1). <b>Termo de aceite</b> e <b>ajuste</b> são preenchidos à mão e ficam salvos.</li>
