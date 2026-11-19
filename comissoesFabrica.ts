@@ -5,7 +5,8 @@
 import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { getPedidosParaComissao } from './nomus';
-import { LOJA_FABRICA, MES_INICIAL_COMISSOES, type AjusteVendedor, type PedidoComissao, type TermoAceite } from './src/comissoesFabrica';
+import { MES_INICIAL_COMISSOES, type AjusteVendedor, type PedidoComissao, type TermoAceite, type VendedorDaLoja } from './src/comissoesFabrica';
+import { vendedoresMapeados } from './src/data/vendedorLoja';
 
 const ARQUIVO = path.join(process.cwd(), 'data', 'comissoes-fabrica.json');
 
@@ -29,6 +30,8 @@ export interface RespostaComissoesFabrica {
   /** O financeiro (valor recebido) ainda está sendo lido/atualizado: o recebido pode mudar nos próximos minutos. */
   financeiroCarregando?: boolean;
   pedidos: PedidoComissao[];
+  /** Todos os vendedores de cada loja (também os que não venderam no mês). */
+  vendedores: VendedorDaLoja[];
   termos: Record<string, TermoAceite>;
   ajustes: Record<string, AjusteVendedor>;
 }
@@ -69,14 +72,30 @@ export function validarMesComissoes(mes: unknown): string {
 }
 
 export async function montarComissoesFabrica(mes: string): Promise<RespostaComissoesFabrica> {
-  const [{ pedidos, atualizadoEm, carregando, financeiroCarregando }, todos] = await Promise.all([getPedidosParaComissao(LOJA_FABRICA, mes), carregar()]);
+  const [{ pedidos, vendedores: doNomus, atualizadoEm, carregando, financeiroCarregando }, todos] = await Promise.all([getPedidosParaComissao(mes), carregar()]);
+  // Vendedores cadastrados no Nomus + os vinculados à mão a uma loja que o Nomus ainda não tem. O mesmo nome (sem acento e
+  // sem diferença de maiúsculas) é a mesma pessoa — o Nomus tem cadastros antigo e novo — e um nome só de apelido
+  // ("Alisson") some quando a loja já tem o cadastro completo ("Alisson Fernando Nunes").
+  const chave = (nome: string) => nome.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  const mapeados = vendedoresMapeados();
+  const nomeFinal = new Map<string, string>(); // chave -> nome que vale (o do mapeamento, que é o cuidado à mão; senão o primeiro do Nomus)
+  for (const v of mapeados) nomeFinal.set(chave(v.nome), v.nome);
+  for (const v of doNomus) if (!nomeFinal.has(chave(v.nome))) nomeFinal.set(chave(v.nome), v.nome);
+  const final = (nome: string) => nomeFinal.get(chave(nome)) ?? nome;
+  const todosVendedores = new Map<string, VendedorDaLoja>();
+  for (const v of [...doNomus, ...mapeados]) if (!todosVendedores.has(chave(v.nome))) todosVendedores.set(chave(v.nome), { nome: final(v.nome), loja: v.loja });
+  const vendedores = [...todosVendedores.entries()]
+    .filter(([c, v]) => ![...todosVendedores.entries()].some(([outro, o]) => o.loja === v.loja && outro.startsWith(`${c} `)))
+    .map(([, v]) => v);
+  const pedidosUnificados = pedidos.map((p) => ({ ...p, vendedor: final(p.vendedor) }));
   const guardado = todos[mes];
   return {
     mes,
     atualizadoEm,
     ...(carregando ? { carregando: true } : {}),
     ...(financeiroCarregando ? { financeiroCarregando: true } : {}),
-    pedidos,
+    pedidos: pedidosUnificados,
+    vendedores,
     termos: Object.fromEntries(Object.entries(guardado?.termos ?? {}).map(([codigo, t]) => [codigo, t.valor])),
     ajustes: Object.fromEntries(Object.entries(guardado?.ajustes ?? {}).map(([vendedor, a]) => [vendedor, { valor: a.valor, observacao: a.observacao }])),
   };

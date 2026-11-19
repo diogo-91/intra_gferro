@@ -102,6 +102,13 @@ export function nomeCanonicoDoVendedor(nome: string): string {
   return NOME_CANONICO_NORMALIZADO[normalizar(nome)] ?? nome;
 }
 
+/** Todos os vendedores vinculados a uma loja (cadastros antigos duplicados ficam de fora: valem pelo nome canônico). */
+export function vendedoresMapeados(): Array<{ nome: string; loja: string }> {
+  return Object.entries(VENDEDOR_LOJA)
+    .filter(([nome]) => nomeCanonicoDoVendedor(nome) === nome)
+    .map(([nome, loja]) => ({ nome, loja }));
+}
+
 export function lojaDoVendedor(nome: string): string | undefined {
   const nomeNormalizado = normalizar(nome);
   const vinculoExato = VENDEDOR_LOJA_NORMALIZADO[nomeNormalizado];

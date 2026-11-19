@@ -1,5 +1,6 @@
-// Dashboard > Financeiro > Comissões Fábrica: as regras da planilha "03 FABRICA" (fechamento mensal das comissões dos
-// vendedores da fábrica). Sem dependências de servidor/navegador: a tela e o servidor usam o mesmo cálculo.
+// Dashboard > Financeiro > Comissões: as regras da planilha "03 FABRICA" (fechamento mensal das comissões dos vendedores),
+// aplicadas a todos os vendedores de todas as lojas e apresentadas por loja. Sem dependências de servidor/navegador: a tela
+// e o servidor usam o mesmo cálculo.
 //
 //  - Comissão de vendas: 2% do valor RECEBIDO dos pedidos do vendedor (taxa própria por vendedor em TAXAS_ESPECIAIS).
 //  - Comissão de frete (por pedido, pelo valor do frete cobrado): R$110 a 149,99 = 10; R$150 a 199,99 = 13,50;
@@ -10,8 +11,8 @@
 //  - Termo de aceite (Sim/Não) e ajustes (ex.: "descontar R$ 8") são digitados à mão.
 //  - O mês é o da data de emissão do pedido; o primeiro mês da tela é novembro/2026.
 
-/** Loja (src/data/vendedorLoja.ts) cujos vendedores são os da fábrica ("Unidade 3"). */
-export const LOJA_FABRICA = 'paulo';
+import { LOJAS } from './data/vendedorLoja';
+
 export const MES_INICIAL_COMISSOES = '2026-11';
 
 export const TAXA_COMISSAO_PADRAO = 0.02;
@@ -35,12 +36,17 @@ export interface PedidoComissao {
   codigo: string; // "PD 02338"
   dataEmissao: string; // aaaa-mm-dd
   vendedor: string;
+  /** Id da loja do vendedor; vazio se não está em nenhuma. */
+  loja: string;
   valorTotal: number;
   valorRecebido: number;
   quantidadeParafusos: number;
   valorParafusos: number;
   valorFrete: number;
 }
+
+/** Vendedor cadastrado numa loja (aparece na tela mesmo sem pedidos no mês). */
+export interface VendedorDaLoja { nome: string; loja: string }
 
 export interface AjusteVendedor {
   valor: number; // positivo soma, negativo desconta
@@ -57,6 +63,7 @@ export interface PedidoCalculado extends PedidoComissao {
 
 export interface ResumoVendedor {
   vendedor: string;
+  loja: string;
   pedidos: PedidoCalculado[];
   totalVendas: number;
   totalRecebido: number;
@@ -103,12 +110,16 @@ export interface DadosManuais {
   ajustes: Record<string, AjusteVendedor>;
 }
 
-export function calcularComissoes(pedidos: PedidoComissao[], manuais: DadosManuais): ResumoVendedor[] {
+export function calcularComissoes(pedidos: PedidoComissao[], manuais: DadosManuais, vendedores: VendedorDaLoja[] = []): ResumoVendedor[] {
   const porVendedor = new Map<string, PedidoComissao[]>();
+  const lojaDe = new Map<string, string>();
+  // Todos os vendedores das lojas aparecem, tenham vendido ou não no mês.
+  for (const v of vendedores) { if (!porVendedor.has(v.nome)) porVendedor.set(v.nome, []); lojaDe.set(v.nome, v.loja); }
   for (const pedido of pedidos) {
     const lista = porVendedor.get(pedido.vendedor) ?? [];
     lista.push(pedido);
     porVendedor.set(pedido.vendedor, lista);
+    if (pedido.loja) lojaDe.set(pedido.vendedor, pedido.loja);
   }
   // Vendedor sem pedido no mês mas com ajuste lançado também aparece.
   for (const nome of Object.keys(manuais.ajustes)) if (!porVendedor.has(nome)) porVendedor.set(nome, []);
@@ -139,6 +150,7 @@ export function calcularComissoes(pedidos: PedidoComissao[], manuais: DadosManua
     const ajuste = manuais.ajustes[vendedor] ?? null;
     return {
       vendedor,
+      loja: lojaDe.get(vendedor) ?? '',
       pedidos: calculados,
       totalVendas: centavos(calculados.reduce((s, p) => s + p.valorTotal, 0)),
       totalRecebido,
@@ -156,6 +168,20 @@ export function calcularComissoes(pedidos: PedidoComissao[], manuais: DadosManua
     };
   });
   return resumos.sort((a, b) => b.totalVendas - a.totalVendas || a.vendedor.localeCompare(b.vendedor, 'pt-BR'));
+}
+
+export interface GrupoLoja {
+  id: string; // '' = vendedores sem loja
+  nome: string;
+  resumos: ResumoVendedor[];
+}
+
+/** Resumos agrupados por loja, na ordem das lojas (as 5 sempre aparecem); vendedores sem loja, se houver, vão num grupo no fim. */
+export function agruparPorLoja(resumos: ResumoVendedor[]): GrupoLoja[] {
+  const grupos: GrupoLoja[] = LOJAS.map((l) => ({ id: l.id as string, nome: l.nome as string, resumos: resumos.filter((r) => r.loja === l.id) }));
+  const semLoja = resumos.filter((r) => !LOJAS.some((l) => l.id === r.loja));
+  if (semLoja.length > 0) grupos.push({ id: '', nome: 'Sem loja definida', resumos: semLoja });
+  return grupos;
 }
 
 export function somarResumos(resumos: ResumoVendedor[]) {

@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ChevronLeft, ChevronRight, Download, HandCoins, Loader2, RefreshCw } from 'lucide-react';
 import {
-  FAIXAS_COMISSAO_FRETE, MES_INICIAL_COMISSOES, NUMERO_DE_SEMANAS, TAXA_COMISSAO_PADRAO, calcularComissoes, somarResumos,
-  type AjusteVendedor, type PedidoComissao, type ResumoVendedor, type TermoAceite,
+  FAIXAS_COMISSAO_FRETE, agruparPorLoja, MES_INICIAL_COMISSOES, NUMERO_DE_SEMANAS, TAXA_COMISSAO_PADRAO, calcularComissoes, somarResumos,
+  type AjusteVendedor, type PedidoComissao, type ResumoVendedor, type TermoAceite, type VendedorDaLoja,
 } from '../comissoesFabrica';
+import { LOJAS } from '../data/vendedorLoja';
 import { chaveDia, formatDataIsoParaBr } from '../utils/format';
 
-// Comissões Fábrica (Dashboard Financeiro): o fechamento mensal da planilha "03 FABRICA", calculado direto dos pedidos do
+// Comissões (Dashboard Financeiro): o fechamento mensal da planilha "03 FABRICA", calculado direto dos pedidos do
 // Nomus. Os valores vêm do Nomus; o termo de aceite (por pedido) e o ajuste (por vendedor) são digitados aqui.
 
 interface Resposta {
@@ -15,6 +16,7 @@ interface Resposta {
   carregando?: boolean;
   financeiroCarregando?: boolean;
   pedidos: PedidoComissao[];
+  vendedores: VendedorDaLoja[];
   termos: Record<string, TermoAceite>;
   ajustes: Record<string, AjusteVendedor>;
 }
@@ -30,6 +32,8 @@ const dinheiroComSinal = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${br
 const MINUSCULAS = new Set(['da', 'de', 'do', 'das', 'dos', 'e']);
 const nomeBonito = (nome: string) => nome.toLocaleLowerCase('pt-BR').split(' ').map((p, i) => (i > 0 && MINUSCULAS.has(p) ? p : p.charAt(0).toLocaleUpperCase('pt-BR') + p.slice(1))).join(' ');
 const primeiroNome = (nome: string) => nomeBonito(nome).split(' ')[0];
+
+const nomeDaLoja = (id: string) => LOJAS.find((l) => l.id === id)?.nome ?? 'Sem loja definida';
 
 const rotuloMes = (mes: string) => {
   const [ano, m] = mes.split('-').map(Number);
@@ -131,7 +135,8 @@ export const ComissoesFabrica: React.FC = () => {
     return () => clearInterval(t);
   }, [carregar, lendo]);
 
-  const resumos = useMemo(() => calcularComissoes(dados?.pedidos ?? [], { termos: dados?.termos ?? {}, ajustes: dados?.ajustes ?? {} }), [dados]);
+  const resumos = useMemo(() => calcularComissoes(dados?.pedidos ?? [], { termos: dados?.termos ?? {}, ajustes: dados?.ajustes ?? {} }, dados?.vendedores ?? []), [dados]);
+  const grupos = useMemo(() => agruparPorLoja(resumos), [resumos]);
   const total = useMemo(() => somarResumos(resumos), [resumos]);
   const vendedorAtual: ResumoVendedor | undefined = resumos.find((r) => r.vendedor === selecionado) ?? resumos[0];
 
@@ -163,12 +168,12 @@ export const ComissoesFabrica: React.FC = () => {
     const esc = (x: unknown) => { const s = String(x ?? ''); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const num = (n: number) => n.toFixed(2).replace('.', ',');
     const linhas: string[] = [];
-    linhas.push(['Vendedor', 'Pedidos', 'Vendas (R$)', 'Recebido (R$)', '% médio recebido', 'Parafusos (un)', 'Parafusos (R$)', 'Frete (R$)', 'Comissão frete (R$)', 'Taxa', 'Comissão vendas (R$)', 'Ajuste (R$)', 'Obs. do ajuste', 'Total (R$)'].map(esc).join(';'));
-    for (const r of resumos) linhas.push([nomeBonito(r.vendedor), r.pedidos.length, num(r.totalVendas), num(r.totalRecebido), r.mediaPercentual === null ? '' : (r.mediaPercentual * 100).toFixed(1).replace('.', ','), r.quantidadeParafusos, num(r.valorParafusos), num(r.totalFrete), num(r.comissaoFrete), `${(r.taxa * 100).toFixed(0)}%`, num(r.comissaoVendas), num(r.ajuste?.valor ?? 0), r.ajuste?.observacao ?? '', num(r.totalComissao)].map(esc).join(';'));
-    linhas.push(['TOTAL', total.pedidos, num(total.totalVendas), num(total.totalRecebido), total.mediaPercentual === null ? '' : (total.mediaPercentual * 100).toFixed(1).replace('.', ','), total.quantidadeParafusos, num(total.valorParafusos), num(total.totalFrete), num(total.comissaoFrete), '', num(total.comissaoVendas), num(total.ajustes), '', num(total.totalComissao)].map(esc).join(';'));
+    linhas.push(['Loja', 'Vendedor', 'Pedidos', 'Vendas (R$)', 'Recebido (R$)', '% médio recebido', 'Parafusos (un)', 'Parafusos (R$)', 'Frete (R$)', 'Comissão frete (R$)', 'Taxa', 'Comissão vendas (R$)', 'Ajuste (R$)', 'Obs. do ajuste', 'Total (R$)'].map(esc).join(';'));
+    for (const r of resumos) linhas.push([nomeDaLoja(r.loja), nomeBonito(r.vendedor), r.pedidos.length, num(r.totalVendas), num(r.totalRecebido), r.mediaPercentual === null ? '' : (r.mediaPercentual * 100).toFixed(1).replace('.', ','), r.quantidadeParafusos, num(r.valorParafusos), num(r.totalFrete), num(r.comissaoFrete), `${(r.taxa * 100).toFixed(0)}%`, num(r.comissaoVendas), num(r.ajuste?.valor ?? 0), r.ajuste?.observacao ?? '', num(r.totalComissao)].map(esc).join(';'));
+    linhas.push(['TOTAL', '', total.pedidos, num(total.totalVendas), num(total.totalRecebido), total.mediaPercentual === null ? '' : (total.mediaPercentual * 100).toFixed(1).replace('.', ','), total.quantidadeParafusos, num(total.valorParafusos), num(total.totalFrete), num(total.comissaoFrete), '', num(total.comissaoVendas), num(total.ajustes), '', num(total.totalComissao)].map(esc).join(';'));
     linhas.push('');
-    linhas.push(['Vendedor', 'Data', 'Pedido', 'Valor vendas (R$)', 'Valor recebido (R$)', '%', 'Parafusos (un)', 'Parafusos (R$)', 'Frete (R$)', 'Comissão frete (R$)', 'Semana', 'Termo de aceite'].map(esc).join(';'));
-    for (const r of resumos) for (const p of r.pedidos) linhas.push([nomeBonito(r.vendedor), formatDataIsoParaBr(p.dataEmissao), p.codigo, num(p.valorTotal), num(p.valorRecebido), p.percentual === null ? '' : (p.percentual * 100).toFixed(1).replace('.', ','), p.quantidadeParafusos, num(p.valorParafusos), num(p.valorFrete), num(p.comissaoFrete), p.semana, p.termoAceite === 'sim' ? 'Sim' : p.termoAceite === 'nao' ? 'Não' : ''].map(esc).join(';'));
+    linhas.push(['Loja', 'Vendedor', 'Data', 'Pedido', 'Valor vendas (R$)', 'Valor recebido (R$)', '%', 'Parafusos (un)', 'Parafusos (R$)', 'Frete (R$)', 'Comissão frete (R$)', 'Semana', 'Termo de aceite'].map(esc).join(';'));
+    for (const r of resumos) for (const p of r.pedidos) linhas.push([nomeDaLoja(r.loja), nomeBonito(r.vendedor), formatDataIsoParaBr(p.dataEmissao), p.codigo, num(p.valorTotal), num(p.valorRecebido), p.percentual === null ? '' : (p.percentual * 100).toFixed(1).replace('.', ','), p.quantidadeParafusos, num(p.valorParafusos), num(p.valorFrete), num(p.comissaoFrete), p.semana, p.termoAceite === 'sim' ? 'Sim' : p.termoAceite === 'nao' ? 'Não' : ''].map(esc).join(';'));
     const url = URL.createObjectURL(new Blob(['﻿' + linhas.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' }));
     const link = Object.assign(document.createElement('a'), { href: url, download: `comissoes-fabrica-${mes}.csv` });
     document.body.append(link);
@@ -186,9 +191,9 @@ export const ComissoesFabrica: React.FC = () => {
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-gradient-to-br from-yellow-200 to-yellow-100 shadow-md shadow-yellow-400/20"><HandCoins className="h-[22px] w-[22px] text-yellow-500" aria-hidden="true" /></span>
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500">Dashboard › Financeiro › <b className="text-neutral-900">Comissões Fábrica</b></span>
-            <h1 className="text-[22px] font-black leading-tight tracking-tight text-neutral-900">Comissões Fábrica</h1>
-            <p className="mt-1 max-w-3xl text-xs leading-snug text-neutral-500">Fechamento mensal dos vendedores da fábrica, calculado dos pedidos do Nomus: vendas, recebido, parafusos, frete e comissões.</p>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500">Dashboard › Financeiro › <b className="text-neutral-900">Comissões</b></span>
+            <h1 className="text-[22px] font-black leading-tight tracking-tight text-neutral-900">Comissões</h1>
+            <p className="mt-1 max-w-3xl text-xs leading-snug text-neutral-500">Fechamento mensal dos vendedores de todas as lojas, calculado dos pedidos do Nomus: vendas, recebido, parafusos, frete e comissões.</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -221,51 +226,61 @@ export const ComissoesFabrica: React.FC = () => {
             <div className={`${cartao} border-yellow-300 bg-yellow-50/60`}><span className="text-[10.5px] font-extrabold uppercase tracking-wide text-yellow-800">Total a pagar</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(total.totalComissao)}</strong><small className="text-[11px] text-neutral-500">vendas + frete{total.ajustes !== 0 ? ` ${total.ajustes > 0 ? '+' : '−'} ajustes ${brl(Math.abs(total.ajustes))}` : ''}</small></div>
           </section>
 
-          {/* Resumo por vendedor */}
-          <section className={cartao} aria-label="Resumo por vendedor">
-            <h2 className="mb-2 text-sm font-extrabold text-neutral-900">Resumo por vendedor</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead><tr>
-                  <th className={cabecalho}>Vendedor</th><th className={`${cabecalho} text-right`}>Pedidos</th><th className={`${cabecalho} text-right`}>Vendas (R$)</th><th className={`${cabecalho} text-right`}>Recebido (R$)</th><th className={`${cabecalho} text-right`} title="Média simples do % recebido de cada pedido">% médio</th><th className={`${cabecalho} text-right`}>Parafusos (un)</th><th className={`${cabecalho} text-right`}>Parafusos (R$)</th><th className={`${cabecalho} text-right`}>Frete (R$)</th><th className={`${cabecalho} text-right`}>Com. frete (R$)</th><th className={`${cabecalho} text-right`}>Com. vendas (R$)</th><th className={`${cabecalho} text-right`}>Ajuste (R$)</th><th className={`${cabecalho} text-right`}>Total a pagar (R$)</th>
-                </tr></thead>
-                <tbody>
-                  {resumos.map((r) => (
-                    <tr key={r.vendedor} className="cursor-pointer hover:bg-yellow-50/50" onClick={() => setSelecionado(r.vendedor)}>
-                      <td className={`${celula} font-semibold`}>{nomeBonito(r.vendedor)}</td>
-                      <td className={`${celula} ${num}`}>{inteiro(r.pedidos.length)}</td>
-                      <td className={`${celula} ${num}`}>{dec(r.totalVendas)}</td>
-                      <td className={`${celula} ${num}`}>{dec(r.totalRecebido)}</td>
-                      <td className={`${celula} ${num}`}>{pct(r.mediaPercentual)}</td>
-                      <td className={`${celula} ${num}`}>{inteiro(r.quantidadeParafusos)}</td>
-                      <td className={`${celula} ${num}`}>{dec(r.valorParafusos)}</td>
-                      <td className={`${celula} ${num}`}>{dec(r.totalFrete)}</td>
-                      <td className={`${celula} ${num}`}>{dec(r.comissaoFrete)}</td>
-                      <td className={`${celula} ${num}`} title={`${pct(r.taxa)} do recebido`}>{dec(r.comissaoVendas)}</td>
-                      <td className={`${celula} ${num} ${r.ajuste && r.ajuste.valor !== 0 ? (r.ajuste.valor > 0 ? 'text-emerald-700' : 'text-red-700') : 'text-neutral-400'}`} title={r.ajuste?.observacao || undefined}>{r.ajuste && r.ajuste.valor !== 0 ? dinheiroComSinal(r.ajuste.valor) : '—'}</td>
-                      <td className={`${celula} ${num} font-extrabold`}>{dec(r.totalComissao)}</td>
-                    </tr>
-                  ))}
-                  {resumos.length === 0 && <tr><td colSpan={12} className="px-3 py-6 text-center text-xs text-neutral-400">Nenhum pedido dos vendedores da fábrica neste mês.</td></tr>}
-                  {resumos.length > 0 && (
-                    <tr className="bg-neutral-50 font-extrabold">
-                      <td className={celula}>Total</td>
-                      <td className={`${celula} ${num}`}>{inteiro(total.pedidos)}</td>
-                      <td className={`${celula} ${num}`}>{dec(total.totalVendas)}</td>
-                      <td className={`${celula} ${num}`}>{dec(total.totalRecebido)}</td>
-                      <td className={`${celula} ${num}`}>{pct(total.mediaPercentual)}</td>
-                      <td className={`${celula} ${num}`}>{inteiro(total.quantidadeParafusos)}</td>
-                      <td className={`${celula} ${num}`}>{dec(total.valorParafusos)}</td>
-                      <td className={`${celula} ${num}`}>{dec(total.totalFrete)}</td>
-                      <td className={`${celula} ${num}`}>{dec(total.comissaoFrete)}</td>
-                      <td className={`${celula} ${num}`}>{dec(total.comissaoVendas)}</td>
-                      <td className={`${celula} ${num}`}>{total.ajustes !== 0 ? dinheiroComSinal(total.ajustes) : '—'}</td>
-                      <td className={`${celula} ${num}`}>{dec(total.totalComissao)}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+          {/* Resumo por loja e vendedor */}
+          <section className="space-y-4" aria-label="Resumo por loja">
+            {grupos.map((g) => {
+              const t = somarResumos(g.resumos);
+              return (
+                <div key={g.id || 'sem-loja'} className={cartao} aria-label={g.nome}>
+                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <h2 className="text-sm font-extrabold text-neutral-900">{g.nome}</h2>
+                    <span className="text-[11px] text-neutral-500">{inteiro(g.resumos.length)} vendedor{g.resumos.length === 1 ? '' : 'es'} · vendas {brl(t.totalVendas)} · total a pagar <b className="text-neutral-900">{brl(t.totalComissao)}</b></span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead><tr>
+                        <th className={cabecalho}>Vendedor</th><th className={`${cabecalho} text-right`}>Pedidos</th><th className={`${cabecalho} text-right`}>Vendas (R$)</th><th className={`${cabecalho} text-right`}>Recebido (R$)</th><th className={`${cabecalho} text-right`} title="Média simples do % recebido de cada pedido">% médio</th><th className={`${cabecalho} text-right`}>Parafusos (un)</th><th className={`${cabecalho} text-right`}>Parafusos (R$)</th><th className={`${cabecalho} text-right`}>Frete (R$)</th><th className={`${cabecalho} text-right`}>Com. frete (R$)</th><th className={`${cabecalho} text-right`}>Com. vendas (R$)</th><th className={`${cabecalho} text-right`}>Ajuste (R$)</th><th className={`${cabecalho} text-right`}>Total a pagar (R$)</th>
+                      </tr></thead>
+                      <tbody>
+                        {g.resumos.map((r) => (
+                          <tr key={r.vendedor} className={`cursor-pointer hover:bg-yellow-50/50 ${r.pedidos.length === 0 && !r.ajuste ? 'text-neutral-400' : ''}`} onClick={() => setSelecionado(r.vendedor)}>
+                            <td className={`${celula} font-semibold`}>{nomeBonito(r.vendedor)}</td>
+                            <td className={`${celula} ${num}`}>{inteiro(r.pedidos.length)}</td>
+                            <td className={`${celula} ${num}`}>{dec(r.totalVendas)}</td>
+                            <td className={`${celula} ${num}`}>{dec(r.totalRecebido)}</td>
+                            <td className={`${celula} ${num}`}>{pct(r.mediaPercentual)}</td>
+                            <td className={`${celula} ${num}`}>{inteiro(r.quantidadeParafusos)}</td>
+                            <td className={`${celula} ${num}`}>{dec(r.valorParafusos)}</td>
+                            <td className={`${celula} ${num}`}>{dec(r.totalFrete)}</td>
+                            <td className={`${celula} ${num}`}>{dec(r.comissaoFrete)}</td>
+                            <td className={`${celula} ${num}`} title={`${pct(r.taxa)} do recebido`}>{dec(r.comissaoVendas)}</td>
+                            <td className={`${celula} ${num} ${r.ajuste && r.ajuste.valor !== 0 ? (r.ajuste.valor > 0 ? 'text-emerald-700' : 'text-red-700') : 'text-neutral-400'}`} title={r.ajuste?.observacao || undefined}>{r.ajuste && r.ajuste.valor !== 0 ? dinheiroComSinal(r.ajuste.valor) : '—'}</td>
+                            <td className={`${celula} ${num} font-extrabold`}>{dec(r.totalComissao)}</td>
+                          </tr>
+                        ))}
+                        {g.resumos.length === 0 && <tr><td colSpan={12} className="px-3 py-5 text-center text-xs text-neutral-400">Nenhum vendedor cadastrado nesta loja.</td></tr>}
+                        {g.resumos.length > 1 && (
+                          <tr className="bg-neutral-50 font-extrabold">
+                            <td className={celula}>Total da loja</td>
+                            <td className={`${celula} ${num}`}>{inteiro(t.pedidos)}</td>
+                            <td className={`${celula} ${num}`}>{dec(t.totalVendas)}</td>
+                            <td className={`${celula} ${num}`}>{dec(t.totalRecebido)}</td>
+                            <td className={`${celula} ${num}`}>{pct(t.mediaPercentual)}</td>
+                            <td className={`${celula} ${num}`}>{inteiro(t.quantidadeParafusos)}</td>
+                            <td className={`${celula} ${num}`}>{dec(t.valorParafusos)}</td>
+                            <td className={`${celula} ${num}`}>{dec(t.totalFrete)}</td>
+                            <td className={`${celula} ${num}`}>{dec(t.comissaoFrete)}</td>
+                            <td className={`${celula} ${num}`}>{dec(t.comissaoVendas)}</td>
+                            <td className={`${celula} ${num}`}>{t.ajustes !== 0 ? dinheiroComSinal(t.ajustes) : '—'}</td>
+                            <td className={`${celula} ${num}`}>{dec(t.totalComissao)}</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
           </section>
 
           {/* Por semana */}
@@ -281,14 +296,19 @@ export const ComissoesFabrica: React.FC = () => {
                         {Array.from({ length: NUMERO_DE_SEMANAS }, (_, i) => <th key={i} className={`${cabecalho} text-right`}>Sem. {i + 1}</th>)}
                       </tr></thead>
                       <tbody>
-                        {resumos.map((r) => (
-                          <tr key={r.vendedor}>
-                            <td className={`${celula} font-semibold`}>{primeiroNome(r.vendedor)}</td>
-                            {r[campoSemana].map((v, i) => <td key={i} className={`${celula} ${num} ${v === 0 ? 'text-neutral-300' : ''}`}>{v === 0 ? '—' : dec(v)}</td>)}
-                          </tr>
+                        {grupos.filter((g) => g.resumos.length > 0).map((g) => (
+                          <React.Fragment key={g.id || 'sem-loja'}>
+                            <tr><td colSpan={NUMERO_DE_SEMANAS + 1} className="bg-yellow-50 px-2 py-1 text-[10.5px] font-extrabold uppercase tracking-wide text-yellow-800">{g.nome}</td></tr>
+                            {g.resumos.map((r) => (
+                              <tr key={r.vendedor}>
+                                <td className={`${celula} font-semibold`}>{primeiroNome(r.vendedor)}</td>
+                                {r[campoSemana].map((v, i) => <td key={i} className={`${celula} ${num} ${v === 0 ? 'text-neutral-300' : ''}`}>{v === 0 ? '—' : dec(v)}</td>)}
+                              </tr>
+                            ))}
+                          </React.Fragment>
                         ))}
                         <tr className="bg-neutral-50 font-extrabold">
-                          <td className={celula}>Total</td>
+                          <td className={celula}>Total geral</td>
                           {total[campoSemana].map((v, i) => <td key={i} className={`${celula} ${num}`}>{dec(v)}</td>)}
                         </tr>
                       </tbody>
@@ -304,8 +324,16 @@ export const ComissoesFabrica: React.FC = () => {
             <section className={cartao} aria-label="Pedidos do vendedor">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <h2 className="mr-2 text-sm font-extrabold text-neutral-900">Pedidos de</h2>
-                {resumos.map((r) => (
-                  <button key={r.vendedor} type="button" onClick={() => setSelecionado(r.vendedor)} aria-pressed={r.vendedor === vendedorAtual.vendedor} className={`rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${r.vendedor === vendedorAtual.vendedor ? 'border-yellow-400 bg-yellow-300 text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:border-yellow-400'}`}>{primeiroNome(r.vendedor)}</button>
+                <span className="text-xs text-neutral-500">{nomeDaLoja(vendedorAtual.loja)} › <b className="text-neutral-900">{nomeBonito(vendedorAtual.vendedor)}</b></span>
+              </div>
+              <div className="mb-3 space-y-1.5">
+                {grupos.filter((g) => g.resumos.length > 0).map((g) => (
+                  <div key={g.id || 'sem-loja'} className="flex flex-wrap items-center gap-1.5">
+                    <span className="w-44 shrink-0 text-[10.5px] font-extrabold uppercase tracking-wide text-neutral-500">{g.nome}</span>
+                    {g.resumos.map((r) => (
+                      <button key={r.vendedor} type="button" onClick={() => setSelecionado(r.vendedor)} aria-pressed={r.vendedor === vendedorAtual.vendedor} className={`rounded-xl border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 ${r.vendedor === vendedorAtual.vendedor ? 'border-yellow-400 bg-yellow-300 text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:border-yellow-400'}`}>{primeiroNome(r.vendedor)}</button>
+                    ))}
+                  </div>
                 ))}
               </div>
 
@@ -370,7 +398,7 @@ export const ComissoesFabrica: React.FC = () => {
           <details className={`${cartao} text-xs text-neutral-600`}>
             <summary className="cursor-pointer text-sm font-extrabold text-neutral-900">Como é calculado</summary>
             <ul className="mt-2 list-disc space-y-1 pl-5 leading-relaxed">
-              <li><b>Pedidos:</b> emitidos no mês pelos vendedores da fábrica (Unidade 3) e já Liberados ou Atendidos no Nomus — a mesma regra do Ranking de Vendedores.</li>
+              <li><b>Pedidos:</b> emitidos no mês pelos vendedores de cada loja e já Liberados ou Atendidos no Nomus — a mesma regra do Ranking de Vendedores.</li>
               <li><b>Valor recebido:</b> o que já foi pago no financeiro do Nomus até agora; muda conforme entram os pagamentos.</li>
               <li><b>Comissão de vendas:</b> {pct(TAXA_COMISSAO_PADRAO)} do valor recebido. <b>% médio:</b> média simples do % recebido de cada pedido.</li>
               <li><b>Comissão de frete (por pedido):</b> {[...FAIXAS_COMISSAO_FRETE].reverse().map((f, i, todas) => `${brl(f.minimo)}${i < todas.length - 1 ? ` a ${brl(todas[i + 1].minimo - 0.01)}` : ' ou mais'} = ${brl(f.comissao)}`).join('; ')}. Abaixo de {brl(FAIXAS_COMISSAO_FRETE[FAIXAS_COMISSAO_FRETE.length - 1].minimo)} não há comissão. O frete é o campo “Fretes e Outros” do pedido.</li>

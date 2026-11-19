@@ -1716,6 +1716,8 @@ export interface PedidoParaComissao {
   codigo: string;
   dataEmissao: string; // aaaa-mm-dd
   vendedor: string;
+  /** Id da loja do vendedor (src/data/vendedorLoja.ts); vazio se o vendedor não está em nenhuma loja. */
+  loja: string;
   valorTotal: number;
   valorRecebido: number;
   quantidadeParafusos: number;
@@ -1723,26 +1725,22 @@ export interface PedidoParaComissao {
   valorFrete: number;
 }
 
-// Pedidos de uma loja num mês (emitidos nele, Liberados ou Atendidos — a mesma regra do Ranking de Vendedores), com
+// Pedidos de todas as lojas num mês (emitidos nele, Liberados ou Atendidos — a mesma regra do Ranking de Vendedores), com
 // o que o fechamento de comissões usa: valor recebido (contas a receber), parafusos e frete ("Fretes e Outros").
 // Mês ainda não lido: dispara a leitura em segundo plano e responde "carregando" (a varredura passa do tempo de um pedido HTTP).
 export async function getPedidosParaComissao(
-  lojaId: string,
   mes: string
-): Promise<{ pedidos: PedidoParaComissao[]; atualizadoEm: string; carregando: boolean; financeiroCarregando: boolean }> {
+): Promise<{ pedidos: PedidoParaComissao[]; vendedores: Array<{ nome: string; loja: string }>; atualizadoEm: string; carregando: boolean; financeiroCarregando: boolean }> {
   if (!cachePedidosPorPeriodo.has(chavePedidos('mes', mes)) || !cacheVendedores) {
     const falhou = (erro: any) => console.error('[nomus] falha ao ler os pedidos das comissões:', erro?.message ?? erro);
     getPedidosBrutosDoPeriodo('mes', mes).catch(falhou);
     getVendedores().catch(falhou);
-    return { pedidos: [], atualizadoEm: new Date().toISOString(), carregando: true, financeiroCarregando: false };
+    return { pedidos: [], vendedores: [], atualizadoEm: new Date().toISOString(), carregando: true, financeiroCarregando: false };
   }
 
   const [vendedores, todos] = await Promise.all([getVendedores(), getPedidosDoPeriodo('mes', mes)]);
   const nomes = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
-  const pedidos = todos.filter((pedido) => {
-    const nome = pedido.idPessoaVendedor != null ? nomes.get(pedido.idPessoaVendedor) : undefined;
-    return nome != null && lojaDoVendedor(nome) === lojaId;
-  });
+  const pedidos = todos.filter((pedido) => pedido.idPessoaVendedor != null && nomes.has(pedido.idPessoaVendedor));
   const financeiro = await getFinanceiroDosPedidos('mes', mes, todos, false);
 
   const idsProdutos = new Set<number>();
@@ -1761,6 +1759,7 @@ export async function getPedidosParaComissao(
       codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
       dataEmissao: dataIso,
       vendedor: nomes.get(pedido.idPessoaVendedor as number) as string,
+      loja: lojaDoVendedor(nomes.get(pedido.idPessoaVendedor as number) as string) ?? '',
       valorTotal: parseNum(pedido.valorTotal),
       valorRecebido: calcularRecebimentoDosPedidos([pedido], financeiro.contas),
       quantidadeParafusos: itensDeParafuso(pedido).reduce((total, item) => total + parseNum(item.quantidade), 0),
@@ -1770,7 +1769,13 @@ export async function getPedidosParaComissao(
   });
 
   const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos('mes', mes))?.atualizadoEm ?? Date.now();
-  return { pedidos: detalhes, atualizadoEm: new Date(atualizadoEm).toISOString(), carregando: false, financeiroCarregando: financeiro.carregando };
+  // Todos os vendedores que têm loja (cadastrados no Nomus), para a tela listar também quem não vendeu no mês.
+  const doNomus = new Map<string, { nome: string; loja: string }>();
+  for (const vendedor of vendedores) {
+    const loja = vendedor.nome ? lojaDoVendedor(vendedor.nome) : undefined;
+    if (vendedor.nome && loja) doNomus.set(vendedor.nome, { nome: vendedor.nome, loja });
+  }
+  return { pedidos: detalhes, vendedores: [...doNomus.values()], atualizadoEm: new Date(atualizadoEm).toISOString(), carregando: false, financeiroCarregando: financeiro.carregando };
 }
 
 // Agregação compartilhada por getResumoVendas (todos os pedidos do período)

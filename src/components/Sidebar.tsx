@@ -97,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'dashboard-pedidos', label: 'Pedidos', icon: PackageSearch, subitens: [{ id: 'pedidos-problematicos', label: 'Pedidos problemáticos', icon: AlertTriangle }, { id: 'pedidos-combinados', label: 'Pedidos combinados', icon: Handshake }, { id: 'pedidos-formato-2', label: 'Pedidos Formato 2', icon: ListChecks }] },
         { id: 'dashboard-entregas', label: 'Entregas', icon: Truck },
         { id: 'dashboard-mapa', label: 'Mapa', icon: MapIcon },
-        { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }, { id: 'financeiro-eps', label: 'Placas de EPS', icon: Boxes }, { id: 'financeiro-comissoes', label: 'Comissões Fábrica', icon: HandCoins }] },
+        { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }, { id: 'financeiro-eps', label: 'Placas de EPS', icon: Boxes }, { id: 'financeiro-comissoes', label: 'Comissões', icon: HandCoins }] },
         { id: 'producao', label: 'Produção', icon: Factory },
         { id: 'gestao', label: 'Gestão', icon: Target },
       ],
