@@ -146,6 +146,7 @@ export const PedidosFormato2: React.FC = () => {
   const somaAReceber = lista.reduce((s, p) => s + (p.aReceber ?? 0), 0);
   // Os indicadores acompanham a lista filtrada.
   const somar = (itens: PedidoFormato2[], campo: 'valorTotal' | 'custoProducao' | 'lucro') => itens.reduce((t, p) => t + p[campo], 0);
+  const somaPago = lista.reduce((t, p) => t + (p.pago ?? 0), 0);
   const jaTransferidos = lista.filter((p) => p.lucroTransferido);
   const aTransferir = lista.filter((p) => !p.lucroTransferido);
 
@@ -190,7 +191,7 @@ export const PedidosFormato2: React.FC = () => {
       )}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores">
-        <div className={cartao}><span className={rotuloCartao}>Valor total dos pedidos</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(lista, 'valorTotal'))}</strong><small className="text-[11px] text-neutral-400">{plural(lista.length, 'pedido', 'pedidos')}</small></div>
+        <div className={cartao}><span className={rotuloCartao}>Valor pago</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somaPago)}</strong><small className="text-[11px] text-neutral-400">de {brl(somar(lista, 'valorTotal'))} · {plural(lista.length, 'pedido', 'pedidos')}</small></div>
         <div className={cartao}><span className={rotuloCartao}>Custo de produção ({pct(PERCENTUAL_CUSTO_PRODUCAO)})</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(lista, 'custoProducao'))}</strong><small className="text-[11px] text-neutral-400">{pct(PERCENTUAL_CUSTO_PRODUCAO)} do valor total</small></div>
         <div className={cartao}><span className={rotuloCartao}>Lucro ({pct(PERCENTUAL_LUCRO)})</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(lista, 'lucro'))}</strong><small className="text-[11px] text-neutral-400">{pct(PERCENTUAL_LUCRO)} do valor total</small></div>
         <div className={`${cartao} border-emerald-200 bg-emerald-50/50`}><span className="text-[10.5px] font-extrabold uppercase tracking-wide text-emerald-800">Lucro transferido</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(jaTransferidos, 'lucro'))}</strong><small className="text-[11px] text-neutral-500">{jaTransferidos.length} de {plural(lista.length, 'pedido', 'pedidos')}</small></div>
