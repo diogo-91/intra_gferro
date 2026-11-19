@@ -192,8 +192,8 @@ export const PedidosFormato2: React.FC = () => {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores">
         <div className={cartao}><span className={rotuloCartao}>Valor pago</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somaPago)}</strong><small className="text-[11px] text-neutral-400">de {brl(somar(lista, 'valorTotal'))} · {plural(lista.length, 'pedido', 'pedidos')}</small></div>
-        <div className={cartao}><span className={rotuloCartao}>Custo de produção ({pct(PERCENTUAL_CUSTO_PRODUCAO)})</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(lista, 'custoProducao'))}</strong><small className="text-[11px] text-neutral-400">{pct(PERCENTUAL_CUSTO_PRODUCAO)} do valor total</small></div>
-        <div className={cartao}><span className={rotuloCartao}>Lucro ({pct(PERCENTUAL_LUCRO)})</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(lista, 'lucro'))}</strong><small className="text-[11px] text-neutral-400">{pct(PERCENTUAL_LUCRO)} do valor total</small></div>
+        <div className={cartao}><span className={rotuloCartao}>Custo de produção ({pct(PERCENTUAL_CUSTO_PRODUCAO)})</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(lista, 'custoProducao'))}</strong><small className="text-[11px] text-neutral-400">{pct(PERCENTUAL_CUSTO_PRODUCAO)} do valor pago</small></div>
+        <div className={cartao}><span className={rotuloCartao}>Lucro ({pct(PERCENTUAL_LUCRO)})</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(lista, 'lucro'))}</strong><small className="text-[11px] text-neutral-400">{pct(PERCENTUAL_LUCRO)} do valor pago</small></div>
         <div className={`${cartao} border-emerald-200 bg-emerald-50/50`}><span className="text-[10.5px] font-extrabold uppercase tracking-wide text-emerald-800">Lucro transferido</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(jaTransferidos, 'lucro'))}</strong><small className="text-[11px] text-neutral-500">{jaTransferidos.length} de {plural(lista.length, 'pedido', 'pedidos')}</small></div>
         <div className={`${cartao} border-yellow-300 bg-yellow-50/60`}><span className="text-[10.5px] font-extrabold uppercase tracking-wide text-yellow-800">Lucro a transferir</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(aTransferir, 'lucro'))}</strong><small className="text-[11px] text-neutral-500">{plural(aTransferir.length, 'pedido pendente', 'pedidos pendentes')}</small></div>
       </section>
@@ -253,8 +253,8 @@ export const PedidosFormato2: React.FC = () => {
                       <td className={celula}>{p.cliente}</td>
                       <td className={celula}>{p.vendedor}<span className="block text-[11px] text-neutral-400">{p.loja}</span></td>
                       <td className={`${celula} text-right tabular-nums`}><b className="text-neutral-900">{brl(p.valorTotal)}</b></td>
-                      <td className={`${celula} text-right tabular-nums text-slate-700`}>{brl(p.custoProducao)}</td>
-                      <td className={`${celula} text-right tabular-nums font-bold ${p.lucroTransferido ? 'text-emerald-700' : 'text-neutral-900'}`}>{brl(p.lucro)}</td>
+                      <td className={`${celula} text-right tabular-nums text-slate-700`}>{p.pago === null ? <span className="text-slate-300">…</span> : brl(p.custoProducao)}</td>
+                      <td className={`${celula} text-right tabular-nums font-bold ${p.lucroTransferido ? 'text-emerald-700' : 'text-neutral-900'}`}>{p.pago === null ? <span className="text-slate-300">…</span> : brl(p.lucro)}</td>
                       <td className={`${celula} text-right tabular-nums`}>
                         {p.pago === null ? <span className="text-slate-300">…</span> : <>{brl(p.pago)}<span className="block text-[11px] text-neutral-400">{p.percentualPago !== null ? pct(p.percentualPago) : ''}</span><span className="block text-[11px] text-neutral-400">a receber {p.aReceber === null ? '…' : brl(p.aReceber)}</span></>}
                       </td>
@@ -277,6 +277,7 @@ export const PedidosFormato2: React.FC = () => {
                           <input type="checkbox" checked={!!p.lucroTransferido} disabled={salvando.has(p.codigo)} onChange={() => void alternarLucro(p)} className="h-3.5 w-3.5 accent-emerald-600" aria-label={`Lucro de ${p.codigo} transferido`} />
                           {p.lucroTransferido ? 'Transferido' : 'Não transferido'}
                         </label>
+                        {p.lucroTransferido && Math.abs(p.lucroTransferido.valor - p.lucro) > 0.005 && <span className="block text-[10.5px] font-bold text-amber-600">lucro mudou: confirmado {brl(p.lucroTransferido.valor)}</span>}
                         {p.lucroTransferido && <span className="block text-[10.5px] text-neutral-400" title={`Confirmado por ${p.lucroTransferido.por} em ${dataHora(p.lucroTransferido.em)} (${brl(p.lucroTransferido.valor)})`}>{p.lucroTransferido.por} · {dataHora(p.lucroTransferido.em)}</span>}
                       </td>
                     </tr>
@@ -289,7 +290,7 @@ export const PedidosFormato2: React.FC = () => {
             </table>
           </div>
         )}
-        <p className="mt-2 text-[11px] leading-snug text-neutral-400">Pedido de contrato é o que tem a palavra “contrato” na observação no Nomus (vale qualquer que seja o pagamento). O percentual pago é calculado aqui: pago ÷ valor total do pedido. O valor total do pedido é dividido em {pct(PERCENTUAL_CUSTO_PRODUCAO)} de custo de produção e {pct(PERCENTUAL_LUCRO)} de lucro; o lucro precisa ser transferido, e a confirmação de cada pedido é marcada à mão na última coluna (fica registrado quem confirmou e quando). Os indicadores acompanham a lista filtrada. Dias úteis: segunda a sexta, sem feriados nacionais, Carnaval e Sexta-feira Santa; o atraso e o que falta para o prazo também são contados em dias úteis. A lista se atualiza sozinha: pedidos entregues ou cancelados saem em alguns minutos.</p>
+        <p className="mt-2 text-[11px] leading-snug text-neutral-400">Pedido de contrato é o que tem a palavra “contrato” na observação no Nomus (vale qualquer que seja o pagamento). O percentual pago é calculado aqui: pago ÷ valor total do pedido. O valor pago do pedido é dividido em {pct(PERCENTUAL_CUSTO_PRODUCAO)} de custo de produção e {pct(PERCENTUAL_LUCRO)} de lucro (custo + lucro = valor pago, e muda se entrar novo pagamento); o lucro precisa ser transferido, e a confirmação de cada pedido é marcada à mão na última coluna (fica registrado quem confirmou e quando). Os indicadores acompanham a lista filtrada. Dias úteis: segunda a sexta, sem feriados nacionais, Carnaval e Sexta-feira Santa; o atraso e o que falta para o prazo também são contados em dias úteis. A lista se atualiza sozinha: pedidos entregues ou cancelados saem em alguns minutos.</p>
       </section>
     </div>
   );

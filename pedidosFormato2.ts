@@ -22,9 +22,9 @@ export interface PedidoFormato2 extends ClassificacaoFormato2 {
   pago: number | null;
   aReceber: number | null;
   contrato: boolean;
-  /** 70% do valor total: o que a produção custa. */
+  /** 70% do valor pago: o que a produção custa (0 enquanto o financeiro não foi lido). */
   custoProducao: number;
-  /** 30% do valor total: o lucro, que precisa ser transferido. */
+  /** 30% do valor pago: o lucro, que precisa ser transferido (0 enquanto o financeiro não foi lido). */
   lucro: number;
   /** Confirmação (feita à mão) de que o lucro do pedido foi transferido; null enquanto não foi. */
   lucroTransferido: LucroTransferido | null;
@@ -120,7 +120,7 @@ export async function montarRespostaPedidosFormato2(): Promise<RespostaPedidosFo
         ...classificacao,
         id: p.id, codigo: p.codigo, cliente: p.cliente, vendedor: p.vendedor, loja: p.loja, dataEmissao: p.dataEmissao, valorTotal: p.valorTotal,
         pago: p.recebido, aReceber: p.aReceber, contrato,
-        ...dividirValorDoPedido(p.valorTotal),
+        ...dividirValorDoPedido(p.recebido ?? 0),
         lucroTransferido: confirmadas[chaveDoPedido(p.codigo)] ?? null,
       }];
     })
