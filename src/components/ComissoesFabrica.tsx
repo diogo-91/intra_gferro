@@ -13,8 +13,10 @@ import { chaveDia, formatDataIsoParaBr } from '../utils/format';
 interface Resposta {
   mes: string;
   atualizadoEm: string;
+  /** Primeira leitura do mês: ainda não há nada guardado no servidor. */
   carregando?: boolean;
-  financeiroCarregando?: boolean;
+  /** O servidor está atualizando no Nomus; o que se vê é o último retrato guardado. */
+  atualizando?: boolean;
   pedidos: PedidoComissao[];
   vendedores: VendedorDaLoja[];
   termos: Record<string, TermoAceite>;
@@ -58,6 +60,23 @@ function lerValor(texto: string): number | null {
 
 // Última resposta de cada mês: ao voltar para a tela ela aparece na hora e atualiza por baixo.
 const ultimas = new Map<string, Resposta>();
+// E também na sessão do navegador: ao recarregar a página o último fechamento aparece na hora, sem esperar o servidor.
+const chaveSessao = (mes: string) => `comissoes:${mes}`;
+function ultimaDoMes(mes: string): Resposta | null {
+  const emMemoria = ultimas.get(mes);
+  if (emMemoria) return emMemoria;
+  try {
+    const texto = sessionStorage.getItem(chaveSessao(mes));
+    const lida: Resposta | null = texto ? JSON.parse(texto) : null;
+    if (lida && Array.isArray(lida.pedidos) && !lida.carregando) { ultimas.set(mes, lida); return lida; }
+  } catch { /* sem sessionStorage (janela privada, bloqueio): só a memória da página */ }
+  return null;
+}
+function guardarUltima(resposta: Resposta) {
+  if (resposta.carregando) return;
+  ultimas.set(resposta.mes, resposta);
+  try { sessionStorage.setItem(chaveSessao(resposta.mes), JSON.stringify(resposta)); } catch { /* idem */ }
+}
 
 const cabecalho = 'border-b border-neutral-200 px-2 py-2 text-left align-bottom text-[10px] font-extrabold uppercase leading-tight tracking-wide text-neutral-500';
 const celula = 'border-b border-neutral-100 px-2 py-2 text-[11.5px] text-neutral-800';
@@ -97,8 +116,8 @@ const EditorAjuste: React.FC<{ ajuste: AjusteVendedor | null; onSalvar: (valor: 
 export const ComissoesFabrica: React.FC = () => {
   const mesAtual = chaveDia(new Date()).slice(0, 7);
   const [mes, setMes] = useState(mesAtual);
-  const [dados, setDados] = useState<Resposta | null>(ultimas.get(mes) ?? null);
-  const [carregando, setCarregando] = useState(!ultimas.has(mes));
+  const [dados, setDados] = useState<Resposta | null>(ultimaDoMes(mes));
+  const [carregando, setCarregando] = useState(!ultimaDoMes(mes));
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState('');
   const [selecionado, setSelecionado] = useState<string | null>(null);
@@ -110,9 +129,9 @@ export const ComissoesFabrica: React.FC = () => {
       const corpo = await resposta.json().catch(() => null);
       if (!resposta.ok || !corpo || !Array.isArray(corpo.pedidos)) throw new Error(corpo?.error || 'Não foi possível carregar as comissões.');
       // O Nomus está sendo relido (leva minutos): mantém na tela o último fechamento lido em vez de esvaziá-la.
-      const anterior = ultimas.get(corpo.mes);
-      if (corpo.carregando && anterior && !anterior.carregando) { setErro(''); return; }
-      ultimas.set(corpo.mes, corpo);
+      const anterior = ultimaDoMes(corpo.mes);
+      if (corpo.carregando && anterior) { setErro(''); return; }
+      guardarUltima(corpo);
       if (corpo.mes === mes) setDados(corpo);
       setErro('');
     } catch (e: any) {
@@ -124,14 +143,15 @@ export const ComissoesFabrica: React.FC = () => {
   }, [mes]);
 
   useEffect(() => {
-    setDados(ultimas.get(mes) ?? null);
-    setCarregando(!ultimas.has(mes));
+    setDados(ultimaDoMes(mes));
+    setCarregando(!ultimaDoMes(mes));
     void carregar();
   }, [mes, carregar]);
-  // Enquanto o Nomus ainda está sendo lido pergunta de novo a cada 15 s; depois, a cada minuto.
-  const lendo = !!dados?.carregando || !!dados?.financeiroCarregando;
+  // Primeira leitura do mês (nada guardado ainda): pergunta de novo a cada 10 s; depois, a cada minuto — o servidor
+  // já atualiza sozinho em segundo plano, a tela só busca o último retrato.
+  const lendo = !!dados?.carregando;
   useEffect(() => {
-    const t = setInterval(() => { if (!document.hidden) void carregar(); }, lendo ? 15_000 : 60_000);
+    const t = setInterval(() => { if (!document.hidden) void carregar(); }, lendo ? 10_000 : 60_000);
     return () => clearInterval(t);
   }, [carregar, lendo]);
 
@@ -145,7 +165,7 @@ export const ComissoesFabrica: React.FC = () => {
     const resultado = await resposta.json().catch(() => null);
     if (!resposta.ok) throw new Error(resultado?.error || 'Não foi possível salvar.');
   };
-  const alterarDados = (f: (d: Resposta) => Resposta) => setDados((d) => { if (!d) return d; const novo = f(d); ultimas.set(novo.mes, novo); return novo; });
+  const alterarDados = (f: (d: Resposta) => Resposta) => setDados((d) => { if (!d) return d; const novo = f(d); guardarUltima(novo); return novo; });
 
   const salvarTermo = async (codigo: string, valor: TermoAceite | null) => {
     alterarDados((d) => {
@@ -206,12 +226,16 @@ export const ComissoesFabrica: React.FC = () => {
         <button type="button" onClick={() => setMes(somarMes(mes, -1))} disabled={mes <= MES_INICIAL_COMISSOES} aria-label="Mês anterior" className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 hover:border-yellow-400 disabled:opacity-40 disabled:hover:border-neutral-200"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>
         <strong className="min-w-[10rem] rounded-xl border border-yellow-400 bg-yellow-300 px-5 py-2.5 text-center text-sm font-bold text-neutral-900">{rotuloMes(mes)}</strong>
         <button type="button" onClick={() => setMes(somarMes(mes, 1))} disabled={mes >= mesAtual} aria-label="Próximo mês" className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 hover:border-yellow-400 disabled:opacity-40 disabled:hover:border-neutral-200"><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
-        {dados && !dados.carregando && <span className="text-[11px] text-neutral-400">Nomus lido às {hora(dados.atualizadoEm)}</span>}
+        {dados && !dados.carregando && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400">
+            Nomus lido às {hora(dados.atualizadoEm)}
+            {dados.atualizando && <><Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> atualizando em segundo plano…</>}
+          </span>
+        )}
       </div>
 
       {erro && <div role="alert" className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700"><AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" /> {erro}</div>}
-      {dados?.carregando && <div role="status" className="flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs font-semibold text-yellow-800"><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Lendo os pedidos do mês no Nomus. Isso pode levar alguns minutos; a tela atualiza sozinha.</div>}
-      {!dados?.carregando && dados?.financeiroCarregando && <div role="status" className="flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs font-semibold text-yellow-800"><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Lendo os recebimentos no financeiro do Nomus; o recebido e as comissões de vendas podem mudar nos próximos minutos.</div>}
+      {dados?.carregando && <div role="status" className="flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs font-semibold text-yellow-800"><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Primeira leitura deste mês no Nomus: pode levar alguns minutos. Nas próximas vezes a tela abre na hora, e a atualização acontece sozinha em segundo plano.</div>}
 
       {carregando ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-neutral-400" aria-label="Carregando" /></div>

@@ -1728,7 +1728,8 @@ export interface PedidoParaComissao {
 // Recebimentos (GET /recebimentos): cada entrada de dinheiro lançada no financeiro do Nomus, com "Pedido PD 02529 - Parcela 1
 // de 2" na descrição. É a fonte do "valor recebido" do fechamento de comissões (confere com o que o financeiro lança; as contas
 // a receber ficam atrás quando a baixa demora). Lê desde alguns dias antes do mês — o pagamento pode ser lançado depois da
-// emissão, nunca muito antes — e guarda só o que o cálculo usa. Mesma ideia stale-while-revalidate dos demais caches.
+// emissão, nunca muito antes — e guarda só o que o cálculo usa. Depois da primeira leitura completa, cada atualização traz só
+// o que mudou no Nomus desde a anterior (dataModificacao); uma releitura completa a cada 6 horas pega o que foi apagado/estornado.
 interface RecebimentoDePedido {
   id: number;
   descricaoLancamento?: string;
@@ -1736,15 +1737,18 @@ interface RecebimentoDePedido {
 }
 interface CacheRecebimentos {
   atualizadoEm: number;
+  varreduraCompletaEm: number;
   recebimentos: RecebimentoDePedido[];
 }
 const ARQUIVO_RECEBIMENTOS_COMISSOES = path.join(PASTA_CACHE_DISCO, 'comissoes-recebimentos.json');
-const TTL_RECEBIMENTOS_MES_ATUAL_MS = 5 * 60 * 1000;
+const INTERVALO_VARREDURA_COMPLETA_RECEBIMENTOS_MS = 6 * 60 * 60 * 1000;
 const TTL_RECEBIMENTOS_MES_FECHADO_MS = 6 * 60 * 60 * 1000;
 
 function carregarCacheRecebimentosDoDisco(): Map<string, CacheRecebimentos> {
   try {
-    return new Map(Object.entries(JSON.parse(readFileSync(ARQUIVO_RECEBIMENTOS_COMISSOES, 'utf-8')) as Record<string, CacheRecebimentos>));
+    const lido = JSON.parse(readFileSync(ARQUIVO_RECEBIMENTOS_COMISSOES, 'utf-8')) as Record<string, CacheRecebimentos>;
+    // Formato antigo (sem varreduraCompletaEm): o que está guardado vale como leitura completa feita em atualizadoEm.
+    return new Map(Object.entries(lido).map(([mes, c]) => [mes, { ...c, varreduraCompletaEm: c.varreduraCompletaEm ?? c.atualizadoEm }]));
   } catch {
     return new Map();
   }
@@ -1752,21 +1756,33 @@ function carregarCacheRecebimentosDoDisco(): Map<string, CacheRecebimentos> {
 const cacheRecebimentosPorMes = carregarCacheRecebimentosDoDisco();
 const cacheRecebimentosEmAndamento = new Map<string, Promise<CacheRecebimentos>>();
 
-async function getRecebimentosDoMes(mes: string): Promise<{ recebimentos: RecebimentoDePedido[]; carregando: boolean }> {
+/** Recebimentos que valem para os pedidos do mês. Espera a leitura terminar quando está vencida; mês fechado só relê a cada 6 horas. */
+async function getRecebimentosDoMes(mes: string): Promise<RecebimentoDePedido[]> {
   const cacheado = cacheRecebimentosPorMes.get(mes);
-  const ttl = periodoEhFechado(`mes:${mes}`) ? TTL_RECEBIMENTOS_MES_FECHADO_MS : TTL_RECEBIMENTOS_MES_ATUAL_MS;
-  if (cacheado && Date.now() - cacheado.atualizadoEm < ttl) return { recebimentos: cacheado.recebimentos, carregando: false };
+  if (cacheado && periodoEhFechado(`mes:${mes}`) && Date.now() - cacheado.atualizadoEm < TTL_RECEBIMENTOS_MES_FECHADO_MS) return cacheado.recebimentos;
 
-  if (!cacheRecebimentosEmAndamento.has(mes)) {
+  let leitura = cacheRecebimentosEmAndamento.get(mes);
+  if (!leitura) {
     const { baseUrl, apiKey } = getConfig();
     if (!baseUrl || !apiKey) throw new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env');
     const primeiroDia = parseMesReferencia(mes);
     if (!primeiroDia) throw new Error('mes inválido');
-    const limite = new Date(primeiroDia.getFullYear(), primeiroDia.getMonth(), primeiroDia.getDate() - 8, 23, 59, 59);
-    const query = comFiltroEmpresa(`dataRecebimento>${formatarDataNomus(limite)}`);
-    const leitura = coletarTudo<RecebimentoDePedido & Record<string, unknown>>('recebimentos', baseUrl, apiKey, query)
+    const inicioDaLeitura = Date.now();
+    const completa = !cacheado || inicioDaLeitura - cacheado.varreduraCompletaEm > INTERVALO_VARREDURA_COMPLETA_RECEBIMENTOS_MS;
+    const limiteMes = new Date(primeiroDia.getFullYear(), primeiroDia.getMonth(), primeiroDia.getDate() - 8, 23, 59, 59);
+    // Incremental: o que mudou desde a última leitura (com 5 minutos de folga para não perder nada na virada).
+    const queryIncremental = `dataModificacao>${formatarDataNomus(new Date((cacheado?.atualizadoEm ?? 0) - 5 * 60 * 1000))}`;
+    const query = comFiltroEmpresa(completa ? `dataRecebimento>${formatarDataNomus(limiteMes)}` : queryIncremental);
+    leitura = coletarTudo<RecebimentoDePedido & Record<string, unknown>>('recebimentos', baseUrl, apiKey, query)
       .then((lidos) => {
-        const novo = { atualizadoEm: Date.now(), recebimentos: lidos.map(({ id, descricaoLancamento, valorRecebido }) => ({ id, descricaoLancamento, valorRecebido })) };
+        const porId = new Map<number, RecebimentoDePedido>();
+        if (!completa) for (const r of cacheado!.recebimentos) porId.set(r.id, r);
+        for (const { id, descricaoLancamento, valorRecebido } of lidos) porId.set(id, { id, descricaoLancamento, valorRecebido });
+        const novo: CacheRecebimentos = {
+          atualizadoEm: inicioDaLeitura,
+          varreduraCompletaEm: completa ? inicioDaLeitura : cacheado!.varreduraCompletaEm,
+          recebimentos: [...porId.values()],
+        };
         cacheRecebimentosPorMes.set(mes, novo);
         try {
           mkdirSync(PASTA_CACHE_DISCO, { recursive: true });
@@ -1778,31 +1794,32 @@ async function getRecebimentosDoMes(mes: string): Promise<{ recebimentos: Recebi
       })
       .finally(() => cacheRecebimentosEmAndamento.delete(mes));
     cacheRecebimentosEmAndamento.set(mes, leitura);
-    leitura.catch((err) => console.error(`[nomus] falha ao ler os recebimentos de ${mes}:`, err?.message ?? err));
   }
-  // A leitura passa do tempo de um pedido HTTP: devolve o que já está guardado (ou vazio na primeira vez) e segue em segundo plano.
-  return { recebimentos: cacheado?.recebimentos ?? [], carregando: true };
+  return (await leitura).recebimentos;
+}
+
+export interface PedidosDasComissoes {
+  pedidos: PedidoParaComissao[];
+  /** Todos os vendedores do Nomus que têm loja (para a tela listar também quem não vendeu no mês). */
+  vendedores: Array<{ nome: string; loja: string }>;
 }
 
 // Pedidos de todas as lojas num mês (emitidos nele, Liberados ou Atendidos — a mesma regra do Ranking de Vendedores), com
-// o que o fechamento de comissões usa: valor recebido (contas a receber), parafusos e frete ("Fretes e Outros").
-// Mês ainda não lido: dispara a leitura em segundo plano e responde "carregando" (a varredura passa do tempo de um pedido HTTP).
-export async function getPedidosParaComissao(
-  mes: string
-): Promise<{ pedidos: PedidoParaComissao[]; vendedores: Array<{ nome: string; loja: string }>; atualizadoEm: string; carregando: boolean; financeiroCarregando: boolean }> {
-  if (!cachePedidosPorPeriodo.has(chavePedidos('mes', mes)) || !cacheVendedores) {
-    const falhou = (erro: any) => console.error('[nomus] falha ao ler os pedidos das comissões:', erro?.message ?? erro);
-    getPedidosBrutosDoPeriodo('mes', mes).catch(falhou);
-    getVendedores().catch(falhou);
-    return { pedidos: [], vendedores: [], atualizadoEm: new Date().toISOString(), carregando: true, financeiroCarregando: false };
-  }
+// o que o fechamento de comissões usa: valor recebido (recebimentos), parafusos e frete ("Fretes e Outros"). LÊ DE VERDADE
+// no Nomus (pode levar minutos com o limite de requisições): quem chama (comissoesFabrica.ts) roda isto em segundo plano e
+// guarda o resultado, a tela nunca espera por aqui.
+export async function lerPedidosParaComissao(mes: string): Promise<PedidosDasComissoes> {
+  // Pedidos do mês: se o que está guardado venceu, relê e espera a leitura nova (mês fechado nunca relê).
+  const chave = chavePedidos('mes', mes);
+  await getPedidosBrutosDoPeriodo('mes', mes, undefined, 0);
+  await cachePedidosEmAndamento.get(chave)?.catch(() => undefined);
 
-  const [vendedores, todos] = await Promise.all([getVendedores(), getPedidosDoPeriodo('mes', mes)]);
+  const [vendedores, todos, recebimentos] = await Promise.all([getVendedores(), getPedidosDoPeriodo('mes', mes), getRecebimentosDoMes(mes)]);
   const nomes = new Map(vendedores.map((v) => [v.id, v.nome || `Vendedor #${v.id}`]));
   const pedidos = todos.filter((pedido) => pedido.idPessoaVendedor != null && nomes.has(pedido.idPessoaVendedor));
-  const financeiro = await getRecebimentosDoMes(mes);
+
   const recebidoPorPedido = new Map<string, number>();
-  for (const recebimento of financeiro.recebimentos) {
+  for (const recebimento of recebimentos) {
     const codigo = chaveCodigoPedido(recebimento.descricaoLancamento);
     if (codigo) recebidoPorPedido.set(codigo, (recebidoPorPedido.get(codigo) ?? 0) + Math.max(0, parseNum(recebimento.valorRecebido)));
   }
@@ -1818,12 +1835,13 @@ export async function getPedidosParaComissao(
     const emissao = dataEmissaoPedido(pedido.dataEmissao);
     const dataIso = emissao ? `${emissao.getFullYear()}-${pad(emissao.getMonth() + 1)}-${pad(emissao.getDate())}` : '';
     if (!dataIso.startsWith(mes)) return []; // só os emitidos no próprio mês
+    const nomeVendedor = nomes.get(pedido.idPessoaVendedor as number) as string;
     return [{
       id: pedido.id,
       codigo: pedido.codigoPedido || `Pedido #${pedido.id}`,
       dataEmissao: dataIso,
-      vendedor: nomes.get(pedido.idPessoaVendedor as number) as string,
-      loja: lojaDoVendedor(nomes.get(pedido.idPessoaVendedor as number) as string) ?? '',
+      vendedor: nomeVendedor,
+      loja: lojaDoVendedor(nomeVendedor) ?? '',
       valorTotal: parseNum(pedido.valorTotal),
       valorRecebido: recebidoPorPedido.get(chaveCodigoPedido(pedido.codigoPedido) ?? '') ?? 0,
       quantidadeParafusos: itensDeParafuso(pedido).reduce((total, item) => total + parseNum(item.quantidade), 0),
@@ -1832,14 +1850,12 @@ export async function getPedidosParaComissao(
     }];
   });
 
-  const atualizadoEm = cachePedidosPorPeriodo.get(chavePedidos('mes', mes))?.atualizadoEm ?? Date.now();
-  // Todos os vendedores que têm loja (cadastrados no Nomus), para a tela listar também quem não vendeu no mês.
   const doNomus = new Map<string, { nome: string; loja: string }>();
   for (const vendedor of vendedores) {
     const loja = vendedor.nome ? lojaDoVendedor(vendedor.nome) : undefined;
     if (vendedor.nome && loja) doNomus.set(vendedor.nome, { nome: vendedor.nome, loja });
   }
-  return { pedidos: detalhes, vendedores: [...doNomus.values()], atualizadoEm: new Date(atualizadoEm).toISOString(), carregando: false, financeiroCarregando: financeiro.carregando };
+  return { pedidos: detalhes, vendedores: [...doNomus.values()] };
 }
 
 // Agregação compartilhada por getResumoVendas (todos os pedidos do período)

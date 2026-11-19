@@ -37,7 +37,7 @@ import { montarRespostaPedidosCombinados } from './pedidosCombinados';
 import { montarRespostaPedidosFormato2 } from './pedidosFormato2';
 import { buscarEps } from './epsFinanceiro';
 import { ErroCaixa2, marcarTransferencia, transferenciasDe } from './epsCaixa2';
-import { ErroComissoes, montarComissoesFabrica, salvarAjuste, salvarTermoAceite, validarMesComissoes } from './comissoesFabrica';
+import { ErroComissoes, iniciarAtualizacaoComissoes, montarComissoesFabrica, salvarAjuste, salvarTermoAceite, validarMesComissoes } from './comissoesFabrica';
 import { buscarAnexoNoPcp, buscarPrintNoPcp, chamarPcp, ErroProblematicos, idPositivo, tipoProblematico } from './problematicos';
 import * as chamados from './chamados';
 import { criarRotasQualidade } from './qualidadeRotas';
@@ -1728,6 +1728,9 @@ Seja direto, use os números fornecidos, e não invente dados que não estão no
 
     // Mantém o dashboard de entregas atualizado em segundo plano (lê o apontamento de produção e o Nomus).
     iniciarAtualizacaoEntregas();
+
+    // Mantém o fechamento de comissões do mês atual pronto e atualizado em segundo plano (a tela nunca espera o Nomus).
+    iniciarAtualizacaoComissoes();
   });
 }
 
