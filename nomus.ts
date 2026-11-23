@@ -94,7 +94,7 @@ const MAX_RETRIES = 5;
 const CACHE_TTL_MS = 3 * 60 * 1000; // mesmo padrão dos projetos irmãos (Gferro/Apontamento)
 
 // Unidade "METRO QUADRADO" (símbolo "M2") no cadastro de Unidades de Medida do Nomus.
-const ID_UNIDADE_METRO_QUADRADO = 14;
+export const ID_UNIDADE_METRO_QUADRADO = 14;
 
 // Essa instância do Nomus é COMPARTILHADA por mais de uma empresa (confirmado
 // testando a API real: registros com idEmpresa=1/"Constelha" aparecem
@@ -1082,6 +1082,76 @@ export async function buscarPedidosDasEntregas(numeros: number[]): Promise<Pedid
     }
   }
   return [...porNumero].map(([numero, pedido]) => paraPedidoDaEntrega(numero, pedido));
+}
+
+// Itens dos pedidos (produto, quantidade e unidade) de uma lista de pedidos, para a metragem de telha de "Pedidos Formato 2".
+// O estado guardado do painel de pedidos só traz o status dos itens, então estes são lidos à parte: poucos pedidos, em lotes de
+// 20 por consulta, guardados em memória e em data/pedidos-itens.json (renovados a cada 30 minutos). Quem pede nunca espera.
+export interface ItemDoPedido { idProduto: number; quantidade: number; idUnidadeMedida: number | null }
+interface ItensGuardados { atualizadoEm: number; itens: ItemDoPedido[] }
+const ARQUIVO_ITENS_DOS_PEDIDOS = path.join(PASTA_CACHE_DISCO, 'pedidos-itens.json');
+const ITENS_VALIDOS_POR_MS = 30 * 60_000;
+
+function carregarItensDosPedidosDoDisco(): Map<number, ItensGuardados> {
+  try {
+    const lido = JSON.parse(readFileSync(ARQUIVO_ITENS_DOS_PEDIDOS, 'utf-8')) as Record<string, ItensGuardados>;
+    return new Map(Object.entries(lido).map(([numero, guardado]) => [Number(numero), guardado]));
+  } catch {
+    return new Map();
+  }
+}
+const itensPorNumeroDoPedido = carregarItensDosPedidosDoDisco();
+let leituraDeItensEmAndamento: Promise<void> | null = null;
+
+/** Itens já lidos de cada pedido (por número). Pedido que ainda não foi lido não aparece. */
+export function itensDosPedidosGuardados(): ReadonlyMap<number, ItemDoPedido[]> {
+  return new Map([...itensPorNumeroDoPedido].map(([numero, guardado]) => [numero, guardado.itens]));
+}
+
+/** Descrição do produto se já está guardada; undefined enquanto não (e dispara a leitura em segundo plano); null se o Nomus não a tem. */
+export function descricaoDoProdutoGuardada(id: number): string | null | undefined {
+  if (cacheProdutoPorId.has(id)) return cacheProdutoPorId.get(id)?.descricao ?? null;
+  void getProdutoPorId(id).catch(() => undefined);
+  return undefined;
+}
+
+/** Lê no Nomus os itens dos pedidos que faltam ou estão vencidos (uma leitura por vez) e as descrições dos produtos deles. */
+export function atualizarItensDosPedidos(numeros: number[]): Promise<void> {
+  if (leituraDeItensEmAndamento) return leituraDeItensEmAndamento;
+  const agora = Date.now();
+  const precisam = numeros.filter((n) => { const g = itensPorNumeroDoPedido.get(n); return !g || agora - g.atualizadoEm > ITENS_VALIDOS_POR_MS; });
+  if (precisam.length === 0) return Promise.resolve();
+  const { baseUrl, apiKey } = getConfig();
+  if (!baseUrl || !apiKey) return Promise.reject(new Error('NOMUS_BASE_URL / NOMUS_API_KEY não configurados no .env'));
+  leituraDeItensEmAndamento = (async () => {
+    for (let i = 0; i < precisam.length; i += 20) {
+      const lote = precisam.slice(i, i + 20);
+      const query = lote.map((n) => `codigoPedido=="PD ${String(n).padStart(5, '0')}"`).join(',');
+      const achados = new Map<number, Pedido>();
+      for (const pedido of await coletarTudo<Pedido>('pedidos', baseUrl, apiKey, query)) {
+        if (pedido.idEmpresa !== undefined && pedido.idEmpresa !== ID_EMPRESA_GFERRO) continue; // instância compartilhada com a Constelha
+        const numero = numeroDoCodigoPedido(pedido.codigoPedido);
+        if (numero === null) continue;
+        const existente = achados.get(numero);
+        if (!existente || pedido.id > existente.id) achados.set(numero, pedido);
+      }
+      for (const numero of lote) {
+        const pedido = achados.get(numero);
+        if (!pedido && itensPorNumeroDoPedido.has(numero)) continue; // o Nomus não devolveu agora: vale o que já se tinha
+        const itens = (pedido?.itensPedido ?? []).flatMap((item): ItemDoPedido[] => (item.idProduto == null ? [] : [{ idProduto: item.idProduto, quantidade: parseNum(item.quantidade), idUnidadeMedida: item.idUnidadeMedida ?? null }]));
+        itensPorNumeroDoPedido.set(numero, { atualizadoEm: Date.now(), itens });
+      }
+    }
+    try {
+      mkdirSync(PASTA_CACHE_DISCO, { recursive: true });
+      writeFileSync(ARQUIVO_ITENS_DOS_PEDIDOS, JSON.stringify(Object.fromEntries(itensPorNumeroDoPedido)), 'utf-8');
+    } catch (err) {
+      console.error('[nomus] falha ao persistir os itens dos pedidos:', err);
+    }
+    const idsDosProdutos = new Set(numeros.flatMap((n) => (itensPorNumeroDoPedido.get(n)?.itens ?? []).map((item) => item.idProduto)));
+    for (const id of idsDosProdutos) await getProdutoPorId(id).catch(() => null); // aquece as descrições (uma de cada vez, na fila do Nomus)
+  })().finally(() => { leituraDeItensEmAndamento = null; });
+  return leituraDeItensEmAndamento;
 }
 
 // O Nomus escreve o valor da parcela sem decimais quando ele é inteiro, mas já com o ponto de milhar: "4.575" é 4575 (e não

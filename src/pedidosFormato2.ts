@@ -21,6 +21,31 @@ export function dividirValorDoPedido(valorPago: number): { custoProducao: number
   return { custoProducao: Math.round((valorPago - lucro) * 100) / 100, lucro };
 }
 
+/**
+ * Tipo da telha pela descrição do produto no Nomus, para somar a metragem por tipo: "Telha simples · sem pintura",
+ * "Telha sanduíche · uma face pintada"... (perfis TR25 e TR40 juntos). Produto que não é telha (parafuso, cola...) dá null.
+ */
+export function classificarTelha(descricao: string): string | null {
+  const t = descricao.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().replace(/\s+/g, ' ').trim();
+  if (!/^TELHA\b/.test(t)) return null;
+  let tipo = 'outras';
+  if (/\bFORRO\b/.test(t)) tipo = /\bPVC\b/.test(t) ? 'forro PVC' : 'forro metálico';
+  else if (/SEMI SAND/.test(t)) tipo = 'semi sanduíche';
+  else if (/SANDUICHE/.test(t)) tipo = 'sanduíche';
+  else if (/SIMPLES/.test(t)) tipo = 'simples';
+  else if (/TRANSLUCIDA/.test(t)) tipo = 'translúcida';
+  else if (/LEITOSA/.test(t)) tipo = 'leitosa';
+  if (tipo === 'outras') return 'Outras telhas';
+  let acabamento = '';
+  if (/SEM PINTURA/.test(t)) acabamento = 'sem pintura';
+  else if (/DUAS FACES? PINTADAS?/.test(t)) acabamento = 'duas faces pintadas';
+  else if (/UMA FACE PINTADA/.test(t)) acabamento = 'uma face pintada';
+  else if (/PRE PINTADA/.test(t)) acabamento = 'pré-pintada';
+  else if (/COM PINTURA/.test(t)) acabamento = 'com pintura externa';
+  else if (/AMADEIRADO/.test(t)) acabamento = 'amadeirada';
+  return `Telha ${tipo}${acabamento ? ` · ${acabamento}` : ''}`;
+}
+
 export interface ParteDoCusto { nome: string; pct: number; valor: number }
 
 /**

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, ListChecks, Loader2, Search } from 'lucide-react';
-import { formatDataIsoParaBr } from '../utils/format';
+import { formatDataIsoParaBr, formatMetrosQuadrados } from '../utils/format';
 import { DATA_DE_CORTE_FORMATO2, dividirCustoProducao, PERCENTUAL_CUSTO_PRODUCAO, PERCENTUAL_LUCRO, REGRAS_FORMATO2, type RegraFormato2, type StatusFormato2 } from '../pedidosFormato2';
 
 // Pedidos Formato 2: todos os pedidos liberados no Nomus, cada um com o prazo de entrega da regra da GFERRO
@@ -21,6 +21,8 @@ interface PedidoFormato2 {
   custoProducao: number;
   lucro: number;
   lucroTransferido: { valor: number; por: string; em: string } | null;
+  /** Metragem (m²) de cada tipo de telha do pedido; null enquanto os itens ainda não foram lidos. */
+  telhas: Array<{ tipo: string; metros: number }> | null;
   regra: RegraFormato2;
   regraRotulo: string;
   percentualPago: number | null;
@@ -37,6 +39,7 @@ interface Resposta {
   carregando?: boolean;
   atualizando?: boolean;
   financeiroPendente?: boolean;
+  telhasPendentes?: boolean;
   observacoesPendentes?: boolean;
   erroAtualizacao?: string;
   pedidos: PedidoFormato2[];
@@ -127,7 +130,7 @@ export const PedidosFormato2: React.FC = () => {
   };
 
   // Enquanto o servidor ainda lê o Nomus a tela pergunta de novo logo; depois, a cada minuto.
-  const lendo = !!dados && (!!dados.carregando || !!dados.financeiroPendente || !!dados.observacoesPendentes);
+  const lendo = !!dados && (!!dados.carregando || !!dados.financeiroPendente || !!dados.observacoesPendentes || !!dados.telhasPendentes);
   useEffect(() => { carregar(); }, [carregar]);
   useEffect(() => {
     const t = setInterval(() => { if (!document.hidden) carregar(); }, lendo ? 15_000 : 60_000);
@@ -155,6 +158,13 @@ export const PedidosFormato2: React.FC = () => {
     for (const p of lista) dividirCustoProducao(p.custoProducao).forEach((parte, i) => { totais[i].valor += parte.valor; });
     return totais.map((t) => ({ ...t, valor: Math.round(t.valor * 100) / 100 }));
   }, [lista]);
+  // Metragem por tipo de telha da lista (só os pedidos com os itens já lidos).
+  const metragemDaLista = useMemo(() => {
+    const porTipo = new Map<string, number>();
+    for (const p of lista) for (const t of p.telhas ?? []) porTipo.set(t.tipo, (porTipo.get(t.tipo) ?? 0) + t.metros);
+    return [...porTipo].map(([tipo, metros]) => ({ tipo, metros: Math.round(metros * 100) / 100 })).sort((a, b) => b.metros - a.metros || a.tipo.localeCompare(b.tipo, 'pt-BR'));
+  }, [lista]);
+  const semTelhas = lista.filter((p) => p.telhas === null).length;
   const todosAbertos = lista.length > 0 && lista.every((p) => abertos.has(p.id));
   const alternarAberto = (id: number) => setAbertos((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const jaTransferidos = lista.filter((p) => p.lucroTransferido);
@@ -196,7 +206,7 @@ export const PedidosFormato2: React.FC = () => {
       {lendo && (
         <div role="status" className="flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs font-semibold text-yellow-800">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          {dados?.carregando ? 'Lendo os pedidos do Nomus pela primeira vez…' : dados?.observacoesPendentes ? 'Lendo as observações dos pedidos no Nomus para identificar os contratos (leva alguns minutos): a classificação pode mudar.' : 'Lendo o financeiro de alguns pedidos: o pago e o percentual aparecem em instantes.'}
+          {dados?.carregando ? 'Lendo os pedidos do Nomus pela primeira vez…' : dados?.observacoesPendentes ? 'Lendo as observações dos pedidos no Nomus para identificar os contratos (leva alguns minutos): a classificação pode mudar.' : dados?.financeiroPendente ? 'Lendo o financeiro de alguns pedidos: o pago e o percentual aparecem em instantes.' : 'Lendo os produtos dos pedidos no Nomus: a metragem de telha aparece em instantes.'}
         </div>
       )}
 
@@ -221,6 +231,28 @@ export const PedidosFormato2: React.FC = () => {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className={cartao} aria-label="Metragem por tipo de telha">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="text-sm font-extrabold text-neutral-900">Metragem por tipo de telha</h2>
+          <span className="text-[11px] text-neutral-400">
+            total {formatMetrosQuadrados(metragemDaLista.reduce((t, m) => t + m.metros, 0))} · {plural(lista.length, 'pedido', 'pedidos')}
+            {semTelhas > 0 && <> · lendo os itens de {plural(semTelhas, 'pedido', 'pedidos')}…</>}
+          </span>
+        </div>
+        {metragemDaLista.length === 0 ? (
+          <p className="py-2 text-center text-xs text-neutral-400">{semTelhas > 0 ? 'Lendo os produtos dos pedidos no Nomus…' : 'Nenhuma telha nos pedidos desta lista.'}</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {metragemDaLista.map((m) => (
+              <div key={m.tipo} className="flex items-baseline justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
+                <span className="text-[11.5px] font-bold leading-snug text-neutral-700">{m.tipo}</span>
+                <strong className="whitespace-nowrap text-base font-black tabular-nums text-neutral-900">{formatMetrosQuadrados(m.metros)}</strong>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm" aria-label="Pedidos">
@@ -322,6 +354,12 @@ export const PedidosFormato2: React.FC = () => {
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4 xl:grid-cols-8">
                             {dividirCustoProducao(p.custoProducao).map((m) => <span key={m.nome} className="flex items-baseline justify-between gap-2 tabular-nums"><span className="text-neutral-500">{m.nome} <small className="text-neutral-400">{pctMaterial(m.pct)}</small></span><b className="text-neutral-900">{brl(m.valor)}</b></span>)}
                           </div>
+                          <span className="mb-1 mt-2 block text-[10.5px] font-extrabold uppercase tracking-wide text-neutral-500">Metragem de telha do pedido</span>
+                          {p.telhas === null ? <span className="text-slate-400">lendo os itens no Nomus…</span> : p.telhas.length === 0 ? <span className="text-slate-400">nenhuma telha em m² neste pedido</span> : (
+                            <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2 xl:grid-cols-4">
+                              {p.telhas.map((t) => <span key={t.tipo} className="flex items-baseline justify-between gap-2 tabular-nums"><span className="text-neutral-500">{t.tipo}</span><b className="whitespace-nowrap text-neutral-900">{formatMetrosQuadrados(t.metros)}</b></span>)}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -335,7 +373,7 @@ export const PedidosFormato2: React.FC = () => {
             </table>
           </div>
         )}
-        <p className="mt-2 text-[11px] leading-snug text-neutral-400">Pedido de contrato é o que tem a palavra “contrato” na observação no Nomus (vale qualquer que seja o pagamento). O percentual pago é calculado aqui: pago ÷ valor total do pedido. O valor pago do pedido é dividido em {pct(PERCENTUAL_CUSTO_PRODUCAO)} de custo de produção e {pct(PERCENTUAL_LUCRO)} de lucro (custo + lucro = valor pago, e muda se entrar novo pagamento); o lucro precisa ser transferido, o custo de produção é aberto por material (Bobina 61, EPS 17, Forro metálico 11, Tinta 5, Translúcida 2, Aço 1, Cola 1 e Consigás 1: a soma informada é 99, então as fatias são proporcionais, como no Relatório Detalhado do Financeiro, e fecham com o custo) nos cartões acima e, por pedido, clicando no valor do custo; a confirmação de cada pedido é marcada à mão na última coluna (fica registrado quem confirmou e quando). Os indicadores acompanham a lista filtrada. Dias úteis: segunda a sexta, sem feriados nacionais, Carnaval e Sexta-feira Santa; o atraso e o que falta para o prazo também são contados em dias úteis. A lista se atualiza sozinha: pedidos entregues ou cancelados saem em alguns minutos.</p>
+        <p className="mt-2 text-[11px] leading-snug text-neutral-400">Pedido de contrato é o que tem a palavra “contrato” na observação no Nomus (vale qualquer que seja o pagamento). O percentual pago é calculado aqui: pago ÷ valor total do pedido. O valor pago do pedido é dividido em {pct(PERCENTUAL_CUSTO_PRODUCAO)} de custo de produção e {pct(PERCENTUAL_LUCRO)} de lucro (custo + lucro = valor pago, e muda se entrar novo pagamento); o lucro precisa ser transferido, a metragem de telha é somada por tipo (m² dos itens do pedido, perfis TR25 e TR40 juntos) e o custo de produção é aberto por material (Bobina 61, EPS 17, Forro metálico 11, Tinta 5, Translúcida 2, Aço 1, Cola 1 e Consigás 1: a soma informada é 99, então as fatias são proporcionais, como no Relatório Detalhado do Financeiro, e fecham com o custo) nos cartões acima e, por pedido, clicando no valor do custo; a confirmação de cada pedido é marcada à mão na última coluna (fica registrado quem confirmou e quando). Os indicadores acompanham a lista filtrada. Dias úteis: segunda a sexta, sem feriados nacionais, Carnaval e Sexta-feira Santa; o atraso e o que falta para o prazo também são contados em dias úteis. A lista se atualiza sozinha: pedidos entregues ou cancelados saem em alguns minutos.</p>
       </section>
     </div>
   );

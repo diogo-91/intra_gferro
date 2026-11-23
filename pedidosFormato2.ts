@@ -7,7 +7,8 @@
 import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { montarRespostaPedidosAbertos } from './pedidosAbertos';
-import { classificarFormato2, dividirValorDoPedido, entraNoFormato2, type ClassificacaoFormato2 } from './src/pedidosFormato2';
+import { atualizarItensDosPedidos, descricaoDoProdutoGuardada, ID_UNIDADE_METRO_QUADRADO, itensDosPedidosGuardados, numeroDoCodigoPedido } from './nomus';
+import { classificarFormato2, classificarTelha, dividirValorDoPedido, entraNoFormato2, type ClassificacaoFormato2 } from './src/pedidosFormato2';
 const ATUALIZAR_A_CADA_MS = 2 * 60_000;
 
 export interface PedidoFormato2 extends ClassificacaoFormato2 {
@@ -28,7 +29,11 @@ export interface PedidoFormato2 extends ClassificacaoFormato2 {
   lucro: number;
   /** Confirmação (feita à mão) de que o lucro do pedido foi transferido; null enquanto não foi. */
   lucroTransferido: LucroTransferido | null;
+  /** Metragem (m²) de cada tipo de telha do pedido; null enquanto os itens do pedido ainda não foram lidos no Nomus. */
+  telhas: TelhaDoPedido[] | null;
 }
+
+export interface TelhaDoPedido { tipo: string; metros: number }
 
 export interface LucroTransferido { valor: number; por: string; em: string }
 
@@ -98,6 +103,8 @@ export interface RespostaPedidosFormato2 {
   atualizando?: boolean;
   /** O financeiro de alguns pedidos ainda está sendo lido: pago e % aparecem em instantes. */
   financeiroPendente?: boolean;
+  /** Os itens/produtos de alguns pedidos ainda estão sendo lidos no Nomus: a metragem de telha aparece em instantes. */
+  telhasPendentes?: boolean;
   /** As observações (contrato) ainda estão sendo lidas do Nomus: a classificação pode mudar nos próximos minutos. */
   observacoesPendentes?: boolean;
   erroAtualizacao?: string;
@@ -122,13 +129,34 @@ export async function montarRespostaPedidosFormato2(): Promise<RespostaPedidosFo
         pago: p.recebido, aReceber: p.aReceber, contrato,
         ...dividirValorDoPedido(p.recebido ?? 0),
         lucroTransferido: confirmadas[chaveDoPedido(p.codigo)] ?? null,
+        telhas: null,
       }];
     })
     // Atrasados primeiro (os mais atrasados no topo); depois pelo prazo mais próximo; sem prazo no fim.
     .sort((a, b) => b.diasAtraso - a.diasAtraso || (a.prazoFim === null ? 1 : b.prazoFim === null ? -1 : a.prazoFim.localeCompare(b.prazoFim)) || numero(b.codigo) - numero(a.codigo));
 
+  // Metragem de telha por tipo: itens lidos à parte e guardados (a resposta nunca espera o Nomus).
+  const numeros = pedidos.flatMap((p) => numeroDoCodigoPedido(p.codigo) ?? []);
+  void atualizarItensDosPedidos(numeros).catch((erro) => console.error('[formato2] não foi possível ler os itens dos pedidos:', erro?.message ?? erro));
+  const itensGuardados = itensDosPedidosGuardados();
+  let telhasPendentes = false;
+  for (const pedido of pedidos) {
+    const itens = itensGuardados.get(numeroDoCodigoPedido(pedido.codigo) ?? -1);
+    const somas = new Map<string, number>();
+    let completo = !!itens;
+    for (const item of itens ?? []) {
+      const descricao = descricaoDoProdutoGuardada(item.idProduto);
+      if (descricao === undefined) { completo = false; continue; } // produto ainda sendo lido
+      const tipo = descricao === null ? null : classificarTelha(descricao);
+      if (tipo && item.idUnidadeMedida === ID_UNIDADE_METRO_QUADRADO) somas.set(tipo, (somas.get(tipo) ?? 0) + item.quantidade);
+    }
+    if (!completo) telhasPendentes = true;
+    pedido.telhas = completo ? [...somas].map(([tipo, metros]) => ({ tipo, metros: Math.round(metros * 100) / 100 })).sort((a, b) => b.metros - a.metros) : null;
+  }
+
   return {
     atualizadoEm: r.atualizadoEm,
+    ...(telhasPendentes ? { telhasPendentes: true } : {}),
     ...(r.carregando ? { carregando: true } : {}),
     ...(r.atualizando ? { atualizando: true } : {}),
     ...(r.financeiroPendente ? { financeiroPendente: true } : {}),
