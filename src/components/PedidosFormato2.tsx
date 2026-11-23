@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, ListChecks, Loader2, Search } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ChevronDown, ChevronRight, ListChecks, Loader2, Search } from 'lucide-react';
 import { formatDataIsoParaBr } from '../utils/format';
-import { DATA_DE_CORTE_FORMATO2, PERCENTUAL_CUSTO_PRODUCAO, PERCENTUAL_LUCRO, REGRAS_FORMATO2, type RegraFormato2, type StatusFormato2 } from '../pedidosFormato2';
+import { DATA_DE_CORTE_FORMATO2, dividirCustoProducao, PERCENTUAL_CUSTO_PRODUCAO, PERCENTUAL_LUCRO, REGRAS_FORMATO2, type RegraFormato2, type StatusFormato2 } from '../pedidosFormato2';
 
 // Pedidos Formato 2: todos os pedidos liberados no Nomus, cada um com o prazo de entrega da regra da GFERRO
 // (contrato: 60 dias úteis · 30% a 69% pago: 40 dias úteis · 70% a 100% pago: 7 a 10 dias úteis). O servidor classifica;
@@ -51,6 +51,7 @@ let ultimaResposta: Resposta | null = null;
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const pct = (n: number) => `${(n * 100).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}%`;
+const pctMaterial = (n: number) => `${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}%`;
 const semAcento = (t: string) => t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 const dataHora = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -83,6 +84,7 @@ export const PedidosFormato2: React.FC = () => {
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todos');
   const [filtroLucro, setFiltroLucro] = useState<FiltroLucro>('todos');
   const [salvando, setSalvando] = useState<Set<string>>(new Set());
+  const [abertos, setAbertos] = useState<Set<number>>(new Set());
 
   const carregar = useCallback(async () => {
     try {
@@ -147,6 +149,14 @@ export const PedidosFormato2: React.FC = () => {
   // Os indicadores acompanham a lista filtrada.
   const somar = (itens: PedidoFormato2[], campo: 'valorTotal' | 'custoProducao' | 'lucro') => itens.reduce((t, p) => t + p[campo], 0);
   const somaPago = lista.reduce((t, p) => t + (p.pago ?? 0), 0);
+  // Custo de produção aberto por material: soma da lista (a soma das partes de cada pedido sempre fecha com o custo dele).
+  const composicaoDaLista = useMemo(() => {
+    const totais = dividirCustoProducao(0).map((parte) => ({ ...parte, valor: 0 }));
+    for (const p of lista) dividirCustoProducao(p.custoProducao).forEach((parte, i) => { totais[i].valor += parte.valor; });
+    return totais.map((t) => ({ ...t, valor: Math.round(t.valor * 100) / 100 }));
+  }, [lista]);
+  const todosAbertos = lista.length > 0 && lista.every((p) => abertos.has(p.id));
+  const alternarAberto = (id: number) => setAbertos((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const jaTransferidos = lista.filter((p) => p.lucroTransferido);
   const aTransferir = lista.filter((p) => !p.lucroTransferido);
 
@@ -198,6 +208,21 @@ export const PedidosFormato2: React.FC = () => {
         <div className={`${cartao} border-yellow-300 bg-yellow-50/60`}><span className="text-[10.5px] font-extrabold uppercase tracking-wide text-yellow-800">Lucro a transferir</span><strong className="mt-1 block text-2xl font-black text-neutral-900">{brl(somar(aTransferir, 'lucro'))}</strong><small className="text-[11px] text-neutral-500">{plural(aTransferir.length, 'pedido pendente', 'pedidos pendentes')}</small></div>
       </section>
 
+      <section className={cartao} aria-label="Custo de produção por material">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="text-sm font-extrabold text-neutral-900">Custo de produção detalhado ({pct(PERCENTUAL_CUSTO_PRODUCAO)} do valor pago)</h2>
+          <span className="text-[11px] text-neutral-400">total {brl(somar(lista, 'custoProducao'))} · dividido pela composição da matéria-prima</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+          {composicaoDaLista.map((m) => (
+            <div key={m.nome} className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
+              <span className="flex items-baseline justify-between gap-1 text-[10.5px] font-extrabold uppercase tracking-wide text-neutral-500">{m.nome}<b className="text-neutral-400">{pctMaterial(m.pct)}</b></span>
+              <strong className="mt-0.5 block text-base font-black tabular-nums text-neutral-900">{brl(m.valor)}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm" aria-label="Pedidos">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label className="relative block min-w-[240px] max-w-sm flex-1">
@@ -205,6 +230,7 @@ export const PedidosFormato2: React.FC = () => {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" aria-hidden="true" />
             <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pedido, cliente, vendedor ou loja" className="h-9 w-full rounded-[10px] border border-neutral-200 bg-white pl-9 pr-3 text-xs text-neutral-800 outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-300/40" />
           </label>
+          <button type="button" disabled={lista.length === 0} onClick={() => setAbertos(todosAbertos ? new Set() : new Set(lista.map((p) => p.id)))} aria-pressed={todosAbertos} className={`${chip(todosAbertos)} disabled:opacity-50`}>{todosAbertos ? 'Recolher o custo detalhado' : 'Detalhar o custo de todos'}</button>
           <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-neutral-400">
             {plural(lista.length, 'pedido', 'pedidos')} · a receber {brl(somaAReceber)}
             {dados && <span title="Hora da última leitura do Nomus">· Nomus às {hora(dados.atualizadoEm)}</span>}
@@ -243,8 +269,10 @@ export const PedidosFormato2: React.FC = () => {
               <tbody>
                 {lista.map((p) => {
                   const s = selo(p);
+                  const aberto = abertos.has(p.id) && p.pago !== null;
                   return (
-                    <tr key={p.id} className="hover:bg-yellow-50/50">
+                    <React.Fragment key={p.id}>
+                    <tr className="hover:bg-yellow-50/50">
                       <td className={celula}>
                         <b className="text-neutral-900">{p.codigo}</b>
                         {p.contrato && <span className="ml-1.5 rounded bg-yellow-200 px-1.5 py-px align-middle text-[9.5px] font-extrabold text-neutral-900">CONTRATO</span>}
@@ -253,7 +281,13 @@ export const PedidosFormato2: React.FC = () => {
                       <td className={celula}>{p.cliente}</td>
                       <td className={celula}>{p.vendedor}<span className="block text-[11px] text-neutral-400">{p.loja}</span></td>
                       <td className={`${celula} text-right tabular-nums`}><b className="text-neutral-900">{brl(p.valorTotal)}</b></td>
-                      <td className={`${celula} text-right tabular-nums text-slate-700`}>{p.pago === null ? <span className="text-slate-300">…</span> : brl(p.custoProducao)}</td>
+                      <td className={`${celula} text-right tabular-nums text-slate-700`}>
+                        {p.pago === null ? <span className="text-slate-300">…</span> : (
+                          <button type="button" onClick={() => alternarAberto(p.id)} aria-expanded={aberto} aria-label={`Detalhar o custo de produção de ${p.codigo}`} className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 hover:bg-yellow-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400">
+                            {aberto ? <ChevronDown className="h-3 w-3" aria-hidden="true" /> : <ChevronRight className="h-3 w-3" aria-hidden="true" />}{brl(p.custoProducao)}
+                          </button>
+                        )}
+                      </td>
                       <td className={`${celula} text-right tabular-nums font-bold ${p.lucroTransferido ? 'text-emerald-700' : 'text-neutral-900'}`}>{p.pago === null ? <span className="text-slate-300">…</span> : brl(p.lucro)}</td>
                       <td className={`${celula} text-right tabular-nums`}>
                         {p.pago === null ? <span className="text-slate-300">…</span> : <>{brl(p.pago)}<span className="block text-[11px] text-neutral-400">{p.percentualPago !== null ? pct(p.percentualPago) : ''}</span><span className="block text-[11px] text-neutral-400">a receber {p.aReceber === null ? '…' : brl(p.aReceber)}</span></>}
@@ -281,16 +315,27 @@ export const PedidosFormato2: React.FC = () => {
                         {p.lucroTransferido && <span className="block text-[10.5px] text-neutral-400" title={`Confirmado por ${p.lucroTransferido.por} em ${dataHora(p.lucroTransferido.em)} (${brl(p.lucroTransferido.valor)})`}>{p.lucroTransferido.por} · {dataHora(p.lucroTransferido.em)}</span>}
                       </td>
                     </tr>
+                    {aberto && (
+                      <tr className="bg-neutral-50/70">
+                        <td colSpan={10} className="border-b border-neutral-100 px-3 py-2">
+                          <span className="mb-1 block text-[10.5px] font-extrabold uppercase tracking-wide text-neutral-500">{p.codigo} · custo de produção {brl(p.custoProducao)} por material</span>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4 xl:grid-cols-8">
+                            {dividirCustoProducao(p.custoProducao).map((m) => <span key={m.nome} className="flex items-baseline justify-between gap-2 tabular-nums"><span className="text-neutral-500">{m.nome} <small className="text-neutral-400">{pctMaterial(m.pct)}</small></span><b className="text-neutral-900">{brl(m.valor)}</b></span>)}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
                 {lista.length === 0 && (
-                  <tr><td colSpan={11} className="px-3 py-10 text-center text-xs text-neutral-400">{todos.length === 0 ? (lendo ? 'Ainda lendo os pedidos…' : 'Nenhum pedido liberado.') : 'Nenhum pedido com esse filtro.'}</td></tr>
+                  <tr><td colSpan={10} className="px-3 py-10 text-center text-xs text-neutral-400">{todos.length === 0 ? (lendo ? 'Ainda lendo os pedidos…' : 'Nenhum pedido liberado.') : 'Nenhum pedido com esse filtro.'}</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         )}
-        <p className="mt-2 text-[11px] leading-snug text-neutral-400">Pedido de contrato é o que tem a palavra “contrato” na observação no Nomus (vale qualquer que seja o pagamento). O percentual pago é calculado aqui: pago ÷ valor total do pedido. O valor pago do pedido é dividido em {pct(PERCENTUAL_CUSTO_PRODUCAO)} de custo de produção e {pct(PERCENTUAL_LUCRO)} de lucro (custo + lucro = valor pago, e muda se entrar novo pagamento); o lucro precisa ser transferido, e a confirmação de cada pedido é marcada à mão na última coluna (fica registrado quem confirmou e quando). Os indicadores acompanham a lista filtrada. Dias úteis: segunda a sexta, sem feriados nacionais, Carnaval e Sexta-feira Santa; o atraso e o que falta para o prazo também são contados em dias úteis. A lista se atualiza sozinha: pedidos entregues ou cancelados saem em alguns minutos.</p>
+        <p className="mt-2 text-[11px] leading-snug text-neutral-400">Pedido de contrato é o que tem a palavra “contrato” na observação no Nomus (vale qualquer que seja o pagamento). O percentual pago é calculado aqui: pago ÷ valor total do pedido. O valor pago do pedido é dividido em {pct(PERCENTUAL_CUSTO_PRODUCAO)} de custo de produção e {pct(PERCENTUAL_LUCRO)} de lucro (custo + lucro = valor pago, e muda se entrar novo pagamento); o lucro precisa ser transferido, o custo de produção é aberto por material (Bobina 61, EPS 17, Forro metálico 11, Tinta 5, Translúcida 2, Aço 1, Cola 1 e Consigás 1: a soma informada é 99, então as fatias são proporcionais, como no Relatório Detalhado do Financeiro, e fecham com o custo) nos cartões acima e, por pedido, clicando no valor do custo; a confirmação de cada pedido é marcada à mão na última coluna (fica registrado quem confirmou e quando). Os indicadores acompanham a lista filtrada. Dias úteis: segunda a sexta, sem feriados nacionais, Carnaval e Sexta-feira Santa; o atraso e o que falta para o prazo também são contados em dias úteis. A lista se atualiza sozinha: pedidos entregues ou cancelados saem em alguns minutos.</p>
       </section>
     </div>
   );

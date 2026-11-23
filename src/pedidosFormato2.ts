@@ -8,6 +8,7 @@
 // O status (atrasado / dentro do prazo) é contado em dias úteis.
 // Sem dependências de servidor/navegador.
 
+import { COMPOSICAO_MATERIA_PRIMA } from './data/composicaoMateriaPrima';
 import { diasUteisEntre, somarDiasUteis } from './data/diasUteis';
 
 /** Divisão do valor PAGO do pedido: 70% é o custo de produção e 30% é o lucro (que precisa ser transferido). */
@@ -18,6 +19,30 @@ export const PERCENTUAL_LUCRO = 0.3;
 export function dividirValorDoPedido(valorPago: number): { custoProducao: number; lucro: number } {
   const lucro = Math.round(valorPago * PERCENTUAL_LUCRO * 100) / 100;
   return { custoProducao: Math.round((valorPago - lucro) * 100) / 100, lucro };
+}
+
+export interface ParteDoCusto { nome: string; pct: number; valor: number }
+
+/**
+ * Divide o custo de produção do pedido nos materiais da composição fixa da GFERRO (Bobina 61%, EPS 17%, ...; a mesma do Relatório
+ * Detalhado do Financeiro). A composição informada soma 99%: como no Relatório Detalhado, as fatias são proporcionais (cada uma
+ * dividida pela soma), então o total sempre fecha com o custo e `pct` é a fatia real, já proporcional. Em centavos exatos: cada parte é arredondada para baixo e os centavos que sobram vão, um a um, para
+ * as partes de maior resto — a soma das partes sempre é igual ao custo.
+ */
+export function dividirCustoProducao(custoProducao: number): ParteDoCusto[] {
+  const centavos = Math.round(custoProducao * 100);
+  const somaPct = COMPOSICAO_MATERIA_PRIMA.reduce((t, item) => t + item.pct, 0);
+  const partes = COMPOSICAO_MATERIA_PRIMA.map((item, indice) => {
+    const exato = (centavos * item.pct) / somaPct;
+    return { indice, nome: item.nome, pct: (item.pct / somaPct) * 100, centavos: Math.floor(exato), resto: exato - Math.floor(exato) };
+  });
+  let sobra = centavos - partes.reduce((t, p) => t + p.centavos, 0);
+  for (const p of [...partes].sort((a, b) => b.resto - a.resto || a.indice - b.indice)) {
+    if (sobra <= 0) break;
+    p.centavos += 1;
+    sobra -= 1;
+  }
+  return partes.map((p) => ({ nome: p.nome, pct: p.pct, valor: p.centavos / 100 }));
 }
 
 /** Data de corte: só entram pedidos emitidos nesta data ou depois (pedidos antigos não entram). */
