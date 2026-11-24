@@ -25,6 +25,7 @@ import * as lojasFotos from './lojasFotos';
 import { LOJAS, lojaDoVendedor, type LojaId } from './src/data/vendedorLoja';
 import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
+import { PREFIXO_PEDIDOS_PCP, proxyPedidosPcp } from './pedidosPcpProxy';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinirSenhaUsuario, removerUsuario } from './usuarios';
 import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoContaNomus, montarLinhasPeriodo, montarLinhasProgramacao, removerContaProgramacao, validarPeriodo } from './programacaoContas';
 import { montarLinhasPedidosLoja, type RespostaPedidosLoja } from './src/pedidosLoja';
@@ -280,6 +281,8 @@ async function startServer() {
     }
   });
   app.use('/api', exigirPermissaoDeModulo);
+  // Dashboard > Pedidos > Pedidos em aberto (PCP): tela do projeto nomus-local, repassada já autenticada (ver pedidosPcpProxy.ts).
+  app.use(PREFIXO_PEDIDOS_PCP, proxyPedidosPcp);
   app.use('/api/qualidade', criarRotasQualidade());
 
   const autorChamado = async (req: express.Request) => {

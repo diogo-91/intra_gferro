@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   // "Programação" e "Saídas" são telas do Financeiro: usam a permissão desse módulo.
   // "Pedidos problemáticos" é uma tela do Dashboard de Pedidos: usa a permissão desse módulo.
-  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' || id === 'saidas' || id === 'financeiro-eps' || id === 'financeiro-comissoes' ? 'financeiro' : id === 'pedidos-problematicos' || id === 'pedidos-combinados' || id === 'pedidos-formato-2' ? 'dashboard-pedidos' : id) as ModuloId);
+  const permitido = (id: TabType) => administrador || modulos.includes((id === 'programacao' || id === 'saidas' || id === 'financeiro-eps' || id === 'financeiro-comissoes' ? 'financeiro' : id === 'pedidos-problematicos' || id === 'pedidos-combinados' || id === 'pedidos-formato-2' || id === 'pedidos-em-aberto-pcp' ? 'dashboard-pedidos' : id) as ModuloId);
   const navItems: NavEntry[] = [
     { id: 'informativos', label: 'Informativos Internos', icon: Megaphone },
     { id: 'comunicados', label: 'Comunicados & Feed', icon: Newspaper },
@@ -94,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       children: [
         { id: 'vendas', label: 'Vendas', icon: TrendingUp },
-        { id: 'dashboard-pedidos', label: 'Pedidos', icon: PackageSearch, subitens: [{ id: 'pedidos-problematicos', label: 'Pedidos problemáticos', icon: AlertTriangle }, { id: 'pedidos-combinados', label: 'Pedidos combinados', icon: Handshake }, { id: 'pedidos-formato-2', label: 'Pedidos Formato 2', icon: ListChecks }] },
+        { id: 'dashboard-pedidos', label: 'Pedidos', icon: PackageSearch, subitens: [{ id: 'pedidos-problematicos', label: 'Pedidos problemáticos', icon: AlertTriangle }, { id: 'pedidos-combinados', label: 'Pedidos combinados', icon: Handshake }, { id: 'pedidos-formato-2', label: 'Pedidos Formato 2', icon: ListChecks }, { id: 'pedidos-em-aberto-pcp', label: 'Pedidos em aberto (PCP)', icon: ClipboardList }] },
         { id: 'dashboard-entregas', label: 'Entregas', icon: Truck },
         { id: 'dashboard-mapa', label: 'Mapa', icon: MapIcon },
         { id: 'financeiro', label: 'Financeiro', icon: Wallet, subitens: [{ id: 'programacao', label: 'Programação', icon: ClipboardList }, { id: 'saidas', label: 'Saídas', icon: BarChart3 }, { id: 'financeiro-eps', label: 'Placas de EPS', icon: Boxes }, { id: 'financeiro-comissoes', label: 'Comissões', icon: HandCoins }] },

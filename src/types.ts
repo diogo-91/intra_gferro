@@ -10,6 +10,7 @@ export type TabType =
   | 'pedidos-problematicos'
   | 'pedidos-combinados'
   | 'pedidos-formato-2'
+  | 'pedidos-em-aberto-pcp'
   | 'dashboard-entregas'
   | 'dashboard-mapa'
   | 'producao'
