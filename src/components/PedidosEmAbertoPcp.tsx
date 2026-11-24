@@ -10,7 +10,7 @@ export const PedidosEmAbertoPcp: React.FC = () => {
   const [versao, setVersao] = useState(0);
 
   return (
-    <div className="flex h-[calc(100dvh-5.5rem)] min-h-[520px] flex-col gap-3 sm:h-[calc(100dvh-8rem)] lg:h-[calc(100dvh-9rem)]">
+    <div className="flex h-[calc(100dvh-5.5rem)] min-h-[420px] flex-col gap-2 sm:h-[calc(100dvh-7rem)] lg:h-[calc(100dvh-8rem)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-gradient-to-br from-yellow-200 to-yellow-100 shadow-md shadow-yellow-400/20">
@@ -19,9 +19,6 @@ export const PedidosEmAbertoPcp: React.FC = () => {
           <div>
             <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-500">Dashboard › Pedidos › <b className="text-neutral-900">Em aberto (PCP)</b></span>
             <h1 className="text-[22px] font-black leading-tight tracking-tight text-neutral-900">Pedidos em aberto (PCP)</h1>
-            <p className="mt-1 max-w-3xl text-xs leading-snug text-neutral-500">
-              Carteira de pedidos liberados no Nomus, com financeiro, material, rota, fila de aguardando liberação e assistente de IA. Os dados se atualizam de hora em hora.
-            </p>
           </div>
         </div>
         <div className="flex gap-2">
