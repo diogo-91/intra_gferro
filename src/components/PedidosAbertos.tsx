@@ -219,7 +219,7 @@ const PedidosAbertosConteudo: React.FC = () => {
             Pedidos liberados
           </h1>
           <p className="text-neutral-500 text-sm mt-1">
-            Somente pedidos com status Liberado no Nomus. O atraso conta pelo prazo combinado no PCP (ou o do Nomus, quando o PCP não tem). Vence em breve = até {DIAS_ALERTA_PRAZO} dias.
+            Os mesmos pedidos de <b>Pedidos em aberto (PCP)</b>: status Liberado no Nomus, sem os encerrados (entregues ou cancelados). O atraso conta pelo prazo combinado no PCP (ou o do Nomus, quando o PCP não tem). Vence em breve = até {DIAS_ALERTA_PRAZO} dias.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -251,7 +251,20 @@ const PedidosAbertosConteudo: React.FC = () => {
           Dados do Nomus de {new Date(resposta.atualizadoEm).toLocaleString('pt-BR')}
           {resposta.atualizando ? ' · atualizando...' : ''}
           {resposta.financeiroPendente ? ' · lendo o financeiro de alguns pedidos...' : ''}
+          {resposta.emAbertoPcp?.aplicado && (resposta.emAbertoPcp.ocultosAntigos > 0 || resposta.emAbertoPcp.ocultosEncerrados > 0)
+            ? ` · fora da lista: ${[
+              resposta.emAbertoPcp.ocultosAntigos > 0 ? `${resposta.emAbertoPcp.ocultosAntigos} anteriores ao nº ${resposta.emAbertoPcp.pedidoMinimo}` : '',
+              resposta.emAbertoPcp.ocultosEncerrados > 0 ? `${resposta.emAbertoPcp.ocultosEncerrados} encerrados` : '',
+            ].filter(Boolean).join(' e ')}`
+            : ''}
         </p>
+      )}
+
+      {resposta?.emAbertoPcp?.aplicado === false && !resposta.carregando && (
+        <div role="status" className="flex gap-2 p-3 rounded-xl bg-orange-50 border border-orange-200 text-xs text-orange-900 -mt-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+          Não foi possível consultar Pedidos em aberto (PCP). Mostrando todos os pedidos liberados, inclusive antigos e encerrados.
+        </div>
       )}
 
       {resposta?.historicoParcial && !resposta.carregando && (

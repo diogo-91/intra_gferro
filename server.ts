@@ -26,6 +26,8 @@ import { LOJAS, lojaDoVendedor, type LojaId } from './src/data/vendedorLoja';
 import { submoduloLojaVendas } from './src/modulos';
 import { loginHandler, logoutHandler, meHandler, exigirAutenticacao, exigirAdministrador, exigirPermissaoDeModulo, listarEmailsAdministradores, obterSessao } from './auth';
 import { PREFIXO_PEDIDOS_PCP, proxyPedidosPcp } from './pedidosPcpProxy';
+import { filtroDosPedidosEmAberto } from './pedidosEmAbertoFiltro';
+import { numeroDoCodigoPedido } from './nomus';
 import { atualizarPermissoesUsuario, cadastrarUsuario, listarUsuarios, redefinirSenhaUsuario, removerUsuario } from './usuarios';
 import { atualizarContaProgramacao, criarContaProgramacao, definirAutorizacaoContaNomus, montarLinhasPeriodo, montarLinhasProgramacao, removerContaProgramacao, validarPeriodo } from './programacaoContas';
 import { montarLinhasPedidosLoja, type RespostaPedidosLoja } from './src/pedidosLoja';
@@ -872,7 +874,19 @@ Contexto da GFERRO:
   // com o último estado guardado (a leitura do Nomus roda em segundo plano).
   app.get('/api/dashboard/pedidos', async (req, res) => {
     try {
-      res.json(await montarRespostaPedidosAbertos(req.query.atualizar === '1'));
+      // Os mesmos pedidos de "Pedidos em aberto (PCP)": fora os anteriores ao número mínimo e os encerrados lá.
+      const [resposta, filtro] = await Promise.all([montarRespostaPedidosAbertos(req.query.atualizar === '1'), filtroDosPedidosEmAberto()]);
+      if (!filtro) return res.json({ ...resposta, emAbertoPcp: { aplicado: false } });
+      let ocultosAntigos = 0;
+      let ocultosEncerrados = 0;
+      const pedidos = resposta.pedidos.filter((pedido) => {
+        const numero = numeroDoCodigoPedido(pedido.codigo);
+        if (numero === null) return true;
+        if (numero < filtro.pedidoMinimo) { ocultosAntigos++; return false; }
+        if (filtro.encerrados.has(numero)) { ocultosEncerrados++; return false; }
+        return true;
+      });
+      res.json({ ...resposta, pedidos, emAbertoPcp: { aplicado: true, pedidoMinimo: filtro.pedidoMinimo, ocultosAntigos, ocultosEncerrados } });
     } catch (error: any) {
       console.error('Erro ao montar o dashboard de pedidos:', error);
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Erro ao buscar os pedidos em aberto.', details: error.message });

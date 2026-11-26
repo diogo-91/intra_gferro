@@ -47,6 +47,8 @@ export interface RespostaPedidosAbertos {
   historicoParcial?: boolean;
   /** A última tentativa de atualizar falhou: a lista é a da última leitura bem-sucedida. */
   erroAtualizacao?: string;
+  /** Alinhamento com "Pedidos em aberto (PCP)": quantos pedidos liberados ficaram de fora por cada regra de lá. */
+  emAbertoPcp?: { aplicado: true; pedidoMinimo: number; ocultosAntigos: number; ocultosEncerrados: number } | { aplicado: false };
   /** As observações dos pedidos ainda estão sendo lidas (primeira leitura completa depois desta novidade). */
   observacoesPendentes?: boolean;
   pedidos: PedidoAbertoLinha[];
